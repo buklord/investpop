@@ -66,7 +66,8 @@ export default function MarketsPage() {
 
   const loadData = async () => {
     try {
-      await fetch('/api/assets/seed', { method: 'POST' })
+      // Fire seed in background (don't block on it)
+      fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
       
       const [assetsRes, watchlistRes] = await Promise.all([
         fetch('/api/assets'),
