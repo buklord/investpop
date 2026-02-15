@@ -249,7 +249,7 @@ async function handleRoute(request, { params }) {
         const id = uuidv4()
         await prisma.$executeRaw`
           INSERT INTO assets (id, symbol, name, type, created_at)
-          VALUES (${id}, ${asset.symbol}, ${asset.name}, ${asset.type}::\"AssetType\", NOW())
+          VALUES (${id}::uuid, ${asset.symbol}, ${asset.name}, ${asset.type}::"AssetType", NOW())
           ON CONFLICT (symbol) DO NOTHING
         `
       }
