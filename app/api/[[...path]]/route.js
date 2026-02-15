@@ -273,7 +273,7 @@ async function handleRoute(request, { params }) {
         SELECT w.id, w.created_at, a.id as asset_id, a.symbol, a.name, a.type
         FROM watchlist_items w
         JOIN assets a ON w.asset_id = a.id
-        WHERE w.user_id = ${auth.user.userId}
+        WHERE w.user_id = ${auth.user.userId}::uuid
         ORDER BY w.created_at DESC
       `
 
