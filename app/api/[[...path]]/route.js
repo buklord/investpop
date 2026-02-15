@@ -257,8 +257,14 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ assets }))
     }
 
-    // POST /api/assets/seed - Seed default assets
+    // POST /api/assets/seed - Seed default assets (optimized with batch insert)
     if (route === '/assets/seed' && method === 'POST') {
+      // Check if assets already exist to skip seeding
+      const existingCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM assets`
+      if (parseInt(existingCount[0].count) >= 10) {
+        return handleCORS(NextResponse.json({ message: 'Assets already seeded', skipped: true }))
+      }
+
       const defaultAssets = [
         { symbol: 'AAPL', name: 'Apple Inc.', type: 'stock' },
         { symbol: 'TSLA', name: 'Tesla Inc.', type: 'stock' },
@@ -277,14 +283,13 @@ async function handleRoute(request, { params }) {
         { symbol: 'ADAUSD', name: 'Cardano', type: 'crypto' },
       ]
 
-      for (const asset of defaultAssets) {
-        const id = uuidv4()
-        await prisma.$executeRaw`
-          INSERT INTO assets (id, symbol, name, type, created_at)
-          VALUES (${id}::uuid, ${asset.symbol}, ${asset.name}, ${asset.type}::"AssetType", NOW())
-          ON CONFLICT (symbol) DO NOTHING
-        `
-      }
+      // Use batch insert with a single query for much better performance
+      const values = defaultAssets.map(a => `('${uuidv4()}', '${a.symbol}', '${a.name}', '${a.type}'::"AssetType", NOW())`).join(',')
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO assets (id, symbol, name, type, created_at)
+        VALUES ${values}
+        ON CONFLICT (symbol) DO NOTHING
+      `)
 
       return handleCORS(NextResponse.json({ message: 'Assets seeded successfully' }))
     }
