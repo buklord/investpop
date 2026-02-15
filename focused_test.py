@@ -9,7 +9,7 @@ import requests
 import json
 
 def test_core_features():
-    base_url = "https://invest-dash-47.preview.emergentagent.com"
+    base_url = "https://stock-sim-4.preview.emergentagent.com"
     session = requests.Session()
     
     # Login

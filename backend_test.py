@@ -605,7 +605,7 @@ def main():
     import os
     
     # Get base URL from environment or use default
-    base_url = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://invest-dash-47.preview.emergentagent.com')
+    base_url = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://stock-sim-4.preview.emergentagent.com')
     
     print(f"🎯 Testing Paper Trading Engine at: {base_url}")
     
