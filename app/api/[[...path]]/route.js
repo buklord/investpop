@@ -49,8 +49,8 @@ async function handleRoute(request, { params }) {
     // ============ ROOT ENDPOINT ============
     if ((route === '/' || route === '/root') && method === 'GET') {
       return handleCORS(NextResponse.json({ 
-        message: 'Investment Dashboard API',
-        version: '1.0.0'
+        message: 'PaperTrade API - Paper Trading Platform',
+        version: '2.0.0'
       }))
     }
 
@@ -89,6 +89,12 @@ async function handleRoute(request, { params }) {
       await prisma.$executeRaw`
         INSERT INTO users (id, email, password_hash, created_at, updated_at)
         VALUES (${userId}::uuid, ${email}, ${passwordHash}, NOW(), NOW())
+      `
+
+      // Create virtual account with $100,000 starting balance
+      await prisma.$executeRaw`
+        INSERT INTO virtual_accounts (user_id, balance)
+        VALUES (${userId}::uuid, 100000)
       `
 
       // Create session
@@ -140,6 +146,13 @@ async function handleRoute(request, { params }) {
           { status: 401 }
         ))
       }
+
+      // Ensure virtual account exists
+      await prisma.$executeRaw`
+        INSERT INTO virtual_accounts (user_id, balance)
+        VALUES (${user.id}::uuid, 100000)
+        ON CONFLICT (user_id) DO NOTHING
+      `
 
       // Create session
       const token = await createSession(user.id, user.email)
@@ -239,10 +252,14 @@ async function handleRoute(request, { params }) {
         { symbol: 'AMZN', name: 'Amazon.com Inc.', type: 'stock' },
         { symbol: 'NVDA', name: 'NVIDIA Corp.', type: 'stock' },
         { symbol: 'META', name: 'Meta Platforms Inc.', type: 'stock' },
+        { symbol: 'NFLX', name: 'Netflix Inc.', type: 'stock' },
+        { symbol: 'AMD', name: 'AMD Inc.', type: 'stock' },
         { symbol: 'BTCUSD', name: 'Bitcoin', type: 'crypto' },
         { symbol: 'ETHUSD', name: 'Ethereum', type: 'crypto' },
         { symbol: 'SOLUSD', name: 'Solana', type: 'crypto' },
         { symbol: 'XRPUSD', name: 'Ripple', type: 'crypto' },
+        { symbol: 'DOGEUSD', name: 'Dogecoin', type: 'crypto' },
+        { symbol: 'ADAUSD', name: 'Cardano', type: 'crypto' },
       ]
 
       for (const asset of defaultAssets) {
@@ -255,6 +272,373 @@ async function handleRoute(request, { params }) {
       }
 
       return handleCORS(NextResponse.json({ message: 'Assets seeded successfully' }))
+    }
+
+    // ============ TRADING ENDPOINTS ============
+
+    // POST /api/trade - Execute a trade
+    if (route === '/trade' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const body = await request.json()
+      const { symbol, type, action, quantity, takeProfit, stopLoss } = body
+
+      // Validate inputs
+      if (!symbol || !type || !action || !quantity) {
+        return handleCORS(NextResponse.json(
+          { error: 'symbol, type, action, and quantity are required' },
+          { status: 400 }
+        ))
+      }
+
+      if (!['BUY', 'SELL'].includes(action)) {
+        return handleCORS(NextResponse.json(
+          { error: 'action must be BUY or SELL' },
+          { status: 400 }
+        ))
+      }
+
+      if (quantity <= 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'quantity must be positive' },
+          { status: 400 }
+        ))
+      }
+
+      // Get asset
+      const assets = await prisma.$queryRaw`
+        SELECT id, symbol, name, type FROM assets WHERE symbol = ${symbol.toUpperCase()}
+      `
+      
+      if (assets.length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Asset not found' },
+          { status: 404 }
+        ))
+      }
+      const asset = assets[0]
+
+      // Get current price from quote service (SERVER-SIDE)
+      const provider = getMarketDataProvider()
+      let quote
+      try {
+        quote = await provider.getQuote(symbol.toUpperCase(), type)
+      } catch (err) {
+        return handleCORS(NextResponse.json(
+          { error: 'Failed to fetch current price' },
+          { status: 500 }
+        ))
+      }
+      const currentPrice = quote.price
+
+      // Get virtual account
+      const accounts = await prisma.$queryRaw`
+        SELECT id, balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+      `
+      
+      if (accounts.length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Virtual account not found' },
+          { status: 404 }
+        ))
+      }
+      const account = accounts[0]
+      const totalValue = currentPrice * quantity
+
+      if (action === 'BUY') {
+        // Check balance
+        if (account.balance < totalValue) {
+          return handleCORS(NextResponse.json(
+            { error: `Insufficient balance. Required: $${totalValue.toFixed(2)}, Available: $${account.balance.toFixed(2)}` },
+            { status: 400 }
+          ))
+        }
+
+        // Check for existing open position
+        const existingPositions = await prisma.$queryRaw`
+          SELECT id, quantity, entry_price FROM trading_positions 
+          WHERE user_id = ${auth.user.userId}::uuid 
+          AND asset_id = ${asset.id}::uuid 
+          AND status = 'OPEN'
+        `
+
+        let positionId
+        let newEntryPrice = currentPrice
+        let newQuantity = quantity
+
+        if (existingPositions.length > 0) {
+          // Average into existing position
+          const existing = existingPositions[0]
+          const totalQty = existing.quantity + quantity
+          newEntryPrice = ((existing.entry_price * existing.quantity) + (currentPrice * quantity)) / totalQty
+          newQuantity = totalQty
+          positionId = existing.id
+
+          // Update position
+          await prisma.$executeRaw`
+            UPDATE trading_positions 
+            SET quantity = ${newQuantity}, entry_price = ${newEntryPrice}, 
+                take_profit = ${takeProfit || null}, stop_loss = ${stopLoss || null}
+            WHERE id = ${positionId}::uuid
+          `
+        } else {
+          // Create new position
+          positionId = uuidv4()
+          await prisma.$executeRaw`
+            INSERT INTO trading_positions (id, user_id, asset_id, side, quantity, entry_price, take_profit, stop_loss, status)
+            VALUES (${positionId}::uuid, ${auth.user.userId}::uuid, ${asset.id}::uuid, 'LONG', ${quantity}, ${currentPrice}, ${takeProfit || null}, ${stopLoss || null}, 'OPEN')
+          `
+        }
+
+        // Record trade
+        const tradeId = uuidv4()
+        await prisma.$executeRaw`
+          INSERT INTO trades (id, user_id, asset_id, position_id, side, quantity, price, total_value)
+          VALUES (${tradeId}::uuid, ${auth.user.userId}::uuid, ${asset.id}::uuid, ${positionId}::uuid, 'BUY', ${quantity}, ${currentPrice}, ${totalValue})
+        `
+
+        // Deduct from balance
+        await prisma.$executeRaw`
+          UPDATE virtual_accounts SET balance = balance - ${totalValue}, updated_at = NOW()
+          WHERE user_id = ${auth.user.userId}::uuid
+        `
+
+        return handleCORS(NextResponse.json({
+          message: 'Buy order executed',
+          trade: {
+            id: tradeId,
+            symbol: asset.symbol,
+            action: 'BUY',
+            quantity,
+            price: currentPrice,
+            totalValue,
+            positionId
+          }
+        }))
+      } else {
+        // SELL - Close or reduce position
+        const positions = await prisma.$queryRaw`
+          SELECT id, quantity, entry_price FROM trading_positions 
+          WHERE user_id = ${auth.user.userId}::uuid 
+          AND asset_id = ${asset.id}::uuid 
+          AND status = 'OPEN'
+        `
+
+        if (positions.length === 0) {
+          return handleCORS(NextResponse.json(
+            { error: 'No open position to sell' },
+            { status: 400 }
+          ))
+        }
+
+        const position = positions[0]
+        
+        if (quantity > position.quantity) {
+          return handleCORS(NextResponse.json(
+            { error: `Cannot sell more than owned. You have ${position.quantity} units.` },
+            { status: 400 }
+          ))
+        }
+
+        // Calculate realized P&L
+        const realizedPnl = (currentPrice - position.entry_price) * quantity
+
+        // Record trade
+        const tradeId = uuidv4()
+        await prisma.$executeRaw`
+          INSERT INTO trades (id, user_id, asset_id, position_id, side, quantity, price, total_value)
+          VALUES (${tradeId}::uuid, ${auth.user.userId}::uuid, ${asset.id}::uuid, ${position.id}::uuid, 'SELL', ${quantity}, ${currentPrice}, ${totalValue})
+        `
+
+        // Add proceeds to balance
+        await prisma.$executeRaw`
+          UPDATE virtual_accounts SET balance = balance + ${totalValue}, updated_at = NOW()
+          WHERE user_id = ${auth.user.userId}::uuid
+        `
+
+        if (quantity >= position.quantity) {
+          // Close position entirely
+          await prisma.$executeRaw`
+            UPDATE trading_positions 
+            SET quantity = 0, status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
+            WHERE id = ${position.id}::uuid
+          `
+        } else {
+          // Partial close - reduce quantity
+          const newQty = position.quantity - quantity
+          await prisma.$executeRaw`
+            UPDATE trading_positions SET quantity = ${newQty}
+            WHERE id = ${position.id}::uuid
+          `
+        }
+
+        return handleCORS(NextResponse.json({
+          message: 'Sell order executed',
+          trade: {
+            id: tradeId,
+            symbol: asset.symbol,
+            action: 'SELL',
+            quantity,
+            price: currentPrice,
+            totalValue,
+            realizedPnl,
+            positionId: position.id
+          }
+        }))
+      }
+    }
+
+    // GET /api/account - Get account summary
+    if (route === '/account' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      // Get virtual account
+      const accounts = await prisma.$queryRaw`
+        SELECT balance, base_currency, created_at FROM virtual_accounts 
+        WHERE user_id = ${auth.user.userId}::uuid
+      `
+      
+      if (accounts.length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'Virtual account not found' },
+          { status: 404 }
+        ))
+      }
+      const account = accounts[0]
+
+      // Get open positions with asset info
+      const positions = await prisma.$queryRaw`
+        SELECT p.id, p.quantity, p.entry_price, a.symbol, a.type
+        FROM trading_positions p
+        JOIN assets a ON p.asset_id = a.id
+        WHERE p.user_id = ${auth.user.userId}::uuid AND p.status = 'OPEN'
+      `
+
+      // Calculate unrealized P&L
+      let openPnl = 0
+      let positionsValue = 0
+      const provider = getMarketDataProvider()
+      
+      for (const pos of positions) {
+        try {
+          const quote = await provider.getQuote(pos.symbol, pos.type)
+          const currentValue = quote.price * pos.quantity
+          const costBasis = pos.entry_price * pos.quantity
+          openPnl += currentValue - costBasis
+          positionsValue += currentValue
+        } catch (err) {
+          // Use entry price if quote fails
+          positionsValue += pos.entry_price * pos.quantity
+        }
+      }
+
+      // Get realized P&L from closed positions
+      const closedPositions = await prisma.$queryRaw`
+        SELECT COALESCE(SUM(realized_pnl), 0) as total_realized
+        FROM trading_positions 
+        WHERE user_id = ${auth.user.userId}::uuid AND status = 'CLOSED'
+      `
+      const realizedPnl = closedPositions[0]?.total_realized || 0
+
+      const equity = account.balance + positionsValue
+
+      return handleCORS(NextResponse.json({
+        balance: account.balance,
+        equity,
+        positionsValue,
+        openPnl,
+        realizedPnl,
+        currency: account.base_currency,
+        createdAt: account.created_at
+      }))
+    }
+
+    // GET /api/positions - Get positions
+    if (route === '/positions' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const status = searchParams.get('status') || 'all'
+      const symbol = searchParams.get('symbol')
+
+      let positions
+      if (status === 'open') {
+        if (symbol) {
+          positions = await prisma.$queryRaw`
+            SELECT p.*, a.symbol, a.name, a.type
+            FROM trading_positions p
+            JOIN assets a ON p.asset_id = a.id
+            WHERE p.user_id = ${auth.user.userId}::uuid AND p.status = 'OPEN' AND a.symbol = ${symbol}
+            ORDER BY p.opened_at DESC
+          `
+        } else {
+          positions = await prisma.$queryRaw`
+            SELECT p.*, a.symbol, a.name, a.type
+            FROM trading_positions p
+            JOIN assets a ON p.asset_id = a.id
+            WHERE p.user_id = ${auth.user.userId}::uuid AND p.status = 'OPEN'
+            ORDER BY p.opened_at DESC
+          `
+        }
+      } else if (status === 'closed') {
+        positions = await prisma.$queryRaw`
+          SELECT p.*, a.symbol, a.name, a.type
+          FROM trading_positions p
+          JOIN assets a ON p.asset_id = a.id
+          WHERE p.user_id = ${auth.user.userId}::uuid AND p.status = 'CLOSED'
+          ORDER BY p.closed_at DESC
+        `
+      } else {
+        positions = await prisma.$queryRaw`
+          SELECT p.*, a.symbol, a.name, a.type
+          FROM trading_positions p
+          JOIN assets a ON p.asset_id = a.id
+          WHERE p.user_id = ${auth.user.userId}::uuid
+          ORDER BY p.opened_at DESC
+        `
+      }
+
+      return handleCORS(NextResponse.json({ positions }))
+    }
+
+    // GET /api/trades - Get trade history
+    if (route === '/trades' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const trades = await prisma.$queryRaw`
+        SELECT t.*, a.symbol, a.name, a.type
+        FROM trades t
+        JOIN assets a ON t.asset_id = a.id
+        WHERE t.user_id = ${auth.user.userId}::uuid
+        ORDER BY t.executed_at DESC
+        LIMIT 100
+      `
+
+      return handleCORS(NextResponse.json({ trades }))
     }
 
     // ============ WATCHLIST ENDPOINTS ============
@@ -355,7 +739,7 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: 'Removed from watchlist' }))
     }
 
-    // ============ PORTFOLIO ENDPOINTS ============
+    // ============ PORTFOLIO ENDPOINTS (Legacy) ============
     
     // GET /api/portfolio - Get user's portfolio
     if (route === '/portfolio' && method === 'GET') {
@@ -448,7 +832,6 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Build update query dynamically
       if (quantity !== undefined) {
         await prisma.$executeRaw`
           UPDATE portfolio_positions 
