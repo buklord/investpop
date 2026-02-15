@@ -1,0 +1,74 @@
+// Prisma schema for Investment Dashboard
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Users table for authentication
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  watchlistItems     WatchlistItem[]
+  portfolioPositions PortfolioPosition[]
+
+  @@map("users")
+}
+
+// Assets table for stocks and crypto
+enum AssetType {
+  crypto
+  stock
+}
+
+model Asset {
+  id        String    @id @default(uuid())
+  symbol    String    @unique
+  name      String
+  type      AssetType
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  watchlistItems     WatchlistItem[]
+  portfolioPositions PortfolioPosition[]
+
+  @@map("assets")
+}
+
+// Watchlist items - user's watched assets
+model WatchlistItem {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  assetId   String   @map("asset_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetId])
+  @@map("watchlist_items")
+}
+
+// Portfolio positions - user's holdings
+model PortfolioPosition {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  assetId    String   @map("asset_id")
+  quantity   Float
+  entryPrice Float    @map("entry_price")
+  entryDate  DateTime @map("entry_date")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("portfolio_positions")
+}
