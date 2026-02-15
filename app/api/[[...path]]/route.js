@@ -88,7 +88,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         INSERT INTO users (id, email, password_hash, created_at, updated_at)
-        VALUES (${userId}, ${email}, ${passwordHash}, NOW(), NOW())
+        VALUES (${userId}::uuid, ${email}, ${passwordHash}, NOW(), NOW())
       `
 
       // Create session
