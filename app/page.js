@@ -156,9 +156,9 @@ export default function HomePage() {
             <Link href="#about" className="block text-slate-300 hover:text-white">About</Link>
             <div className="pt-4 border-t border-slate-800 space-y-2">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 onClick={() => { setAuthMode('login'); setShowAuthModal(true); setMobileMenuOpen(false); }}
-                className="w-full border-slate-700 text-white"
+                className="w-full text-white hover:bg-slate-800"
               >
                 Log In
               </Button>
