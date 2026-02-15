@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,8 @@ import {
   Activity,
   PieChart,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react'
 
 export default function MarketsPage() {
@@ -35,6 +36,7 @@ export default function MarketsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [quotesLoading, setQuotesLoading] = useState(true)
 
   useEffect(() => {
     checkAuth()
@@ -77,32 +79,46 @@ export default function MarketsPage() {
       setAssets(assetsData.assets || [])
       setWatchlist(watchlistData.watchlist || [])
       
-      // Fetch quotes for all assets
-      fetchQuotesForAssets(assetsData.assets || [])
+      // Fetch quotes in parallel batches for speed
+      fetchQuotesParallel(assetsData.assets || [])
     } catch (err) {
       console.error('Failed to load data:', err)
     }
   }
 
-  const fetchQuotesForAssets = async (assetList) => {
+  // Fetch quotes in parallel for much faster loading
+  const fetchQuotesParallel = async (assetList) => {
+    setQuotesLoading(true)
     const newQuotes = {}
-    for (const asset of assetList) {
+    
+    // Fetch all quotes in parallel
+    const promises = assetList.map(async (asset) => {
       try {
         const res = await fetch(`/api/quote?symbol=${asset.symbol}&type=${asset.type}`)
         if (res.ok) {
           const data = await res.json()
-          newQuotes[asset.symbol] = data
+          return { symbol: asset.symbol, data }
         }
       } catch (err) {
         console.error(`Failed to fetch quote for ${asset.symbol}:`, err)
       }
-    }
+      return null
+    })
+
+    const results = await Promise.all(promises)
+    results.forEach(result => {
+      if (result) {
+        newQuotes[result.symbol] = result.data
+      }
+    })
+    
     setQuotes(newQuotes)
+    setQuotesLoading(false)
   }
 
   const refreshQuotes = async () => {
     setRefreshing(true)
-    await fetchQuotesForAssets(assets)
+    await fetchQuotesParallel(assets)
     setRefreshing(false)
   }
 
@@ -137,43 +153,53 @@ export default function MarketsPage() {
   }
 
   const formatCurrency = (value) => {
+    if (!value && value !== 0) return '—'
     if (value >= 1) {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 2
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       }).format(value)
     }
-    return `$${value.toFixed(6)}`
+    return `$${value.toFixed(4)}`
   }
 
   const formatPercent = (value) => {
+    if (!value && value !== 0) return '—'
     const prefix = value >= 0 ? '+' : ''
     return `${prefix}${value.toFixed(2)}%`
   }
 
-  // Filter assets
-  const filteredAssets = assets.filter(asset => {
-    const matchesSearch = asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          asset.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesTab = activeTab === 'all' || 
-                       (activeTab === 'stocks' && asset.type === 'stock') ||
-                       (activeTab === 'crypto' && asset.type === 'crypto') ||
-                       (activeTab === 'watchlist' && watchlist.some(w => w.asset_id === asset.id))
-    return matchesSearch && matchesTab
-  })
+  // Filter and sort assets with memoization for performance
+  const filteredAssets = useMemo(() => {
+    return assets.filter(asset => {
+      const matchesSearch = asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            asset.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesTab = activeTab === 'all' || 
+                         (activeTab === 'stocks' && asset.type === 'stock') ||
+                         (activeTab === 'crypto' && asset.type === 'crypto') ||
+                         (activeTab === 'watchlist' && watchlist.some(w => w.asset_id === asset.id))
+      return matchesSearch && matchesTab
+    })
+  }, [assets, searchQuery, activeTab, watchlist])
 
-  // Sort by change percent for top movers
-  const topMovers = [...filteredAssets].sort((a, b) => {
-    const aChange = Math.abs(quotes[a.symbol]?.changePercent || 0)
-    const bChange = Math.abs(quotes[b.symbol]?.changePercent || 0)
-    return bChange - aChange
-  }).slice(0, 5)
+  // Top movers with memoization
+  const topMovers = useMemo(() => {
+    return [...filteredAssets]
+      .filter(a => quotes[a.symbol]?.changePercent !== undefined)
+      .sort((a, b) => {
+        const aChange = Math.abs(quotes[a.symbol]?.changePercent || 0)
+        const bChange = Math.abs(quotes[b.symbol]?.changePercent || 0)
+        return bChange - aChange
+      })
+      .slice(0, 5)
+  }, [filteredAssets, quotes])
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <div className="animate-pulse text-white text-xl">Loading...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
   }
@@ -194,7 +220,7 @@ export default function MarketsPage() {
             </button>
           </div>
           <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading (Simulation)
+            Paper Trading
           </div>
         </div>
         
@@ -241,10 +267,10 @@ export default function MarketsPage() {
     <div className="min-h-screen bg-[#0d1117] flex">
       <Sidebar />
       
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-4 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="text-white">
+        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-white p-1">
             <Menu className="h-6 w-6" />
           </button>
           <span className="font-bold text-white">Markets</span>
@@ -253,65 +279,75 @@ export default function MarketsPage() {
             size="sm"
             onClick={refreshQuotes}
             disabled={refreshing}
-            className="text-slate-400"
+            className="text-slate-400 p-1"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
         
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+        <div className="p-3 sm:p-4 lg:p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-white">Markets</h1>
-              <p className="text-slate-400">Browse and trade stocks & crypto</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">Markets</h1>
+              <p className="text-slate-400 text-sm">Browse and trade stocks & crypto</p>
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1 lg:w-80">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="relative flex-1 sm:w-64 lg:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                 <Input
-                  placeholder="Search assets..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-10"
                 />
               </div>
               <Button
                 variant="ghost"
                 onClick={refreshQuotes}
                 disabled={refreshing}
-                className="hidden lg:flex text-slate-400 hover:text-white"
+                className="hidden sm:flex text-slate-400 hover:text-white"
               >
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
 
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList className="bg-slate-800">
-              <TabsTrigger value="all" className="data-[state=active]:bg-emerald-600">All</TabsTrigger>
-              <TabsTrigger value="stocks" className="data-[state=active]:bg-emerald-600">Stocks</TabsTrigger>
-              <TabsTrigger value="crypto" className="data-[state=active]:bg-emerald-600">Crypto</TabsTrigger>
-              <TabsTrigger value="watchlist" className="data-[state=active]:bg-emerald-600">
-                <Star className="h-4 w-4 mr-1" />
-                Watchlist
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* Tabs - Scrollable on mobile */}
+          <div className="mb-4 sm:mb-6 -mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="bg-slate-800 inline-flex min-w-max">
+                <TabsTrigger value="all" className="data-[state=active]:bg-emerald-600 text-sm px-4">All</TabsTrigger>
+                <TabsTrigger value="stocks" className="data-[state=active]:bg-emerald-600 text-sm px-4">Stocks</TabsTrigger>
+                <TabsTrigger value="crypto" className="data-[state=active]:bg-emerald-600 text-sm px-4">Crypto</TabsTrigger>
+                <TabsTrigger value="watchlist" className="data-[state=active]:bg-emerald-600 text-sm px-4">
+                  <Star className="h-3.5 w-3.5 mr-1" />
+                  Watchlist
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-          {/* Top Movers */}
-          {activeTab === 'all' && topMovers.length > 0 && (
-            <Card className="bg-[#161b22] border-slate-800 mb-6">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+          {/* Loading State */}
+          {quotesLoading && Object.keys(quotes).length === 0 && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-500 mr-3" />
+              <span className="text-slate-400">Loading market data...</span>
+            </div>
+          )}
+
+          {/* Top Movers - Horizontal scroll on mobile */}
+          {!quotesLoading && activeTab === 'all' && topMovers.length > 0 && (
+            <Card className="bg-[#161b22] border-slate-800 mb-4 sm:mb-6">
+              <CardHeader className="py-3 sm:py-4">
+                <CardTitle className="text-white flex items-center gap-2 text-base sm:text-lg">
                   <TrendingUp className="h-5 w-5 text-emerald-500" />
                   Top Movers
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex gap-4 overflow-x-auto pb-2">
+              <CardContent className="pb-3 sm:pb-4">
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x">
                   {topMovers.map(asset => {
                     const quote = quotes[asset.symbol]
                     const isPositive = (quote?.changePercent || 0) >= 0
@@ -320,22 +356,22 @@ export default function MarketsPage() {
                       <Link
                         key={asset.id}
                         href={`/asset/${asset.symbol}?type=${asset.type}`}
-                        className="flex-shrink-0 w-40 p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                        className="flex-shrink-0 w-32 sm:w-40 p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors snap-start"
                       >
                         <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm ${
                             asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
                           }`}>
                             {asset.type === 'crypto' ? '₿' : asset.symbol.charAt(0)}
                           </div>
-                          <span className="font-medium text-white">{asset.symbol}</span>
+                          <span className="font-medium text-white text-sm">{asset.symbol}</span>
                         </div>
-                        <div className="text-lg font-bold text-white">
-                          {quote ? formatCurrency(quote.price) : '—'}
+                        <div className="text-base sm:text-lg font-bold text-white truncate">
+                          {formatCurrency(quote?.price)}
                         </div>
-                        <div className={`text-sm flex items-center gap-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+                        <div className={`text-xs sm:text-sm flex items-center gap-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
                           {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                          {formatPercent(quote?.changePercent || 0)}
+                          {formatPercent(quote?.changePercent)}
                         </div>
                       </Link>
                     )
@@ -345,10 +381,60 @@ export default function MarketsPage() {
             </Card>
           )}
 
-          {/* Assets Table */}
+          {/* Assets List - Card view on mobile, table on desktop */}
           <Card className="bg-[#161b22] border-slate-800">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              {/* Mobile Card View */}
+              <div className="block sm:hidden divide-y divide-slate-800">
+                {filteredAssets.map(asset => {
+                  const quote = quotes[asset.symbol]
+                  const isWatched = watchlist.some(w => w.asset_id === asset.id)
+                  const isPositive = (quote?.changePercent || 0) >= 0
+                  
+                  return (
+                    <div key={asset.id} className="p-3 flex items-center gap-3">
+                      <Link href={`/asset/${asset.symbol}?type=${asset.type}`} className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
+                        }`}>
+                          {asset.type === 'crypto' ? '₿' : asset.symbol.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-white">{asset.symbol}</div>
+                          <div className="text-xs text-slate-500 truncate">{asset.name}</div>
+                        </div>
+                      </Link>
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-medium text-white text-sm">
+                          {quotesLoading && !quote ? <Loader2 className="h-4 w-4 animate-spin inline" /> : formatCurrency(quote?.price)}
+                        </div>
+                        <div className={`text-xs flex items-center justify-end gap-0.5 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {formatPercent(quote?.changePercent)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.preventDefault(); toggleWatchlist(asset.id, isWatched); }}
+                          className={`p-1.5 ${isWatched ? 'text-yellow-500' : 'text-slate-500'}`}
+                        >
+                          {isWatched ? <Star className="h-4 w-4 fill-current" /> : <StarOff className="h-4 w-4" />}
+                        </Button>
+                        <Link href={`/asset/${asset.symbol}?type=${asset.type}`}>
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-3 text-xs">
+                            Trade
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="text-slate-500 text-sm border-b border-slate-800">
@@ -382,13 +468,13 @@ export default function MarketsPage() {
                           </td>
                           <td className="p-4 text-right">
                             <div className="font-medium text-white">
-                              {quote ? formatCurrency(quote.price) : '—'}
+                              {quotesLoading && !quote ? <Loader2 className="h-4 w-4 animate-spin inline" /> : formatCurrency(quote?.price)}
                             </div>
                           </td>
                           <td className="p-4 text-right">
                             <div className={`flex items-center justify-end gap-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
                               {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                              {formatPercent(quote?.changePercent || 0)}
+                              {formatPercent(quote?.changePercent)}
                             </div>
                           </td>
                           <td className="p-4 text-right">
@@ -420,14 +506,14 @@ export default function MarketsPage() {
                     })}
                   </tbody>
                 </table>
-                
-                {filteredAssets.length === 0 && (
-                  <div className="text-center py-12">
-                    <Search className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-500">No assets found</p>
-                  </div>
-                )}
               </div>
+              
+              {filteredAssets.length === 0 && !quotesLoading && (
+                <div className="text-center py-12">
+                  <Search className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                  <p className="text-slate-500">No assets found</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
