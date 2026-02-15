@@ -372,7 +372,7 @@ async function handleRoute(request, { params }) {
                a.id as asset_id, a.symbol, a.name, a.type
         FROM portfolio_positions p
         JOIN assets a ON p.asset_id = a.id
-        WHERE p.user_id = ${auth.user.userId}
+        WHERE p.user_id = ${auth.user.userId}::uuid
         ORDER BY p.created_at DESC
       `
 
