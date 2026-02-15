@@ -75,7 +75,11 @@ export default function HomePage() {
 
   if (user) {
     router.push('/dashboard')
-    return null
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="animate-pulse text-white text-xl">Redirecting to dashboard...</div>
+      </div>
+    )
   }
 
   return (
