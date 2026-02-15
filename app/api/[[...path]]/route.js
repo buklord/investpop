@@ -418,7 +418,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         INSERT INTO portfolio_positions (id, user_id, asset_id, quantity, entry_price, entry_date, created_at)
-        VALUES (${id}, ${auth.user.userId}::uuid, ${assetId}::uuid, ${quantity}, ${entryPrice}, ${entryDateParsed}, NOW())
+        VALUES (${id}::uuid, ${auth.user.userId}::uuid, ${assetId}::uuid, ${quantity}, ${entryPrice}, ${entryDateParsed}, NOW())
       `
 
       return handleCORS(NextResponse.json({ 
