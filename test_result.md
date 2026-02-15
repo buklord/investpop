@@ -210,6 +210,126 @@ backend:
         agent: "testing"
         comment: "✅ TESTED - Successfully seeds default assets, handles duplicates properly with ON CONFLICT DO NOTHING"
 
+  - task: "Trading Configuration API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/config - Returns trading configuration including fees, slippage range, starting balance"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Returns correct trading fee (0.1%), slippage range (0.01%-0.05%), starting balance $100k, max leverage 10x"
+
+  - task: "Paper Trading Engine"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/trade - Full paper trading engine with fees, slippage simulation, weighted average entry, P&L calculation"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - BUY/SELL orders work with realistic fees (0.1%) and slippage. Fee calculation verified. Slippage properly applied against trader. Weighted average entry price calculated correctly for multiple purchases of same asset."
+
+  - task: "Account Summary API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/account - Returns comprehensive account summary with balance, equity, P&L, margin metrics"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Returns all required fields: balance, equity, positionsValue, openPnl, realizedPnl, totalFeesPaid. Equity calculation verified (balance + positionsValue)."
+
+  - task: "Positions Management API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/positions - Returns user positions with filtering options"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Returns positions correctly. Weighted average entry working - multiple buys of same asset create single position with averaged entry price, not separate positions."
+
+  - task: "Trade History API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/trades - Returns trade history with all trading details"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Returns trade history with all required fields: symbol, side, quantity, price, total_value, fee_amount, slippage, market_price. All trades properly recorded."
+
+  - task: "Account Snapshots API"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/account/snapshots - Returns equity curve data for performance tracking"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - Returns account snapshots with correct structure (equity, balance, positions_value, open_pnl, created_at). Snapshots created after each trade."
+
+  - task: "Trading Validation System"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Comprehensive validation for trading operations including balance checks, position validation, quantity limits"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED - All validation scenarios work: overselling rejected, insufficient balance rejected, negative quantities rejected, zero quantities rejected."
+
+  - task: "Limit Orders System"
+    implemented: true
+    working: false
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 1
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/orders/limit, GET /api/orders/pending, DELETE /api/orders/{id} - Limit order functionality"
+      - working: false
+        agent: "testing"
+        comment: "❌ TESTED - Limit order creation fails with 520 server error. Database column type casting issue with 'side' field (TradeSide enum). Pending orders and cancellation not testable due to creation failure."
+
   - task: "Watchlist CRUD APIs"
     implemented: true
     working: true
