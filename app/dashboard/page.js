@@ -13,18 +13,16 @@ import {
   Wallet, 
   LogOut, 
   Plus, 
-  Trash2, 
   RefreshCw,
   Menu,
   X,
   Home,
-  LineChart,
   Activity,
-  DollarSign,
   PieChart,
+  DollarSign,
   ArrowUpRight,
   ArrowDownRight,
-  Search
+  Loader2
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -88,31 +86,33 @@ export default function DashboardPage() {
       setWatchlist(watchlistData.watchlist || [])
       setTrades(tradesData.trades || [])
       
-      // Fetch quotes for watchlist
+      // Fetch quotes in parallel
       const symbols = new Set()
       watchlistData.watchlist?.forEach(item => symbols.add(`${item.symbol}:${item.type}`))
       positionsData.positions?.forEach(item => symbols.add(`${item.symbol}:${item.type}`))
       
-      fetchQuotes(Array.from(symbols))
+      fetchQuotesParallel(Array.from(symbols))
     } catch (err) {
       console.error('Failed to load data:', err)
     }
   }
 
-  const fetchQuotes = async (symbolTypes) => {
+  const fetchQuotesParallel = async (symbolTypes) => {
     const newQuotes = {}
-    for (const st of symbolTypes) {
+    const promises = symbolTypes.map(async (st) => {
       const [symbol, type] = st.split(':')
       try {
         const res = await fetch(`/api/quote?symbol=${symbol}&type=${type}`)
         if (res.ok) {
           const data = await res.json()
-          newQuotes[symbol] = data
+          return { symbol, data }
         }
-      } catch (err) {
-        console.error(`Failed to fetch quote for ${symbol}:`, err)
-      }
-    }
+      } catch (err) {}
+      return null
+    })
+    
+    const results = await Promise.all(promises)
+    results.forEach(r => { if (r) newQuotes[r.symbol] = r.data })
     setQuotes(prev => ({ ...prev, ...newQuotes }))
   }
 
@@ -128,14 +128,17 @@ export default function DashboardPage() {
   }
 
   const formatCurrency = (value) => {
+    if (!value && value !== 0) return '$0.00'
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(value)
   }
 
   const formatPercent = (value) => {
+    if (!value && value !== 0) return '0.00%'
     const prefix = value >= 0 ? '+' : ''
     return `${prefix}${value.toFixed(2)}%`
   }
@@ -143,7 +146,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <div className="animate-pulse text-white text-xl">Loading...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
   }
@@ -164,7 +167,7 @@ export default function DashboardPage() {
             </button>
           </div>
           <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading (Simulation)
+            Paper Trading
           </div>
         </div>
         
@@ -212,36 +215,36 @@ export default function DashboardPage() {
       <Sidebar />
       
       {/* Main content */}
-      <div className="flex-1 lg:ml-0">
+      <div className="flex-1 min-w-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-4 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="text-white">
+        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-white p-1">
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold text-white">PaperTrade</span>
+            <span className="font-bold text-white text-sm">PaperTrade</span>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={refreshData}
             disabled={refreshing}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 p-1"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
         
         {/* Page content */}
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+        <div className="p-3 sm:p-4 lg:p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-4 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-              <p className="text-slate-400">Paper Trading Simulation</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">Dashboard</h1>
+              <p className="text-slate-400 text-sm">Paper Trading Simulation</p>
             </div>
             <Button
               variant="ghost"
@@ -254,95 +257,96 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {/* Account Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Account Stats - 2x2 on mobile, 4 columns on desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-8">
             <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-5 w-5 text-blue-500" />
+              <CardContent className="p-3 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
                   </div>
-                  <span className="text-slate-400 text-sm">Cash Balance</span>
+                  <span className="text-slate-400 text-xs sm:text-sm">Cash</span>
                 </div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-lg sm:text-2xl font-bold text-white truncate">
                   {formatCurrency(account?.balance || 0)}
                 </div>
               </CardContent>
             </Card>
             
             <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <Wallet className="h-5 w-5 text-purple-500" />
+              <CardContent className="p-3 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                    <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                   </div>
-                  <span className="text-slate-400 text-sm">Total Equity</span>
+                  <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
                 </div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-lg sm:text-2xl font-bold text-white truncate">
                   {formatCurrency(account?.equity || 0)}
                 </div>
               </CardContent>
             </Card>
             
             <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-10 h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
+              <CardContent className="p-3 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
                     {(account?.openPnl || 0) >= 0 ? (
-                      <ArrowUpRight className="h-5 w-5 text-emerald-500" />
+                      <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
                     ) : (
-                      <ArrowDownRight className="h-5 w-5 text-red-500" />
+                      <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
                     )}
                   </div>
-                  <span className="text-slate-400 text-sm">Open P&L</span>
+                  <span className="text-slate-400 text-xs sm:text-sm">Open P&L</span>
                 </div>
-                <div className={`text-2xl font-bold ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                   {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
                 </div>
               </CardContent>
             </Card>
             
             <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-10 h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                    <LineChart className={`h-5 w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+              <CardContent className="p-3 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
+                    <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
                   </div>
-                  <span className="text-slate-400 text-sm">Realized P&L</span>
+                  <span className="text-slate-400 text-xs sm:text-sm">Realized</span>
                 </div>
-                <div className={`text-2xl font-bold ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                   {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl || 0)}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
+          {/* Positions and Watchlist - Stack on mobile */}
+          <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Open Positions */}
             <Card className="bg-[#161b22] border-slate-800">
-              <CardHeader>
+              <CardHeader className="py-3 sm:py-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white">Open Positions</CardTitle>
+                  <CardTitle className="text-white text-base sm:text-lg">Open Positions</CardTitle>
                   <Link href="/portfolio">
-                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
+                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white text-xs sm:text-sm">
                       View All
                     </Button>
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 {positions.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Activity className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-500">No open positions</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
+                    <p className="text-slate-500 text-sm">No open positions</p>
                     <Link href="/markets">
-                      <Button variant="link" className="text-emerald-500 mt-2">
+                      <Button variant="link" className="text-emerald-500 mt-1 sm:mt-2 text-sm">
                         Start Trading →
                       </Button>
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {positions.slice(0, 5).map(pos => {
                       const quote = quotes[pos.symbol]
                       const currentPrice = quote?.price || pos.entry_price
@@ -353,24 +357,24 @@ export default function DashboardPage() {
                         <Link
                           key={pos.id}
                           href={`/asset/${pos.symbol}?type=${pos.type}`}
-                          className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               pos.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
                             }`}>
                               {pos.type === 'crypto' ? '₿' : pos.symbol.charAt(0)}
                             </div>
-                            <div>
-                              <div className="font-medium text-white">{pos.symbol}</div>
-                              <div className="text-sm text-slate-500">{pos.quantity} units @ {formatCurrency(pos.entry_price)}</div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-white text-sm sm:text-base">{pos.symbol}</div>
+                              <div className="text-xs sm:text-sm text-slate-500 truncate">{pos.quantity} @ {formatCurrency(pos.entry_price)}</div>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className={`font-medium ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <div className={`font-medium text-sm sm:text-base ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                               {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                             </div>
-                            <div className={`text-sm ${pnlPercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            <div className={`text-xs sm:text-sm ${pnlPercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                               {formatPercent(pnlPercent)}
                             </div>
                           </div>
@@ -384,30 +388,30 @@ export default function DashboardPage() {
 
             {/* Watchlist */}
             <Card className="bg-[#161b22] border-slate-800">
-              <CardHeader>
+              <CardHeader className="py-3 sm:py-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white">Watchlist</CardTitle>
+                  <CardTitle className="text-white text-base sm:text-lg">Watchlist</CardTitle>
                   <Link href="/markets">
-                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
+                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white text-xs sm:text-sm">
                       <Plus className="h-4 w-4 mr-1" />
                       Add
                     </Button>
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0">
                 {watchlist.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Eye className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-500">No assets in watchlist</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <Eye className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
+                    <p className="text-slate-500 text-sm">No assets in watchlist</p>
                     <Link href="/markets">
-                      <Button variant="link" className="text-emerald-500 mt-2">
+                      <Button variant="link" className="text-emerald-500 mt-1 sm:mt-2 text-sm">
                         Browse Markets →
                       </Button>
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {watchlist.slice(0, 5).map(item => {
                       const quote = quotes[item.symbol]
                       
@@ -415,24 +419,24 @@ export default function DashboardPage() {
                         <Link
                           key={item.id}
                           href={`/asset/${item.symbol}?type=${item.type}`}
-                          className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               item.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
                             }`}>
                               {item.type === 'crypto' ? '₿' : item.symbol.charAt(0)}
                             </div>
-                            <div>
-                              <div className="font-medium text-white">{item.symbol}</div>
-                              <div className="text-sm text-slate-500">{item.name}</div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-white text-sm sm:text-base">{item.symbol}</div>
+                              <div className="text-xs sm:text-sm text-slate-500 truncate">{item.name}</div>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium text-white">
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <div className="font-medium text-white text-sm sm:text-base">
                               {quote ? formatCurrency(quote.price) : '—'}
                             </div>
-                            <div className={`text-sm flex items-center justify-end gap-1 ${
+                            <div className={`text-xs sm:text-sm flex items-center justify-end gap-0.5 ${
                               (quote?.changePercent || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'
                             }`}>
                               {(quote?.changePercent || 0) >= 0 ? (
@@ -453,37 +457,37 @@ export default function DashboardPage() {
           </div>
 
           {/* Recent Trades */}
-          <Card className="bg-[#161b22] border-slate-800 mt-6">
-            <CardHeader>
-              <CardTitle className="text-white">Recent Trades</CardTitle>
+          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
+            <CardHeader className="py-3 sm:py-4">
+              <CardTitle className="text-white text-base sm:text-lg">Recent Trades</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {trades.length === 0 ? (
-                <div className="text-center py-8">
-                  <Activity className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                  <p className="text-slate-500">No trades yet</p>
+                <div className="text-center py-6 sm:py-8">
+                  <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
+                  <p className="text-slate-500 text-sm">No trades yet</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full min-w-[500px]">
                     <thead>
-                      <tr className="text-slate-500 text-sm">
-                        <th className="text-left pb-3">Asset</th>
-                        <th className="text-left pb-3">Side</th>
-                        <th className="text-right pb-3">Quantity</th>
-                        <th className="text-right pb-3">Price</th>
-                        <th className="text-right pb-3">Total</th>
-                        <th className="text-right pb-3">Time</th>
+                      <tr className="text-slate-500 text-xs sm:text-sm">
+                        <th className="text-left pb-2 sm:pb-3 pl-4 sm:pl-0">Asset</th>
+                        <th className="text-left pb-2 sm:pb-3">Side</th>
+                        <th className="text-right pb-2 sm:pb-3">Qty</th>
+                        <th className="text-right pb-2 sm:pb-3">Price</th>
+                        <th className="text-right pb-2 sm:pb-3">Fee</th>
+                        <th className="text-right pb-2 sm:pb-3 pr-4 sm:pr-0">Time</th>
                       </tr>
                     </thead>
                     <tbody>
                       {trades.slice(0, 10).map(trade => (
                         <tr key={trade.id} className="border-t border-slate-800">
-                          <td className="py-3">
-                            <div className="font-medium text-white">{trade.symbol}</div>
+                          <td className="py-2 sm:py-3 pl-4 sm:pl-0">
+                            <div className="font-medium text-white text-sm">{trade.symbol}</div>
                           </td>
-                          <td className="py-3">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          <td className="py-2 sm:py-3">
+                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-medium ${
                               trade.side === 'BUY' 
                                 ? 'bg-emerald-500/10 text-emerald-500' 
                                 : 'bg-red-500/10 text-red-500'
@@ -491,10 +495,10 @@ export default function DashboardPage() {
                               {trade.side}
                             </span>
                           </td>
-                          <td className="py-3 text-right text-slate-300">{trade.quantity}</td>
-                          <td className="py-3 text-right text-slate-300">{formatCurrency(trade.price)}</td>
-                          <td className="py-3 text-right text-white font-medium">{formatCurrency(trade.total_value)}</td>
-                          <td className="py-3 text-right text-slate-500 text-sm">
+                          <td className="py-2 sm:py-3 text-right text-slate-300 text-sm">{trade.quantity}</td>
+                          <td className="py-2 sm:py-3 text-right text-slate-300 text-sm">{formatCurrency(trade.price)}</td>
+                          <td className="py-2 sm:py-3 text-right text-slate-500 text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
+                          <td className="py-2 sm:py-3 text-right text-slate-500 text-xs pr-4 sm:pr-0">
                             {new Date(trade.executed_at).toLocaleDateString()}
                           </td>
                         </tr>
