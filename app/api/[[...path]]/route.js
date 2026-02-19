@@ -221,13 +221,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Create user
+      // Create user — role is always forced to 'USER' server-side;
+      // any role value sent in the request body is ignored by the schema.
       const passwordHash = await hashPassword(password)
       const userId = uuidv4()
       
       await prisma.$executeRaw`
-        INSERT INTO users (id, email, password_hash, created_at, updated_at)
-        VALUES (${userId}::uuid, ${email}, ${passwordHash}, NOW(), NOW())
+        INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
+        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
       `
 
       // Create virtual account with starting balance
