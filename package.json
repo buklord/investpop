@@ -6,8 +6,9 @@
         "dev": "NODE_OPTIONS='--max-old-space-size=512' next dev --hostname 0.0.0.0 --port 3000",
         "dev:no-reload": "next dev --hostname 0.0.0.0 --port 3000",
         "dev:webpack": "next dev --hostname 0.0.0.0 --port 3000",
-        "build": "next build",
-        "start": "next start"
+        "build": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=2048' next build",
+        "start": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=512' next start --hostname 0.0.0.0 --port 3000",
+        "preview": "npm run build && npm start"
     },
     "dependencies": {
         "@hookform/resolvers": "^5.1.1",
