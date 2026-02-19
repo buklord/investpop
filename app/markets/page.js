@@ -193,18 +193,26 @@ export default function MarketsPage() {
 
   const fetchQuotesParallel = async (assetList) => {
     setQuotesLoading(true)
-    const results = await Promise.all(
-      assetList.map(async (a) => {
-        try {
-          const res = await fetch('/api/quote?symbol=' + a.symbol + '&type=' + a.type)
-          if (res.ok) return { symbol: a.symbol, data: await res.json() }
-        } catch {}
-        return null
-      })
-    )
+    const BATCH = 5
     const newQuotes = {}
-    results.forEach(r => { if (r) newQuotes[r.symbol] = r.data })
-    setQuotes(newQuotes)
+    for (let i = 0; i < assetList.length; i += BATCH) {
+      const batch = assetList.slice(i, i + BATCH)
+      const results = await Promise.all(
+        batch.map(async (a) => {
+          try {
+            const res = await fetch('/api/quote?symbol=' + a.symbol + '&type=' + a.type)
+            if (res.ok) return { symbol: a.symbol, data: await res.json() }
+          } catch {}
+          return null
+        })
+      )
+      results.forEach(r => { if (r) newQuotes[r.symbol] = r.data })
+      // Update quotes incrementally so prices appear as they load
+      setQuotes(prev => ({ ...prev, ...newQuotes }))
+      if (i + BATCH < assetList.length) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
     setQuotesLoading(false)
   }
 
@@ -243,6 +251,13 @@ export default function MarketsPage() {
   const selectAsset = (asset, action) => {
     setSelectedAsset(asset)
     setTradeAction(action || 'BUY')
+    // Immediately fetch quote for selected asset so trade ticket shows price right away
+    if (!quotes[asset.symbol]) {
+      fetch('/api/quote?symbol=' + asset.symbol + '&type=' + asset.type)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setQuotes(prev => ({ ...prev, [asset.symbol]: d })) })
+        .catch(() => {})
+    }
   }
 
   const executeTrade = async () => {
@@ -543,7 +558,7 @@ export default function MarketsPage() {
 
         {/* Right: Trade ticket desktop */}
         <div className="hidden lg:flex w-72 xl:w-80 bg-[#161b22] border-l border-slate-800 flex-col flex-shrink-0">
-          {selectedAsset && selQuote ? (
+          {selectedAsset ? (
             <>
               <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
@@ -556,10 +571,19 @@ export default function MarketsPage() {
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0 ml-2">
-                  <div className="text-white font-mono font-bold text-sm">{fmt$(selQuote.price)}</div>
-                  <div className={'text-xs ' + ((selQuote.changePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                    {fmtPct(selQuote.changePercent)}
-                  </div>
+                  {selQuote ? (
+                    <>
+                      <div className="text-white font-mono font-bold text-sm">{fmt$(selQuote.price)}</div>
+                      <div className={'text-xs ' + ((selQuote.changePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {fmtPct(selQuote.changePercent)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="h-4 w-20 animate-shimmer rounded" />
+                      <div className="h-3 w-12 animate-shimmer rounded ml-auto" />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -594,7 +618,11 @@ export default function MarketsPage() {
                 <div className="bg-slate-900/80 rounded-lg p-3 space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Market Price</span>
-                    <span className="text-white font-mono">{fmt$(tradePrice)}</span>
+                    {selQuote ? (
+                      <span className="text-white font-mono">{fmt$(tradePrice)}</span>
+                    ) : (
+                      <div className="h-3 w-16 animate-shimmer rounded" />
+                    )}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Trade Value</span>
@@ -664,7 +692,9 @@ export default function MarketsPage() {
                   disabled={trading || qty <= 0 || !selQuote?.price || insuffFunds || (tradeAction === 'SELL' && !currentPos)}
                   className={'w-full h-11 text-sm font-bold ' + (tradeAction === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500') + ' text-white disabled:opacity-40'}
                 >
-                  {trading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Processing...</> : tradeAction + ' ' + selectedAsset.symbol}
+                  {trading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Processing...</> :
+                   !selQuote ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Loading price...</> :
+                   tradeAction + ' ' + selectedAsset.symbol}
                 </Button>
               </div>
             </>
