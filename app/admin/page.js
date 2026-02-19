@@ -299,7 +299,7 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-slate-400 text-sm mb-4">
-                  Add or subtract virtual funds from a user&apos;s account. Creates an ADMIN_ADJUSTMENT ledger entry.
+                  Add or subtract virtual funds from a user's account. Creates an ADMIN_ADJUSTMENT ledger entry.
                 </p>
                 <form onSubmit={handleAdjustPnl} className="space-y-3">
                   <Input

@@ -11,7 +11,7 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
       </head>
-      <body style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+      <body>
         {children}
       </body>
     </html>

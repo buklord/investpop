@@ -45,7 +45,8 @@ export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
-// Ensure new columns/tables exist (idempotent schema migrations)
+// Ensure new columns/tables exist (idempotent schema migrations).
+// Uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS so concurrent calls are safe.
 async function ensureSchemaExtensions() {
   try {
     // Add role column to users if not exists
@@ -76,11 +77,16 @@ async function ensureSchemaExtensions() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `)
-  } catch (_) {
-    // Non-fatal: migrations may already exist
+  } catch (err) {
+    // Non-fatal: migrations may already be applied (e.g. column already exists)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('ensureSchemaExtensions:', err.message)
+    }
   }
 }
 
+// Best-effort flag to skip redundant schema checks after first successful run.
+// The SQL operations are idempotent so concurrent first-runs are still safe.
 let schemaInitialized = false
 
 // Route handler function
