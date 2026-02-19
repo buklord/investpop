@@ -10,7 +10,7 @@ It also auto-restarts the server within **3 seconds** if it ever crashes.
 > **One-time fix for your current session** (only needed once):
 > Run this in the terminal, then you never have to do it again:
 > ```
-> git pull && kill $(lsof -t -i:3000) 2>/dev/null; true && npm run dev:forever &
+> rm -f package-lock.json && git pull && npm run dev:forever &
 > ```
 > Then open/refresh: **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
 
@@ -38,7 +38,7 @@ If you used `git pull` to get new code, the server restarts itself. Just refresh
 | Start server (auto-restart on crash) | `npm run dev:forever` |
 | Start server (single run) | `npm run dev` |
 | Stop server | Press **Ctrl + C** |
-| Kill stuck port | `kill $(lsof -t -i:3000) 2>/dev/null; true` |
+| Kill stuck port | `fuser -k 3000/tcp 2>/dev/null; true` |
 
 ---
 
@@ -68,8 +68,7 @@ The running server reloads automatically — no restart needed.
 | Error | Fix |
 |-------|-----|
 | **502 Bad Gateway** | Server isn't running. Run: `npm run dev:forever &` |
-| `command not found: yarn` | Use `npm run dev` instead |
 | `command not found: git` | Run `cd /workspaces/investpop` first |
 | Page looks old | Hard-refresh: **Ctrl+Shift+R** (Windows) or **Cmd+Shift+R** (Mac) |
-| Port 3000 in use | `kill $(lsof -t -i:3000) 2>/dev/null; true` then `npm run dev:forever &` |
+| Port 3000 in use | `fuser -k 3000/tcp 2>/dev/null; true` then `npm run dev:forever &` |
 
