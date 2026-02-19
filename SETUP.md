@@ -1,5 +1,20 @@
 # InvestPop — Codespaces Quick Start
 
+## 🚦 What to watch for when starting the server
+
+The startup happens in **two stages**. You must wait for **Stage 2** before opening the browser:
+
+| Stage | What you see in the terminal | Browser status |
+|-------|------------------------------|----------------|
+| **Stage 1 — Building** | `✓ Compiled /dashboard in 622ms` and other route lines | ❌ Not ready yet — 502 if you open browser now |
+| **Stage 2 — Server ready** | `✓ Ready on http://0.0.0.0:3000` | ✅ Open the browser now |
+
+**Only open the browser after you see `✓ Ready on http://0.0.0.0:3000`.**
+
+The build (Stage 1) takes ~2 minutes. Stage 2 follows immediately — just wait for that `✓ Ready` line.
+
+---
+
 ## ❓ Why is the page showing 502 / "not working"?
 
 The **most common causes and fixes**:
