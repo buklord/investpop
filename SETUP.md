@@ -8,11 +8,11 @@ The **most common causes and fixes**:
 When you ran `npm run preview &` in the terminal while the Codespace had already started a server,
 two processes tried to bind to port 3000. Only one wins — the other causes 502.
 
-**Fix:** Kill everything, then start once:
+**Fix:** Kill everything, then build and start once:
 ```bash
-fuser -k 3000/tcp 2>/dev/null; true && npm start &
+fuser -k 3000/tcp 2>/dev/null; true && npm run build && npm start &
 ```
-Wait 5 seconds, then refresh the browser.
+Wait ~2 minutes for the build, then refresh the browser.
 
 ### Cause 2 — Port is set to "Private" in Codespaces
 GitHub Codespaces ports default to **Private**, meaning only you can access them — but only when logged into GitHub in the same browser session.
@@ -27,7 +27,7 @@ If you just ran `npm run build` (which says "Compiled successfully"), the **buil
 
 **Fix:**
 ```bash
-npm start &
+npm run build && npm start &
 ```
 Wait for `✓ Ready on http://0.0.0.0:3000`, then open the browser.
 
@@ -42,11 +42,11 @@ fuser -k 3000/tcp 2>/dev/null; true
 rm -f package-lock.json
 git fetch origin
 git reset --hard origin/copilot/fix-sidebar-and-add-platform-features
-npm start &
+npm run build && npm start &
 ```
 
-> `npm start` works because the code is **already built**. No 2-minute wait.
-> You'll see `✓ Ready on http://0.0.0.0:3000` within 5 seconds.
+> `git reset --hard` **wipes the `.next` build folder**, so you must run `npm run build` first.
+> Build takes ~2 minutes. Wait for `✓ Ready on http://0.0.0.0:3000`, then open the browser.
 > Then open: **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
 
 > **Use `git reset --hard` instead of `git pull`** — it avoids all "divergent branches" / merge conflicts by always setting your local code to exactly match GitHub.
@@ -73,8 +73,8 @@ Build takes ~2 minutes. Wait for `✓ Ready` then open the browser.
 
 | What | Command |
 |------|---------|
-| **Start (code already built)** | `npm start &` |
 | **Build then start** | `npm run build && npm start &` |
+| **Start (only if `.next` exists from previous build)** | `npm start &` |
 | Kill stuck port 3000 | `fuser -k 3000/tcp 2>/dev/null; true` |
 | Dev mode (hot-reload, may be unstable) | `npm run dev` |
 
@@ -92,7 +92,7 @@ Build takes ~2 minutes. Wait for `✓ Ready` then open the browser.
 
 | Error | Fix |
 |-------|-----|
-| **502 Bad Gateway** | Run: `fuser -k 3000/tcp 2>/dev/null; true && npm start &` |
+| **502 Bad Gateway** | Run: `fuser -k 3000/tcp 2>/dev/null; true && npm run build && npm start &` |
 | **Page loads but shows old version** | You need to rebuild: `npm run build && npm start &` |
 | **Server keeps restarting/crashing** | Don't use `dev` mode — use `npm start` |
 | `command not found: npm` | Run `cd /workspaces/investpop` first |
