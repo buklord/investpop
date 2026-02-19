@@ -1,55 +1,65 @@
-# How to preview the new features in Codespaces
+# InvestPop — Codespaces Quick Start
 
-## Step-by-step: copy each line, paste into the Codespaces terminal, press Enter
+## ❓ Do I have to restart the server every time?
 
-### 1. Open a Codespaces terminal
-Press **Ctrl + `** (backtick) to open the terminal if it isn't open.
+**No — not for normal use.**
+
+The `.devcontainer` config runs `npm run dev:forever` automatically every time your Codespace starts or wakes up.
+It also auto-restarts the server within **3 seconds** if it ever crashes.
+
+> **One-time fix for your current session** (only needed once):
+> Run this in the terminal, then you never have to do it again:
+> ```
+> kill $(lsof -t -i:3000) 2>/dev/null; true && npm run dev:forever &
+> ```
+> Then open/refresh: **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
 
 ---
 
-### 2. Go to the repo folder
-```
+## First-time setup (new Codespace)
+
+The Codespace auto-runs `npm install` and `npm run dev:forever` when it starts.
+You just wait ~30 seconds and open the URL. No terminal needed.
+
+---
+
+## After pulling new code changes
+
+Next.js has **Hot Module Reload (HMR)** — when you save a file, the browser updates automatically.
+
+If you used `git pull` to get new code, the server restarts itself. Just refresh the browser.
+
+---
+
+## Manual server commands (if ever needed)
+
+| What | Command |
+|------|---------|
+| Start server (auto-restart on crash) | `npm run dev:forever` |
+| Start server (single run) | `npm run dev` |
+| Stop server | Press **Ctrl + C** |
+| Kill stuck port | `kill $(lsof -t -i:3000) 2>/dev/null; true` |
+
+---
+
+## Getting latest code
+
+```bash
 cd /workspaces/investpop
-```
-
----
-
-### 3. Get the new code
-```
 git fetch origin
-```
-```
 git checkout copilot/fix-sidebar-and-add-platform-features
+git pull
 ```
+
+The running server reloads automatically — no restart needed.
 
 ---
 
-### 4. Stop the running server
-Press **Ctrl + C** in the terminal that is running `yarn dev` (or `npm run dev`).
+## Become Admin
 
-If you can't find it, run this to kill it:
-```
-kill $(lsof -t -i:3000) 2>/dev/null; true
-```
-
----
-
-### 5. Start a fresh server
-```
-npm run dev
-```
-
----
-
-### 6. Open the preview
-Reload **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
-
-You should now see the new 7-link sidebar with: Dashboard, Markets, Portfolio, Wallet, History, Settings.
-
----
-
-### 7. Become Admin
-Go to **Settings** page → click **"Claim Admin Access"** → the Admin link appears in the sidebar.
+1. Log in → click **Settings** in the sidebar
+2. Scroll to **"Claim Admin Access"** → click the button
+3. The **Admin** link appears in the sidebar immediately
 
 ---
 
@@ -57,7 +67,9 @@ Go to **Settings** page → click **"Claim Admin Access"** → the Admin link ap
 
 | Error | Fix |
 |-------|-----|
+| **502 Bad Gateway** | Server isn't running. Run: `npm run dev:forever &` |
 | `command not found: yarn` | Use `npm run dev` instead |
-| `command not found: git` | You are not in the repo folder. Run `cd /workspaces/investpop` first |
-| Page still looks old | Hard-refresh the browser: **Ctrl+Shift+R** (or Cmd+Shift+R on Mac) |
-| Port 3000 already in use | Run `kill $(lsof -t -i:3000) 2>/dev/null; true` then `npm run dev` again |
+| `command not found: git` | Run `cd /workspaces/investpop` first |
+| Page looks old | Hard-refresh: **Ctrl+Shift+R** (Windows) or **Cmd+Shift+R** (Mac) |
+| Port 3000 in use | `kill $(lsof -t -i:3000) 2>/dev/null; true` then `npm run dev:forever &` |
+
