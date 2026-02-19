@@ -15,6 +15,7 @@ import {
   Menu,
   Activity,
   DollarSign,
+  Wallet,
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
