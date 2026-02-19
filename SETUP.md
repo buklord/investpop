@@ -2,16 +2,30 @@
 
 ## 🚦 What to watch for when starting the server
 
-The startup happens in **two stages**. You must wait for **Stage 2** before opening the browser:
+`npm run build && npm start` goes through **three stages**. You must wait for **Stage 3** before opening the browser:
 
-| Stage | What you see in the terminal | Browser status |
-|-------|------------------------------|----------------|
-| **Stage 1 — Building** | `✓ Compiled /dashboard in 622ms` and other route lines | ❌ Not ready yet — 502 if you open browser now |
-| **Stage 2 — Server ready** | `✓ Ready on http://0.0.0.0:3000` | ✅ Open the browser now |
+| Stage | What you see in the terminal | Is it done? |
+|-------|------------------------------|-------------|
+| **Stage 1 — Compiling** | `✓ Compiled successfully` | ❌ **NO — DO NOT press Ctrl+C here.** Build is still running. |
+| **Stage 2 — Generating pages** | `Generating static pages (11/11)` then a route table listing `/`, `/dashboard`, etc. | ❌ **Still building.** |
+| **Stage 3 — Server ready** ✅ | `✓ Ready on http://0.0.0.0:3000` | ✅ **YES — open the browser now.** |
 
-**Only open the browser after you see `✓ Ready on http://0.0.0.0:3000`.**
+> ⚠️ **`✓ Compiled successfully` is NOT the end of the build.**
+> The build continues after that line for another 30–60 seconds. If you press Ctrl+C here, the `.next` folder will be incomplete and `npm start` will fail with "Could not find a production build."
 
-The build (Stage 1) takes ~2 minutes. Stage 2 follows immediately — just wait for that `✓ Ready` line.
+**Full sequence in the terminal (wait for all of this):**
+```
+  ▲ Next.js 14.2.3
+   Creating an optimized production build ...
+ ✓ Compiled successfully          ← NOT done yet, keep waiting
+ ✓ Linting and checking validity of types
+   Generating static pages (11/11)
+ ✓ Build complete                 ← Build is truly done, npm start runs next
+
+  ▲ Next.js 14.2.3
+  - Local:   http://localhost:3000
+ ✓ Ready on http://0.0.0.0:3000  ← NOW open the browser
+```
 
 ---
 
@@ -36,15 +50,16 @@ GitHub Codespaces ports default to **Private**, meaning only you can access them
 Find port **3000** → right-click → **Port Visibility** → **Public**.
 Then refresh the browser.
 
-### Cause 3 — Server hasn't started yet
-If you just ran `npm run build` (which says "Compiled successfully"), the **build** is done but the
-**server** hasn't started. The build only creates files — you need to start the server separately.
+### Cause 3 — Build was interrupted (Ctrl+C too early)
+`✓ Compiled successfully` appears **midway** through `next build` — the build is NOT finished at that point.
+If you pressed Ctrl+C after seeing that line, the `.next` folder is incomplete and `npm start` will fail with
+`"Could not find a production build"`.
 
-**Fix:**
+**Fix — you must rebuild from scratch:**
 ```bash
-npm run build && npm start &
+fuser -k 3000/tcp 2>/dev/null; true && npm run build && npm start &
 ```
-Wait for `✓ Ready on http://0.0.0.0:3000`, then open the browser.
+Let it run all the way until you see **`✓ Ready on http://0.0.0.0:3000`** — do not press Ctrl+C.
 
 ---
 
@@ -108,9 +123,10 @@ Build takes ~2 minutes. Wait for `✓ Ready` then open the browser.
 | Error | Fix |
 |-------|-----|
 | **502 Bad Gateway** | Run: `fuser -k 3000/tcp 2>/dev/null; true && npm run build && npm start &` |
+| **"Could not find a production build"** | You pressed Ctrl+C too early. Run `npm run build && npm start &` and wait for `✓ Ready` |
 | **Page loads but shows old version** | You need to rebuild: `npm run build && npm start &` |
 | **Server keeps restarting/crashing** | Don't use `dev` mode — use `npm start` |
 | `command not found: npm` | Run `cd /workspaces/investpop` first |
 | **`divergent branches`** / git pull error | Use `git reset --hard` (see above) |
-| Port 3000 already in use | `fuser -k 3000/tcp 2>/dev/null; true` then `npm start &` |
+| Port 3000 already in use | `fuser -k 3000/tcp 2>/dev/null; true` then `npm run build && npm start &` |
 | **Still 502 after server started** | Check PORTS panel → set port 3000 to **Public** |
