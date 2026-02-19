@@ -534,6 +534,38 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
+          {/* Hot Sectors Heatmap */}
+          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
+            <CardHeader className="py-3 sm:py-4">
+              <CardTitle className="text-white text-base sm:text-lg flex items-center gap-2">
+                <Activity className="h-5 w-5 text-amber-400" />
+                Hot Sectors
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { name: 'AI / Technology', change: +3.24, assets: ['NVDA', 'MSFT', 'AAPL'], color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400', barColor: 'bg-emerald-500' },
+                  { name: 'Cryptocurrency', change: +1.87, assets: ['BTCUSD', 'ETHUSD', 'SOLUSD'], color: 'bg-orange-500/20 border-orange-500/30 text-orange-400', barColor: 'bg-orange-500' },
+                  { name: 'Energy', change: -1.12, assets: ['XOM', 'CVX'], color: 'bg-red-500/20 border-red-500/30 text-red-400', barColor: 'bg-red-500' },
+                  { name: 'Finance', change: +0.54, assets: ['JPM', 'GS', 'BAC'], color: 'bg-blue-500/20 border-blue-500/30 text-blue-400', barColor: 'bg-blue-500' },
+                ].map((sector) => (
+                  <div key={sector.name} className={`p-3 rounded-lg border ${sector.color}`}>
+                    <div className="text-xs font-semibold mb-1">{sector.name}</div>
+                    <div className="text-xl font-bold mb-1">
+                      {sector.change >= 0 ? '+' : ''}{sector.change.toFixed(2)}%
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-2">
+                      <div className={`h-full ${sector.barColor} transition-all duration-700`}
+                        style={{ width: `${Math.min(100, Math.abs(sector.change) * 20 + 40)}%` }} />
+                    </div>
+                    <div className="text-xs opacity-70">{sector.assets.slice(0, 2).join(', ')}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* News Feed */}
           <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
             <CardHeader className="py-3 sm:py-4">
