@@ -16,12 +16,14 @@ Production mode uses only ~400MB and stays stable indefinitely.
 Run this in the Codespaces terminal (takes ~2 minutes to build):
 
 ```bash
-rm -f package-lock.json && git pull && npm run preview &
+rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run preview &
 ```
 
 Then open/refresh: **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
 
 > After the build finishes you'll see `✓ Ready` — then the page will load instantly.
+
+> **If you see "divergent branches" or any git error**, use the `git reset --hard` command above instead of `git pull` — it always gets the exact latest code from GitHub with no conflicts.
 
 ---
 
@@ -35,13 +37,15 @@ No terminal needed — just wait for `✓ Ready` and open the URL.
 
 ## After pulling new code changes
 
-Production mode does **not** hot-reload. After a `git pull` you must rebuild:
+Production mode does **not** hot-reload. After updates you must rebuild:
 
 ```bash
-git pull && npm run preview &
+git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run preview &
 ```
 
 The build takes ~2 minutes then the server comes back up automatically.
+
+> **Use `git reset --hard` instead of `git pull`** — it avoids all "divergent branches" / merge conflicts by simply setting your local code to match GitHub exactly.
 
 ---
 
@@ -57,15 +61,17 @@ The build takes ~2 minutes then the server comes back up automatically.
 
 ---
 
-## Getting latest code
+## Getting latest code (use this every time)
 
 ```bash
-cd /workspaces/investpop
+fuser -k 3000/tcp 2>/dev/null; true
+rm -f package-lock.json
 git fetch origin
-git checkout copilot/fix-sidebar-and-add-platform-features
-git pull
+git reset --hard origin/copilot/fix-sidebar-and-add-platform-features
 npm run preview &
 ```
+
+> This replaces `git pull` — it always works, no merge conflicts possible.
 
 ---
 
@@ -84,6 +90,5 @@ npm run preview &
 | **Server keeps restarting** | You're in dev mode — run `npm run preview &` instead |
 | **502 Bad Gateway** | Server isn't running. Run: `npm run preview &` |
 | `command not found` | Run `cd /workspaces/investpop` first |
-| Page looks old | Hard-refresh: **Ctrl+Shift+R** (Windows) or **Cmd+Shift+R** (Mac) |
+| **`divergent branches`** / git pull error | Run: `git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features` |
 | Port 3000 in use | `fuser -k 3000/tcp 2>/dev/null; true` then `npm run preview &` |
-
