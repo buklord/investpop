@@ -20,9 +20,11 @@ import {
   RefreshCw,
   Radio,
   TrendingUp,
+  TrendingDown,
   UserX,
   UserCheck,
-  Zap
+  Zap,
+  Inbox
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -36,6 +38,7 @@ export default function AdminPage() {
   const [auditLog, setAuditLog] = useState([])
   const [activityFeed, setActivityFeed] = useState([])
   const [systemSettings, setSystemSettings] = useState({ broadcast_message: '', spread_multiplier: '1.0' })
+  const [deposits, setDeposits] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
 
@@ -65,6 +68,14 @@ export default function AdminPage() {
   const [suspendMsg, setSuspendMsg] = useState(null)
   const [suspendingId, setSuspendingId] = useState(null)
 
+  // Deposit state
+  const [depositMsg, setDepositMsg] = useState(null)
+  const [depositActionId, setDepositActionId] = useState(null)
+
+  // Force settle state
+  const [settleMsg, setSettleMsg] = useState(null)
+  const [settlingId, setSettlingId] = useState(null)
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
@@ -85,15 +96,17 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const [usersRes, auditRes, activityRes, settingsRes] = await Promise.all([
+      const [usersRes, auditRes, activityRes, settingsRes, depositsRes] = await Promise.all([
         fetch('/api/admin/users'),
         fetch('/api/admin/audit-log'),
         fetch('/api/admin/activity-feed'),
-        fetch('/api/admin/settings')
+        fetch('/api/admin/settings'),
+        fetch('/api/admin/deposits')
       ])
       if (usersRes.ok) setUsers((await usersRes.json()).users || [])
       if (auditRes.ok) setAuditLog((await auditRes.json()).log || [])
       if (activityRes.ok) setActivityFeed((await activityRes.json()).feed || [])
+      if (depositsRes.ok) setDeposits((await depositsRes.json()).deposits || [])
       if (settingsRes.ok) {
         const s = (await settingsRes.json()).settings || {}
         setSystemSettings(s)
@@ -177,6 +190,34 @@ export default function AdminPage() {
     finally { setSuspendingId(null) }
   }
 
+  const handleDepositAction = async (depositId, action) => {
+    setDepositMsg(null); setDepositActionId(depositId)
+    try {
+      const res = await fetch('/api/admin/deposits/approve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ depositId, action })
+      })
+      const data = await res.json()
+      if (res.ok) { setDepositMsg({ type: 'success', text: data.message }); loadData() }
+      else setDepositMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setDepositMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setDepositActionId(null) }
+  }
+
+  const handleForceSettle = async (positionId, outcome) => {
+    setSettleMsg(null); setSettlingId(`${positionId}-${outcome}`)
+    try {
+      const res = await fetch('/api/admin/force-settle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId, outcome })
+      })
+      const data = await res.json()
+      if (res.ok) { setSettleMsg({ type: 'success', text: data.message }); loadData() }
+      else setSettleMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setSettleMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setSettlingId(null) }
+  }
+
   const formatCurrency = (value) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value || 0)
 
@@ -254,13 +295,15 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-[#161b22] border-slate-800">
+            <Card className={`border ${deposits.filter(d => d.status === 'PENDING').length > 0 ? 'bg-amber-500/5 border-amber-500/30' : 'bg-[#161b22] border-slate-800'}`}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <Zap className="h-5 w-5 text-yellow-400" />
+                  <Inbox className={`h-5 w-5 ${deposits.filter(d => d.status === 'PENDING').length > 0 ? 'text-amber-400' : 'text-slate-400'}`} />
                   <div>
-                    <div className="text-slate-400 text-xs">Spread ×</div>
-                    <div className="text-xl font-bold text-white">{systemSettings.spread_multiplier || '1.0'}</div>
+                    <div className="text-slate-400 text-xs">Pending Deposits</div>
+                    <div className={`text-xl font-bold ${deposits.filter(d => d.status === 'PENDING').length > 0 ? 'text-amber-400' : 'text-white'}`}>
+                      {deposits.filter(d => d.status === 'PENDING').length}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -343,17 +386,17 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
-            {/* Force Close Position */}
+            {/* Force Close / Force Settle Position */}
             <Card className="bg-[#161b22] border-slate-800">
               <CardHeader>
                 <CardTitle className="text-white text-base flex items-center gap-2">
                   <X className="h-5 w-5 text-red-400" />
-                  Force Close Position
+                  Force Settlement
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-slate-400 text-sm mb-3">
-                  Force-close any open position by ID at the current market price.
+                  Force-close any position by ID. Choose Force Profit (+5%) or Force Loss (−3%) — logged as &quot;System Settlement&quot;.
                 </p>
                 <form onSubmit={handleForceClose} className="space-y-3">
                   <Input
@@ -364,10 +407,23 @@ export default function AdminPage() {
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 font-mono text-sm"
                   />
                   <Msg msg={forceCloseMsg} />
-                  <Button type="submit" disabled={forceCloseLoading} className="bg-red-600 hover:bg-red-700 text-white w-full">
-                    {forceCloseLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Force Close
-                  </Button>
+                  <Msg msg={settleMsg} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button type="submit" disabled={forceCloseLoading} className="bg-red-600 hover:bg-red-700 text-white text-xs">
+                      {forceCloseLoading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                      Force Close
+                    </Button>
+                    <Button type="button" disabled={settlingId !== null || !forceClosePositionId}
+                      onClick={() => handleForceSettle(forceClosePositionId, 'PROFIT')}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+                      {settlingId === `${forceClosePositionId}-PROFIT` ? <Loader2 className="h-3 w-3 animate-spin" /> : <><TrendingUp className="h-3 w-3 mr-1" />Profit</>}
+                    </Button>
+                    <Button type="button" disabled={settlingId !== null || !forceClosePositionId}
+                      onClick={() => handleForceSettle(forceClosePositionId, 'LOSS')}
+                      className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                      {settlingId === `${forceClosePositionId}-LOSS` ? <Loader2 className="h-3 w-3 animate-spin" /> : <><TrendingDown className="h-3 w-3 mr-1" />Loss</>}
+                    </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -421,14 +477,20 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg w-fit">
             {[
               { id: 'users', label: `Users (${users.length})` },
+              { id: 'deposits', label: 'Deposits', badge: deposits.filter(d => d.status === 'PENDING').length },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
               { id: 'audit', label: `Audit Log (${auditLog.length})` },
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
                   activeTab === tab.id ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}>
                 {tab.label}
+                {tab.badge > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -496,6 +558,99 @@ export default function AdminPage() {
                                       : <><UserX className="h-3 w-3 mr-1 inline" />Suspend</>
                                   }
                                 </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Deposits Tab */}
+          {activeTab === 'deposits' && (
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Inbox className="h-5 w-5 text-amber-400" />
+                  Deposit Requests
+                  {deposits.filter(d => d.status === 'PENDING').length > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      {deposits.filter(d => d.status === 'PENDING').length} pending
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              {depositMsg && <div className="px-6 pb-2"><Msg msg={depositMsg} /></div>}
+              {settleMsg && <div className="px-6 pb-2"><Msg msg={settleMsg} /></div>}
+              <CardContent className="p-0">
+                {deposits.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Inbox className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No deposit requests yet</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
+                      <thead>
+                        <tr className="text-slate-500 text-xs border-b border-slate-800">
+                          <th className="text-left p-4">User</th>
+                          <th className="text-right p-4">Amount</th>
+                          <th className="text-center p-4">Method</th>
+                          <th className="text-center p-4">Status</th>
+                          <th className="text-right p-4">Date</th>
+                          <th className="text-right p-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deposits.map(dep => (
+                          <tr key={dep.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                            <td className="p-4">
+                              <div className="text-white text-sm">{dep.email}</div>
+                              <div className="text-slate-500 text-xs font-mono truncate max-w-[150px]">{dep.user_id}</div>
+                            </td>
+                            <td className="p-4 text-right text-white font-semibold text-sm">
+                              ${parseFloat(dep.amount).toLocaleString()}
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                dep.method === 'BTC' ? 'bg-orange-500/10 text-orange-400' : 'bg-green-500/10 text-green-400'
+                              }`}>
+                                {dep.method}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                dep.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-400' :
+                                dep.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' :
+                                'bg-amber-500/10 text-amber-400'
+                              }`}>
+                                {dep.status}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right text-slate-500 text-xs">
+                              {new Date(dep.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-right">
+                              {dep.status === 'PENDING' && (
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button size="sm" disabled={depositActionId === dep.id}
+                                    onClick={() => handleDepositAction(dep.id, 'APPROVE')}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2">
+                                    {depositActionId === dep.id
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <><CheckCircle className="h-3 w-3 mr-1 inline" />Approve</>
+                                    }
+                                  </Button>
+                                  <Button size="sm" variant="ghost" disabled={depositActionId === dep.id}
+                                    onClick={() => handleDepositAction(dep.id, 'REJECT')}
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-7 px-2">
+                                    <X className="h-3 w-3 mr-1 inline" />Reject
+                                  </Button>
+                                </div>
                               )}
                             </td>
                           </tr>

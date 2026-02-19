@@ -14,7 +14,8 @@ import {
   ArrowDownRight,
   DollarSign,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -213,11 +214,11 @@ export default function WalletPage() {
           {/* Request Demo Funds */}
           <Card className="bg-[#161b22] border-slate-800 mb-6">
             <CardHeader>
-              <CardTitle className="text-white text-base">Request Demo Funds</CardTitle>
+              <CardTitle className="text-white text-base">Add Funds</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-slate-400 text-sm mb-4">
-                Need more virtual cash to practice? Request $10,000 in demo funds added directly to your account.
+                Fund your account via crypto deposit, or request demo funds to practise.
               </p>
               {successMsg && (
                 <div className="flex items-center gap-2 text-emerald-400 text-sm mb-4 bg-emerald-500/10 rounded-lg px-4 py-3">
@@ -225,18 +226,28 @@ export default function WalletPage() {
                   {successMsg}
                 </div>
               )}
-              <Button
-                onClick={requestDemoFunds}
-                disabled={requesting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {requesting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Add $10,000 Demo Funds
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={() => router.push('/wallet/deposit')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Deposit Funds
+                </Button>
+                <Button
+                  onClick={requestDemoFunds}
+                  disabled={requesting}
+                  variant="ghost"
+                  className="text-slate-400 hover:text-white border border-slate-700"
+                >
+                  {requesting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Add $10,000 Demo Funds
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

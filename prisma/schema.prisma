@@ -123,3 +123,25 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+// Deposit request status enum
+enum DepositStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+// Deposit requests - user-submitted funding requests
+model DepositRequest {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  amount    Float
+  method    String        // 'BTC' or 'USDT'
+  address   String
+  status    DepositStatus @default(PENDING)
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@map("deposit_requests")
+}

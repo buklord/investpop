@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,24 @@ const navItems = [
 export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarOpen }) {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [pendingDeposits, setPendingDeposits] = useState(0)
+
+  // Poll for pending deposit count (admins only)
+  useEffect(() => {
+    if (user?.role !== 'ADMIN') return
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/admin/deposits/count')
+        if (res.ok) {
+          const data = await res.json()
+          setPendingDeposits(data.count || 0)
+        }
+      } catch (_) {}
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60000)  // poll every 60s
+    return () => clearInterval(interval)
+  }, [user?.role])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -89,7 +107,7 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
             <Link
               href="/admin"
               title={collapsed ? 'Admin' : undefined}
-              className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
+              className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors relative ${
                 currentPage === '/admin'
                   ? 'bg-amber-600/20 text-amber-400'
                   : 'text-slate-300 hover:bg-slate-800'
@@ -97,6 +115,11 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
             >
               <Shield className="h-5 w-5 flex-shrink-0" />
               {!collapsed && <span>Admin</span>}
+              {pendingDeposits > 0 && (
+                <span className={`bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ${collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'}`}>
+                  {pendingDeposits > 9 ? '9+' : pendingDeposits}
+                </span>
+              )}
             </Link>
           )}
         </nav>
