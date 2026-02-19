@@ -16,48 +16,33 @@ echo "1) Fetching latest code from GitHub..."
 git fetch origin
 git checkout copilot/fix-sidebar-and-add-platform-features
 git pull origin copilot/fix-sidebar-and-add-platform-features
-echo "   ✅ Code is up to date"
+echo "   OK: Code is up to date"
 echo ""
 
 # Step 2: Install dependencies if needed
 echo "2) Installing dependencies..."
-if command -v yarn &> /dev/null; then
-  yarn install --frozen-lockfile 2>/dev/null || yarn install
-else
-  npm install
-fi
-echo "   ✅ Dependencies installed"
+npm install
+echo "   OK: Dependencies installed"
 echo ""
 
-# Step 3: Kill any existing Next.js dev server
-echo "3) Stopping any existing dev server..."
-pkill -f "next dev" 2>/dev/null || true
-pkill -f "next-server" 2>/dev/null || true
-sleep 1
-echo "   ✅ Done"
+# Step 3: Kill any existing Next.js dev server on port 3000
+echo "3) Stopping any existing dev server on port 3000..."
+kill $(lsof -t -i:3000) 2>/dev/null || true
+sleep 2
+echo "   OK: Done"
 echo ""
 
-# Step 4: Start the dev server in the background
-echo "4) Starting the dev server..."
-echo ""
+# Step 4: Start the dev server
 echo "================================================"
-echo "  ✅ ALL DONE! Starting yarn dev..."
+echo "  ALL DONE! Starting the dev server..."
 echo ""
-echo "  New pages available:"
-echo "  → /dashboard  (now with full 7-link sidebar)"
-echo "  → /wallet     (balance + demo funds)"
-echo "  → /history    (trade history + P&L)"
-echo "  → /settings   (profile + Claim Admin button)"
-echo "  → /admin      (after claiming admin)"
-echo ""
-echo "  To become admin: go to /settings and click"
-echo "  'Claim Admin Access'"
+echo "  New pages:"
+echo "  /dashboard  (new 7-link sidebar)"
+echo "  /wallet     (balance + demo funds)"
+echo "  /history    (trade history + P&L)"
+echo "  /settings   (click Claim Admin Access here)"
+echo "  /admin      (visible after claiming admin)"
 echo "================================================"
 echo ""
 
-# Start the dev server (this takes over the terminal)
-if command -v yarn &> /dev/null; then
-  yarn dev
-else
-  npm run dev
-fi
+npm run dev
