@@ -55,6 +55,7 @@ function MarketsPageContent() {
   const [watchlist, setWatchlist] = useState([])
   const [quotes, setQuotes] = useState({})
   const [delayedData, setDelayedData] = useState(false)
+  const [dataMode, setDataMode] = useState('live') // 'live' | 'simulated'
   const [positions, setPositions] = useState([])
   const [quotesLoading, setQuotesLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -87,18 +88,20 @@ function MarketsPageContent() {
         if (res.ok) {
           const data = await res.json()
           setQuotes(prev => ({ ...prev, [selectedAsset.symbol]: data }))
+          if (data.simulated) setDataMode('simulated')
         }
       } catch {}
     }, 2000)
     return () => clearInterval(interval)
   }, [user, selectedAsset?.symbol, selectedAsset?.type])
 
-  // 15-second full list refresh + account stats
+  // 15-second full list refresh + account stats + data mode check
   useEffect(() => {
     if (!user || assets.length === 0) return
     const interval = setInterval(() => {
       fetchQuotesParallel(assets)
       fetch('/api/account').then(r => r.ok ? r.json() : null).then(d => { if (d) setAccount(d) })
+      fetch('/api/market/status').then(r => r.ok ? r.json() : null).then(s => { if (s) setDataMode(s.mode) })
     }, 15000)
     return () => clearInterval(interval)
   }, [user, assets])
@@ -194,16 +197,18 @@ function MarketsPageContent() {
   const loadData = async () => {
     try {
       fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
-      const [accountRes, assetsRes, watchlistRes, positionsRes] = await Promise.all([
+      const [accountRes, assetsRes, watchlistRes, positionsRes, statusRes] = await Promise.all([
         fetch('/api/account'),
         fetch('/api/assets'),
         fetch('/api/watchlist'),
         fetch('/api/positions?status=open'),
+        fetch('/api/market/status'),
       ])
       if (accountRes.ok) setAccount(await accountRes.json())
       const assetsData = await assetsRes.json()
       const watchlistData = await watchlistRes.json()
       if (positionsRes.ok) { const d = await positionsRes.json(); setPositions(d.positions || []) }
+      if (statusRes.ok) { const s = await statusRes.json(); setDataMode(s.mode) }
       setAssets(assetsData.assets || [])
       setWatchlist(watchlistData.watchlist || [])
       fetchQuotesParallel(assetsData.assets || [])
@@ -223,6 +228,8 @@ function MarketsPageContent() {
         const data = await res.json()
         setQuotes(prev => ({ ...prev, ...data.quotes }))
         setDelayedData(!!data.delayed)
+        // Detect simulation mode from any quote having simulated:true
+        if (Object.values(data.quotes || {}).some(q => q?.simulated)) setDataMode('simulated')
       }
     } catch (err) {
       console.error('fetchQuotesBatch:', err)
@@ -369,9 +376,19 @@ function MarketsPageContent() {
           <span className="text-slate-500">Positions: <span className="text-white font-medium">{positions.length}</span></span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {delayedData && (
-            <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-medium" title="Prices from cache due to API rate limit">
-              ⚡ Delayed
+          {dataMode === 'simulated' ? (
+            <span
+              className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-medium"
+              title="API credits exhausted — prices are simulated with random walk from last known values"
+            >
+              ◐ Simulated Market
+            </span>
+          ) : (
+            <span
+              className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-medium"
+              title="Live market data from Twelve Data API"
+            >
+              ● Live Data
             </span>
           )}
           <button onClick={refreshData} disabled={refreshing} className="text-slate-500 hover:text-slate-300 transition-colors p-1">

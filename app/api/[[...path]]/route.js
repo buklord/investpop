@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { hashPassword, verifyPassword, createSession, getSessionFromCookies, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
-import { getMarketDataProvider } from '@/lib/providers/marketDataProvider'
+import { getMarketDataProvider, getProviderStatus } from '@/lib/providers/marketDataProvider'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { registerSchema, loginSchema, symbolSchema, assetTypeSchema, positionSchema, validateInput } from '@/lib/validation'
 import { v4 as uuidv4 } from 'uuid'
@@ -422,6 +422,11 @@ async function handleRoute(request, { params }) {
           { status: 500 }
         ))
       }
+    }
+
+    // GET /api/market/status - Returns current data provider mode (live/simulated)
+    if (route === '/market/status' && method === 'GET') {
+      return handleCORS(NextResponse.json(getProviderStatus()))
     }
 
     // ============ ASSETS ENDPOINTS ============
