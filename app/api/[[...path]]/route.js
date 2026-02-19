@@ -388,6 +388,39 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // GET /api/quotes/batch?symbols=AAPL,stock|BTCUSD,crypto|MSFT,stock
+    // Fetches all requested symbols in ONE Twelve Data API call (batch endpoint).
+    // Returns { quotes: { AAPL: {...}, BTCUSD: {...} }, delayed: bool }
+    if (route === '/quotes/batch' && method === 'GET') {
+      const { searchParams } = new URL(request.url)
+      const symbolsParam = searchParams.get('symbols')
+      if (!symbolsParam) {
+        return handleCORS(NextResponse.json({ error: 'symbols param required' }, { status: 400 }))
+      }
+      // Format: "AAPL,stock|BTCUSD,crypto|MSFT,stock"
+      const assets = symbolsParam.split('|').map(s => {
+        const [symbol, type] = s.split(',')
+        return { symbol: symbol?.toUpperCase(), type: type || 'stock' }
+      }).filter(a => a.symbol && a.symbol.length > 0)
+
+      if (assets.length === 0) {
+        return handleCORS(NextResponse.json({ quotes: {}, delayed: false }))
+      }
+
+      try {
+        const provider = getMarketDataProvider()
+        const quotes = await provider.getBatchQuotes(assets)
+        // Check if any quote has delayed flag (stale cache fallback)
+        const delayed = Object.values(quotes).some(q => q?.delayed)
+        return handleCORS(NextResponse.json({ quotes, delayed }))
+      } catch (error) {
+        return handleCORS(NextResponse.json(
+          { error: 'Failed to fetch batch quotes' },
+          { status: 500 }
+        ))
+      }
+    }
+
     // ============ ASSETS ENDPOINTS ============
     
     // GET /api/assets - List all available assets

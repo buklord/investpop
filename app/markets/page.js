@@ -36,6 +36,7 @@ export default function MarketsPage() {
   const [assets, setAssets] = useState([])
   const [watchlist, setWatchlist] = useState([])
   const [quotes, setQuotes] = useState({})
+  const [delayedData, setDelayedData] = useState(false)
   const [positions, setPositions] = useState([])
   const [quotesLoading, setQuotesLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -191,27 +192,22 @@ export default function MarketsPage() {
     } catch (err) { console.error('loadData:', err) }
   }
 
+  // ONE batch request for all assets — replaces N parallel /api/quote calls.
+  // Uses the /api/quotes/batch endpoint which calls Twelve Data's batch API
+  // (20 symbols = 1 API credit instead of 20).
   const fetchQuotesParallel = async (assetList) => {
+    if (!assetList || assetList.length === 0) return
     setQuotesLoading(true)
-    const BATCH = 5
-    const newQuotes = {}
-    for (let i = 0; i < assetList.length; i += BATCH) {
-      const batch = assetList.slice(i, i + BATCH)
-      const results = await Promise.all(
-        batch.map(async (a) => {
-          try {
-            const res = await fetch('/api/quote?symbol=' + a.symbol + '&type=' + a.type)
-            if (res.ok) return { symbol: a.symbol, data: await res.json() }
-          } catch {}
-          return null
-        })
-      )
-      results.forEach(r => { if (r) newQuotes[r.symbol] = r.data })
-      // Update quotes incrementally so prices appear as they load
-      setQuotes(prev => ({ ...prev, ...newQuotes }))
-      if (i + BATCH < assetList.length) {
-        await new Promise(resolve => setTimeout(resolve, 200))
+    try {
+      const symbolsParam = assetList.map(a => `${a.symbol},${a.type}`).join('|')
+      const res = await fetch('/api/quotes/batch?symbols=' + encodeURIComponent(symbolsParam))
+      if (res.ok) {
+        const data = await res.json()
+        setQuotes(prev => ({ ...prev, ...data.quotes }))
+        setDelayedData(!!data.delayed)
       }
+    } catch (err) {
+      console.error('fetchQuotesBatch:', err)
     }
     setQuotesLoading(false)
   }
@@ -352,7 +348,12 @@ export default function MarketsPage() {
           </span>
           <span className="text-slate-500">Positions: <span className="text-white font-medium">{positions.length}</span></span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {delayedData && (
+            <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-medium" title="Prices from cache due to API rate limit">
+              ⚡ Delayed
+            </span>
+          )}
           <button onClick={refreshData} disabled={refreshing} className="text-slate-500 hover:text-slate-300 transition-colors p-1">
             <RefreshCw className={'h-3.5 w-3.5' + (refreshing ? ' animate-spin' : '')} />
           </button>
