@@ -435,9 +435,6 @@ export default function AssetPage() {
               <CardHeader className="py-3 sm:py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-white text-base sm:text-lg">Trade {symbol}</CardTitle>
-                  <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                    Simulation
-                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4">
@@ -494,12 +491,22 @@ export default function AssetPage() {
                     <span className="text-white">{quantity || '0'}</span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm mb-2">
+                    <span className="text-slate-400">Trade Value</span>
+                    <span className="text-white">{estimatedCost > 0 ? formatCurrency(estimatedCost) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs sm:text-sm mb-2">
+                    <span className="text-amber-500/80">Required Margin <span className="text-slate-500">(10%)</span></span>
+                    <span className={`font-medium ${estimatedCost > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                      {estimatedCost > 0 ? formatCurrency(estimatedCost * 0.10) : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs sm:text-sm mb-2">
                     <span className="text-slate-400">Fee (0.1%)</span>
                     <span className="text-slate-400">{formatCurrency(estimatedCost * 0.001)}</span>
                   </div>
                   <div className="border-t border-slate-700 pt-2 mt-2">
                     <div className="flex justify-between">
-                      <span className="text-slate-400 text-sm">{tradeAction === 'BUY' ? 'Estimated Cost' : 'Est. Proceeds'}</span>
+                      <span className="text-slate-400 text-sm">{tradeAction === 'BUY' ? 'Total Cost' : 'Est. Proceeds'}</span>
                       <span className="text-white font-semibold">{formatCurrency(estimatedCost)}</span>
                     </div>
                   </div>
@@ -508,10 +515,23 @@ export default function AssetPage() {
                 {/* Available Balance (for BUY) */}
                 {tradeAction === 'BUY' && (
                   <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-slate-400">Available Balance</span>
+                    <span className="text-slate-400">Available Cash</span>
                     <span className={`${(account?.balance || 0) >= estimatedCost ? 'text-emerald-500' : 'text-red-500'}`}>
                       {formatCurrency(account?.balance || 0)}
                     </span>
+                  </div>
+                )}
+
+                {/* Insufficient funds warning */}
+                {tradeAction === 'BUY' && estimatedCost > 0 && estimatedCost > (account?.balance || 0) && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-red-400 text-xs font-semibold">Insufficient Funds</div>
+                      <Link href="/wallet">
+                        <span className="text-xs text-red-300 underline hover:text-red-200 cursor-pointer">Add Funds →</span>
+                      </Link>
+                    </div>
                   </div>
                 )}
 
@@ -573,10 +593,6 @@ export default function AssetPage() {
                     `${tradeAction} ${symbol}`
                   )}
                 </Button>
-
-                <p className="text-xs text-slate-500 text-center">
-                  Paper trading only. No real money involved.
-                </p>
               </CardContent>
             </Card>
           </div>

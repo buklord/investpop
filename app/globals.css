@@ -66,6 +66,30 @@ code {
   animation: marquee 18s linear infinite;
 }
 
+/* Price flash animations for live market table */
+@keyframes flash-green {
+  0%   { background-color: rgba(16, 185, 129, 0.22); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-red {
+  0%   { background-color: rgba(239, 68, 68, 0.22); }
+  100% { background-color: transparent; }
+}
+.price-flash-green { animation: flash-green 0.8s ease-out forwards; }
+.price-flash-red   { animation: flash-red   0.8s ease-out forwards; }
+
+/* Shimmer skeleton loader */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
 @layer base {
   :root {
         --background: 0 0% 100%;
