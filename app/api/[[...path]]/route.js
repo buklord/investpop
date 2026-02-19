@@ -928,6 +928,35 @@ async function handleRoute(request, { params }) {
 
     // ============ ADMIN ENDPOINTS ============
 
+    // POST /api/admin/bootstrap - Promote current user to ADMIN (only if no ADMIN exists yet)
+    if (route === '/admin/bootstrap' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      // Atomic conditional update: only promotes this user if no ADMIN currently exists.
+      // The WHERE NOT EXISTS prevents the race condition of two simultaneous calls both succeeding.
+      const result = await prisma.$executeRaw`
+        UPDATE users SET role = 'ADMIN'
+        WHERE id = ${auth.user.userId}::uuid
+          AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'ADMIN')
+      `
+
+      if (result === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'An ADMIN account already exists. Ask your admin to promote you instead.' },
+          { status: 403 }
+        ))
+      }
+
+      return handleCORS(NextResponse.json({
+        message: 'You have been promoted to ADMIN. Refresh the page to see the Admin menu.',
+        userId: auth.user.userId,
+        email: auth.user.email
+      }))
+    }
+
     // GET /api/admin/users - List all users with balances
     if (route === '/admin/users' && method === 'GET') {
       const admin = await requireAdminAuth()

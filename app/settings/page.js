@@ -31,6 +31,9 @@ export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordMsg, setPasswordMsg] = useState(null)
 
+  const [bootstrapLoading, setBootstrapLoading] = useState(false)
+  const [bootstrapMsg, setBootstrapMsg] = useState(null)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -81,6 +84,36 @@ export default function SettingsPage() {
       setPasswordMsg({ type: 'error', text: 'An error occurred. Please try again.' })
     } finally {
       setPasswordLoading(false)
+    }
+  }
+
+  const handleBootstrap = async () => {
+    setBootstrapLoading(true)
+    setBootstrapMsg(null)
+    try {
+      const res = await fetch('/api/admin/bootstrap', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        // Try to refresh user role; if that fails, tell the user to reload manually
+        try {
+          const meRes = await fetch('/api/auth/me')
+          if (meRes.ok) {
+            const meData = await meRes.json()
+            setUser(meData.user)
+            setBootstrapMsg({ type: 'success', text: data.message })
+          } else {
+            setBootstrapMsg({ type: 'success', text: data.message + ' Please reload the page.' })
+          }
+        } catch {
+          setBootstrapMsg({ type: 'success', text: data.message + ' Please reload the page.' })
+        }
+      } else {
+        setBootstrapMsg({ type: 'error', text: data.error })
+      }
+    } catch {
+      setBootstrapMsg({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setBootstrapLoading(false)
     }
   }
 
@@ -234,6 +267,44 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
+
+          {/* Admin Bootstrap - only shown to non-admins */}
+          {user?.role !== 'ADMIN' && (
+            <Card className="bg-[#161b22] border-amber-500/20 mb-6">
+              <CardHeader>
+                <CardTitle className="text-amber-400 text-base flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Become Admin
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-4">
+                  If no admin account exists yet, you can promote yourself to ADMIN to access the admin dashboard.
+                  This only works once — the first user to click this button becomes the admin.
+                </p>
+                {bootstrapMsg && (
+                  <div className={`flex items-center gap-2 text-sm px-4 py-3 rounded-lg mb-4 ${
+                    bootstrapMsg.type === 'success'
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    {bootstrapMsg.type === 'success'
+                      ? <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+                    {bootstrapMsg.text}
+                  </div>
+                )}
+                <Button
+                  onClick={handleBootstrap}
+                  disabled={bootstrapLoading}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {bootstrapLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Claim Admin Access
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Platform Info */}
           <Card className="bg-[#161b22] border-slate-800">
