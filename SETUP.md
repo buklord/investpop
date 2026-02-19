@@ -1,8 +1,8 @@
 # InvestPop — How to Start the Server
 
-## 🚀 One Command (Copy-Paste This)
+## 🆕 New changes not showing? Run this ONE command:
 
-Open a terminal in your Codespace and run:
+Open a terminal in your Codespace and paste this — it pulls the latest code AND rebuilds:
 
 ```bash
 fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run preview
