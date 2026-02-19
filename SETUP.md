@@ -10,7 +10,7 @@ It also auto-restarts the server within **3 seconds** if it ever crashes.
 > **One-time fix for your current session** (only needed once):
 > Run this in the terminal, then you never have to do it again:
 > ```
-> kill $(lsof -t -i:3000) 2>/dev/null; true && npm run dev:forever &
+> git pull && kill $(lsof -t -i:3000) 2>/dev/null; true && npm run dev:forever &
 > ```
 > Then open/refresh: **https://probable-space-carnival-567p45pxx4xh77v-3000.app.github.dev/dashboard**
 
