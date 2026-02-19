@@ -240,7 +240,7 @@ export default function MarketsPage() {
         <div className="flex items-center gap-6 text-xs">
           <span className="text-slate-500">Available Cash: <span className="text-white font-medium">{fmt$(account?.balance)}</span></span>
           <span className="text-slate-500">Equity: <span className="text-white font-medium">{fmt$(account?.equity)}</span></span>
-          <span className="text-slate-500">Open P&amp;L:{' '}
+          <span className="text-slate-500">Open P&L:{' '}
             <span className={(account?.openPnl || 0) >= 0 ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>
               {(account?.openPnl || 0) >= 0 ? '+' : ''}{fmt$(account?.openPnl)}
             </span>
@@ -505,7 +505,7 @@ export default function MarketsPage() {
                     <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <div className="text-red-400 font-semibold">Insufficient Funds</div>
-                      <Link href="/wallet" className="text-red-300 underline hover:text-red-200 mt-0.5 block">Add Funds &rarr;</Link>
+                      <Link href="/wallet" className="text-red-300 underline hover:text-red-200 mt-0.5 block">Add Funds →</Link>
                     </div>
                   </div>
                 )}
