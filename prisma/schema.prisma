@@ -10,16 +10,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// User role enum
+enum UserRole {
+  USER
+  ADMIN
+}
+
 // Users table for authentication
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String   @map("password_hash")
+  role         UserRole @default(USER)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   watchlistItems     WatchlistItem[]
   portfolioPositions PortfolioPosition[]
+  ledgerEntries      LedgerEntry[]
+  auditLogsAsAdmin   AuditLog[]          @relation("AdminAuditLogs")
 
   @@map("users")
 }
@@ -71,4 +80,44 @@ model PortfolioPosition {
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@map("portfolio_positions")
+}
+
+// Ledger entry types
+enum LedgerEntryType {
+  DEPOSIT
+  WITHDRAWAL
+  TRADE_BUY
+  TRADE_SELL
+  FEE
+  ADMIN_ADJUSTMENT
+}
+
+// Ledger entries - accounting record of all balance changes
+model LedgerEntry {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  type        LedgerEntryType
+  amount      Float
+  balance     Float
+  description String?
+  referenceId String?          @map("reference_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ledger_entries")
+}
+
+// Audit log - tracks all admin actions
+model AuditLog {
+  id          String   @id @default(uuid())
+  adminId     String   @map("admin_id")
+  action      String
+  targetId    String?  @map("target_id")
+  details     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  admin User @relation("AdminAuditLogs", fields: [adminId], references: [id])
+
+  @@map("audit_logs")
 }

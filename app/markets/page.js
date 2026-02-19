@@ -8,21 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
-  BarChart3, 
   TrendingUp, 
   TrendingDown, 
   Search,
   Star,
   StarOff,
   Menu,
-  X,
-  Home,
-  Activity,
-  PieChart,
-  LogOut,
   RefreshCw,
   Loader2
 } from 'lucide-react'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function MarketsPage() {
   const router = useRouter()
@@ -148,11 +143,6 @@ export default function MarketsPage() {
     }
   }
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/')
-  }
-
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '—'
     if (value >= 1) {
@@ -205,68 +195,14 @@ export default function MarketsPage() {
     )
   }
 
-  const Sidebar = () => (
-    <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#161b22] border-r border-slate-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-200`}>
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-slate-800">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
-            </Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-1">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <Home className="h-5 w-5" />
-            Dashboard
-          </Link>
-          <Link
-            href="/markets"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-emerald-600/20 text-emerald-400"
-          >
-            <Activity className="h-5 w-5" />
-            Markets
-          </Link>
-          <Link
-            href="/portfolio"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <PieChart className="h-5 w-5" />
-            Portfolio
-          </Link>
-        </nav>
-        
-        <div className="p-4 border-t border-slate-800">
-          <div className="text-sm text-slate-400 mb-2 truncate">{user?.email}</div>
-          <Button
-            variant="ghost"
-            onClick={handleLogout}
-            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
-      <Sidebar />
+      <AppSidebar
+        currentPage="/markets"
+        user={user}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
       
       <div className="flex-1 min-w-0">
         {/* Mobile header */}

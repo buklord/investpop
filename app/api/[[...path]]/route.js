@@ -27,16 +27,73 @@ async function requireAuth() {
   return { user: session }
 }
 
+// Helper function to require admin authentication
+async function requireAdminAuth() {
+  const auth = await requireAuth()
+  if (auth.error) return auth
+  const users = await prisma.$queryRaw`
+    SELECT role FROM users WHERE id = ${auth.user.userId}::uuid
+  `
+  if (!users[0] || users[0].role !== 'ADMIN') {
+    return { error: 'Forbidden: Admin access required', status: 403 }
+  }
+  return auth
+}
+
 // OPTIONS handler for CORS
 export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
+
+// Ensure new columns/tables exist (idempotent schema migrations)
+async function ensureSchemaExtensions() {
+  try {
+    // Add role column to users if not exists
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'
+    `)
+    // Create ledger_entries table if not exists
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS ledger_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
+        amount DOUBLE PRECISION NOT NULL,
+        balance DOUBLE PRECISION NOT NULL,
+        description TEXT,
+        reference_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+    // Create audit_logs table if not exists
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        admin_id UUID NOT NULL REFERENCES users(id),
+        action VARCHAR(100) NOT NULL,
+        target_id UUID,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+  } catch (_) {
+    // Non-fatal: migrations may already exist
+  }
+}
+
+let schemaInitialized = false
 
 // Route handler function
 async function handleRoute(request, { params }) {
   const { path = [] } = params
   const route = `/${path.join('/')}`
   const method = request.method
+
+  // Run schema migrations once per process
+  if (!schemaInitialized) {
+    schemaInitialized = true
+    await ensureSchemaExtensions()
+  }
 
   // Rate limiting
   const clientIp = getClientIp(request)
@@ -199,8 +256,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Fetch role from DB
+      const users = await prisma.$queryRaw`
+        SELECT role FROM users WHERE id = ${auth.user.userId}::uuid
+      `
+      const role = users[0]?.role || 'USER'
+
       return handleCORS(NextResponse.json({
-        user: { id: auth.user.userId, email: auth.user.email }
+        user: { id: auth.user.userId, email: auth.user.email, role }
       }))
     }
 
@@ -757,6 +820,286 @@ async function handleRoute(request, { params }) {
       `
 
       return handleCORS(NextResponse.json({ message: 'Position deleted' }))
+    }
+
+    // ============ LEDGER ENDPOINTS ============
+
+    // GET /api/ledger - Get ledger entries for the current user
+    if (route === '/ledger' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const entries = await prisma.$queryRaw`
+        SELECT * FROM ledger_entries
+        WHERE user_id = ${auth.user.userId}::uuid
+        ORDER BY created_at DESC
+        LIMIT 100
+      `
+
+      return handleCORS(NextResponse.json({ entries }))
+    }
+
+    // ============ WALLET ENDPOINTS ============
+
+    // POST /api/wallet/request-funds - Add $10k demo funds
+    if (route === '/wallet/request-funds' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const DEMO_AMOUNT = 10000
+
+      // Add funds to virtual account
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts SET balance = balance + ${DEMO_AMOUNT}
+        WHERE user_id = ${auth.user.userId}::uuid
+      `
+
+      // Get new balance
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+      `
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
+
+      // Create ledger entry
+      const ledgerId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
+        VALUES (${ledgerId}::uuid, ${auth.user.userId}::uuid, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds request', NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: 'Demo funds added successfully',
+        amount: DEMO_AMOUNT,
+        newBalance
+      }))
+    }
+
+    // ============ SETTINGS ENDPOINTS ============
+
+    // POST /api/settings/password - Change user password
+    if (route === '/settings/password' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { currentPassword, newPassword } = body
+
+      if (!currentPassword || !newPassword) {
+        return handleCORS(NextResponse.json({ error: 'Both current and new password are required' }, { status: 400 }))
+      }
+
+      if (newPassword.length < 8) {
+        return handleCORS(NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 }))
+      }
+
+      const users = await prisma.$queryRaw`
+        SELECT id, password_hash FROM users WHERE id = ${auth.user.userId}::uuid
+      `
+
+      if (users.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'User not found' }, { status: 404 }))
+      }
+
+      const isValid = await verifyPassword(currentPassword, users[0].password_hash)
+      if (!isValid) {
+        return handleCORS(NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 }))
+      }
+
+      const newHash = await hashPassword(newPassword)
+      await prisma.$executeRaw`
+        UPDATE users SET password_hash = ${newHash}, updated_at = NOW()
+        WHERE id = ${auth.user.userId}::uuid
+      `
+
+      return handleCORS(NextResponse.json({ message: 'Password updated successfully' }))
+    }
+
+    // ============ ADMIN ENDPOINTS ============
+
+    // GET /api/admin/users - List all users with balances
+    if (route === '/admin/users' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const users = await prisma.$queryRaw`
+        SELECT u.id, u.email, u.role, u.created_at,
+               va.balance
+        FROM users u
+        LEFT JOIN virtual_accounts va ON va.user_id = u.id
+        ORDER BY u.created_at DESC
+      `
+
+      return handleCORS(NextResponse.json({ users }))
+    }
+
+    // GET /api/admin/audit-log - Get audit log
+    if (route === '/admin/audit-log' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const log = await prisma.$queryRaw`
+        SELECT al.*, u.email as admin_email
+        FROM audit_logs al
+        LEFT JOIN users u ON u.id = al.admin_id
+        ORDER BY al.created_at DESC
+        LIMIT 100
+      `
+
+      return handleCORS(NextResponse.json({ log }))
+    }
+
+    // POST /api/admin/force-close - Force close a trading position
+    if (route === '/admin/force-close' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const { positionId } = body
+
+      if (!positionId) {
+        return handleCORS(NextResponse.json({ error: 'positionId is required' }, { status: 400 }))
+      }
+
+      // Fetch position
+      const positions = await prisma.$queryRaw`
+        SELECT p.*, a.symbol, a.name, a.type
+        FROM trading_positions p
+        JOIN assets a ON a.id = p.asset_id
+        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+      `
+
+      if (positions.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Open position not found' }, { status: 404 }))
+      }
+
+      const pos = positions[0]
+
+      // Get current price
+      let currentPrice = pos.entry_price
+      try {
+        const provider = getMarketDataProvider()
+        const quote = await provider.getQuote(pos.symbol, pos.type)
+        currentPrice = quote.price
+      } catch (_) {}
+
+      const realizedPnl = (currentPrice - pos.entry_price) * pos.quantity
+      const saleValue = currentPrice * pos.quantity
+
+      // Close position
+      await prisma.$executeRaw`
+        UPDATE trading_positions
+        SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
+        WHERE id = ${positionId}::uuid
+      `
+
+      // Return sale value to user's balance
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        WHERE user_id = ${pos.user_id}::uuid
+      `
+
+      // Get new balance
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+      `
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
+
+      // Create ledger entry (ADMIN_ADJUSTMENT)
+      const ledgerId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
+        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT', ${saleValue},
+                ${newBalance}, ${'Admin force-closed position: ' + pos.symbol}, ${positionId}::uuid, NOW())
+      `
+
+      // Create audit log entry
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'FORCE_CLOSE_POSITION',
+                ${positionId}::uuid, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, realizedPnl })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: `Position ${pos.symbol} force-closed successfully`,
+        realizedPnl,
+        saleValue
+      }))
+    }
+
+    // POST /api/admin/adjust-balance - Override/adjust a user's balance
+    if (route === '/admin/adjust-balance' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const { targetUserId, amount, reason } = body
+
+      if (!targetUserId || amount === undefined || amount === null) {
+        return handleCORS(NextResponse.json({ error: 'targetUserId and amount are required' }, { status: 400 }))
+      }
+
+      const numAmount = parseFloat(amount)
+      if (isNaN(numAmount)) {
+        return handleCORS(NextResponse.json({ error: 'amount must be a number' }, { status: 400 }))
+      }
+
+      // Check target user exists
+      const targetUsers = await prisma.$queryRaw`
+        SELECT id FROM users WHERE id = ${targetUserId}::uuid
+      `
+      if (targetUsers.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
+      }
+
+      // Adjust balance
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts SET balance = balance + ${numAmount}
+        WHERE user_id = ${targetUserId}::uuid
+      `
+
+      // Get new balance
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}::uuid
+      `
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
+
+      // Create ledger entry
+      const ledgerId = uuidv4()
+      const desc = reason ? `Admin adjustment: ${reason}` : 'Admin balance adjustment'
+      await prisma.$executeRaw`
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
+        VALUES (${ledgerId}::uuid, ${targetUserId}::uuid, 'ADMIN_ADJUSTMENT',
+                ${numAmount}, ${newBalance}, ${desc}, NOW())
+      `
+
+      // Create audit log entry
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'ADJUST_BALANCE',
+                ${targetUserId}::uuid, ${JSON.stringify({ amount: numAmount, reason: reason || null, newBalance })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: 'Balance adjusted successfully',
+        amount: numAmount,
+        newBalance
+      }))
     }
 
     // ============ ROUTE NOT FOUND ============

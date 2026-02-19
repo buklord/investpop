@@ -10,20 +10,17 @@ import {
   TrendingUp, 
   TrendingDown, 
   Eye, 
-  Wallet, 
-  LogOut, 
   Plus, 
   RefreshCw,
   Menu,
-  X,
-  Home,
   Activity,
-  PieChart,
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
-  Loader2
+  Loader2,
+  Newspaper
 } from 'lucide-react'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -38,6 +35,7 @@ export default function DashboardPage() {
   const [trades, setTrades] = useState([])
   const [quotes, setQuotes] = useState({})
   const [refreshing, setRefreshing] = useState(false)
+  const [notification, setNotification] = useState(null)
 
   useEffect(() => {
     checkAuth()
@@ -123,11 +121,6 @@ export default function DashboardPage() {
     setRefreshing(false)
   }
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/')
-  }
-
   const formatCurrency = (value) => {
     if (!value && value !== 0) return '$0.00'
     return new Intl.NumberFormat('en-US', {
@@ -152,68 +145,14 @@ export default function DashboardPage() {
     )
   }
 
-  const Sidebar = () => (
-    <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#161b22] border-r border-slate-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-200`}>
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-slate-800">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
-            </Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-1">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-emerald-600/20 text-emerald-400"
-          >
-            <Home className="h-5 w-5" />
-            Dashboard
-          </Link>
-          <Link
-            href="/markets"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <Activity className="h-5 w-5" />
-            Markets
-          </Link>
-          <Link
-            href="/portfolio"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <PieChart className="h-5 w-5" />
-            Portfolio
-          </Link>
-        </nav>
-        
-        <div className="p-4 border-t border-slate-800">
-          <div className="text-sm text-slate-400 mb-2 truncate">{user?.email}</div>
-          <Button
-            variant="ghost"
-            onClick={handleLogout}
-            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
-      <Sidebar />
+      <AppSidebar
+        currentPage="/dashboard"
+        user={user}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
       
       {/* Main content */}
       <div className="flex-1 min-w-0">
@@ -508,6 +447,66 @@ export default function DashboardPage() {
                   </table>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* News Feed */}
+          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
+            <CardHeader className="py-3 sm:py-4">
+              <CardTitle className="text-white text-base sm:text-lg flex items-center gap-2">
+                <Newspaper className="h-5 w-5 text-blue-400" />
+                Market News
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {[
+                  {
+                    title: 'Fed Holds Rates Steady, Markets React Positively',
+                    source: 'Financial Times',
+                    time: '2h ago',
+                    sentiment: 'positive',
+                    summary: 'The Federal Reserve maintained its benchmark interest rate, citing stable inflation trends and strong employment data.'
+                  },
+                  {
+                    title: 'Tech Sector Leads Market Rally Amid AI Optimism',
+                    source: 'Reuters',
+                    time: '4h ago',
+                    sentiment: 'positive',
+                    summary: 'Major technology stocks surged as investors remained bullish on artificial intelligence developments and quarterly earnings.'
+                  },
+                  {
+                    title: 'Bitcoin Consolidates Near Key Resistance Level',
+                    source: 'CoinDesk',
+                    time: '5h ago',
+                    sentiment: 'neutral',
+                    summary: 'Crypto markets remain cautious as Bitcoin tests resistance near recent highs, with traders watching for a breakout.'
+                  },
+                  {
+                    title: 'Energy Stocks Fall on Supply Concerns',
+                    source: 'Bloomberg',
+                    time: '7h ago',
+                    sentiment: 'negative',
+                    summary: 'Oil prices dipped and energy equities fell after OPEC signaled potential increases in production output for Q2.'
+                  }
+                ].map((item, i) => (
+                  <div key={i} className="p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            item.sentiment === 'positive' ? 'bg-emerald-500' :
+                            item.sentiment === 'negative' ? 'bg-red-500' : 'bg-slate-500'
+                          }`} />
+                          <span className="text-xs text-slate-500">{item.source} · {item.time}</span>
+                        </div>
+                        <div className="font-medium text-white text-sm mb-1">{item.title}</div>
+                        <div className="text-xs text-slate-400 leading-relaxed">{item.summary}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
