@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -16,16 +16,34 @@ import AppSidebar from '@/components/AppSidebar'
 const MARGIN_RATE = 0.10
 const SPREAD_PCT = 0.0005
 
-function getTvSymbol(asset) {
-  if (!asset) return null
-  if (asset.type === 'crypto') {
-    const base = asset.symbol.replace(/USD$/, '')
-    return `BINANCE:${base}USDT`
-  }
-  return `NASDAQ:${asset.symbol}`
+// TradingView symbol mapping for all asset types
+const TV_SYMBOL_MAP = {
+  // Forex
+  EURUSD: 'FX:EURUSD', GBPUSD: 'FX:GBPUSD', USDJPY: 'FX:USDJPY',
+  USDCHF: 'FX:USDCHF', USDCAD: 'FX:USDCAD', AUDUSD: 'FX:AUDUSD',
+  NZDUSD: 'FX:NZDUSD', EURGBP: 'FX:EURGBP', EURJPY: 'FX:EURJPY',
+  GBPJPY: 'FX:GBPJPY',
+  // Indices
+  US30:   'TVC:DJI',   US100:  'TVC:NDQ',   SPX500: 'SP:SPX',
+  GER40:  'TVC:DAX',   UK100:  'TVC:UKX',   FRA40:  'TVC:CAC40',
+  JPN225: 'TVC:NI225', AUS200: 'TVC:ASX200', HK50:  'TVC:HSI',
+  CHN50:  'TVC:CN50',
+  // Crypto
+  BTCUSD: 'BINANCE:BTCUSDT', ETHUSD: 'BINANCE:ETHUSDT',
+  BNBUSD: 'BINANCE:BNBUSDT',  SOLUSD: 'BINANCE:SOLUSDT',
+  XRPUSD: 'BINANCE:XRPUSDT',  ADAUSD: 'BINANCE:ADAUSDT',
+  DOGEUSD:'BINANCE:DOGEUSDT', AVAXUSD:'BINANCE:AVAXUSDT',
+  DOTUSD: 'BINANCE:DOTUSDT',  LTCUSD: 'BINANCE:LTCUSDT',
 }
 
-export default function MarketsPage() {
+function getTvSymbol(asset) {
+  if (!asset) return null
+  if (TV_SYMBOL_MAP[asset.symbol]) return TV_SYMBOL_MAP[asset.symbol]
+  // Stocks: TradingView auto-resolves plain symbols like AAPL, MSFT
+  return asset.symbol
+}
+
+function MarketsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [user, setUser] = useState(null)
@@ -297,6 +315,8 @@ export default function MarketsPage() {
     const matchTab = activeTab === 'all' ||
       (activeTab === 'stocks' && a.type === 'stock') ||
       (activeTab === 'crypto' && a.type === 'crypto') ||
+      (activeTab === 'forex'  && a.type === 'forex') ||
+      (activeTab === 'index'  && a.type === 'index') ||
       (activeTab === 'watchlist' && watchlist.some(w => w.asset_id === a.id))
     return matchSearch && matchTab
   }), [assets, searchQuery, activeTab, watchlist])
@@ -388,6 +408,8 @@ export default function MarketsPage() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="bg-slate-800 h-8">
                 <TabsTrigger value="all"       className="data-[state=active]:bg-emerald-600 text-xs px-3 h-6">All</TabsTrigger>
+                <TabsTrigger value="forex"     className="data-[state=active]:bg-emerald-600 text-xs px-3 h-6">Forex</TabsTrigger>
+                <TabsTrigger value="index"     className="data-[state=active]:bg-emerald-600 text-xs px-3 h-6">Indices</TabsTrigger>
                 <TabsTrigger value="stocks"    className="data-[state=active]:bg-emerald-600 text-xs px-3 h-6">Stocks</TabsTrigger>
                 <TabsTrigger value="crypto"    className="data-[state=active]:bg-emerald-600 text-xs px-3 h-6">Crypto</TabsTrigger>
                 <TabsTrigger value="watchlist" className="data-[state=active]:bg-emerald-600 text-xs px-2 h-6">
@@ -461,8 +483,17 @@ export default function MarketsPage() {
                       >
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <div className={'w-7 h-7 rounded-full flex items-center justify-center text-xs flex-shrink-0 ' + (asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' : 'bg-blue-500/10 text-blue-400')}>
-                              {asset.type === 'crypto' ? '\u20BF' : asset.symbol.charAt(0)}
+                            <div className={
+                              'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ' +
+                              (asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' :
+                               asset.type === 'forex'  ? 'bg-purple-500/10 text-purple-400' :
+                               asset.type === 'index'  ? 'bg-yellow-500/10 text-yellow-400' :
+                                                         'bg-blue-500/10 text-blue-400')
+                            }>
+                              {asset.type === 'crypto' ? '\u20BF' :
+                               asset.type === 'forex'  ? '\u20AC' :
+                               asset.type === 'index'  ? '\u25B3' :
+                               asset.symbol.charAt(0)}
                             </div>
                             <div>
                               <div className="font-semibold text-white">{asset.symbol}</div>
@@ -525,8 +556,15 @@ export default function MarketsPage() {
                 return (
                   <div key={asset.id} className="p-3 flex items-center gap-3">
                     <Link href={'/asset/' + asset.symbol + '?type=' + asset.type} className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className={'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm ' + (asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' : 'bg-blue-500/10 text-blue-400')}>
-                        {asset.type === 'crypto' ? '\u20BF' : asset.symbol.charAt(0)}
+                      <div className={'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ' +
+                        (asset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' :
+                         asset.type === 'forex'  ? 'bg-purple-500/10 text-purple-400' :
+                         asset.type === 'index'  ? 'bg-yellow-500/10 text-yellow-400' :
+                                                   'bg-blue-500/10 text-blue-400')}>
+                        {asset.type === 'crypto' ? '\u20BF' :
+                         asset.type === 'forex'  ? '\u20AC' :
+                         asset.type === 'index'  ? '\u25B3' :
+                         asset.symbol.charAt(0)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-white text-sm">{asset.symbol}</div>
@@ -563,8 +601,15 @@ export default function MarketsPage() {
             <>
               <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className={'w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ' + (selectedAsset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' : 'bg-blue-500/10 text-blue-400')}>
-                    {selectedAsset.type === 'crypto' ? '\u20BF' : selectedAsset.symbol.charAt(0)}
+                  <div className={'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ' +
+                    (selectedAsset.type === 'crypto' ? 'bg-orange-500/10 text-orange-400' :
+                     selectedAsset.type === 'forex'  ? 'bg-purple-500/10 text-purple-400' :
+                     selectedAsset.type === 'index'  ? 'bg-yellow-500/10 text-yellow-400' :
+                                                       'bg-blue-500/10 text-blue-400')}>
+                    {selectedAsset.type === 'crypto' ? '\u20BF' :
+                     selectedAsset.type === 'forex'  ? '\u20AC' :
+                     selectedAsset.type === 'index'  ? '\u25B3' :
+                     selectedAsset.symbol.charAt(0)}
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-white text-sm">{selectedAsset.symbol}</div>
@@ -608,38 +653,38 @@ export default function MarketsPage() {
                   <label className="text-xs text-slate-400 block mb-1.5">
                     {'Quantity' + (tradeAction === 'SELL' && currentPos ? ' (max ' + currentPos.quantity + ')' : '')}
                   </label>
-                  <Input
-                    type="number" step="any" min="0"
-                    max={tradeAction === 'SELL' && currentPos ? currentPos.quantity : undefined}
-                    placeholder="0.00" value={quantity}
-                    onChange={e => setQuantity(e.target.value)}
-                    className="bg-slate-900 border-slate-700 text-white h-10 text-base"
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const step = (selQuote?.price || 0) > 1000 ? 0.001 : (selQuote?.price || 0) > 100 ? 0.01 : 0.1
+                        setQuantity(v => String(Math.max(0, Math.round(((parseFloat(v) || 0) - step) * 10000) / 10000)))}
+                      }
+                      className="w-10 h-10 rounded bg-slate-800 hover:bg-slate-700 text-white text-xl font-bold flex-shrink-0 transition-colors"
+                    >−</button>
+                    <Input
+                      type="number" step="any" min="0"
+                      max={tradeAction === 'SELL' && currentPos ? currentPos.quantity : undefined}
+                      placeholder="0.00" value={quantity}
+                      onChange={e => setQuantity(e.target.value)}
+                      className="bg-slate-900 border-slate-700 text-white h-10 text-base text-center font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        const step = (selQuote?.price || 0) > 1000 ? 0.001 : (selQuote?.price || 0) > 100 ? 0.01 : 0.1
+                        setQuantity(v => String(Math.round(((parseFloat(v) || 0) + step) * 10000) / 10000))
+                      }}
+                      className="w-10 h-10 rounded bg-slate-800 hover:bg-slate-700 text-white text-xl font-bold flex-shrink-0 transition-colors"
+                    >+</button>
+                  </div>
                 </div>
-                <div className="bg-slate-900/80 rounded-lg p-3 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Market Price</span>
-                    {selQuote ? (
-                      <span className="text-white font-mono">{fmt$(tradePrice)}</span>
-                    ) : (
-                      <div className="h-3 w-16 animate-shimmer rounded" />
-                    )}
+                <div className="bg-slate-900/80 rounded-lg p-3 space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Value</span>
+                    <span className="text-white font-mono font-semibold">{qty > 0 && tradePrice ? fmt$(tradeValue) : '\u2014'}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Trade Value</span>
-                    <span className="text-white font-mono">{qty > 0 ? fmt$(tradeValue) : '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-amber-500/80">Required Margin <span className="text-slate-600">(10%)</span></span>
-                    <span className={'font-mono font-semibold ' + (qty > 0 ? 'text-amber-400' : 'text-slate-600')}>{qty > 0 ? fmt$(reqMargin) : '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Fee (0.1%)</span>
-                    <span className="text-slate-400 font-mono">{qty > 0 ? fmt$(fee) : '\u2014'}</span>
-                  </div>
-                  <div className="border-t border-slate-700 pt-2 flex justify-between font-medium">
-                    <span className="text-slate-300">{tradeAction === 'BUY' ? 'Total Cost' : 'Est. Proceeds'}</span>
-                    <span className="text-white font-mono">{qty > 0 ? fmt$(totalCost) : '\u2014'}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-amber-400/90">Margin Required</span>
+                    <span className={'font-mono font-bold text-sm ' + (qty > 0 ? 'text-amber-400' : 'text-slate-600')}>{qty > 0 && tradePrice ? fmt$(reqMargin) : '\u2014'}</span>
                   </div>
                 </div>
                 <div className="flex justify-between text-xs">
@@ -715,5 +760,17 @@ export default function MarketsPage() {
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
     </div>
+  )
+}
+
+export default function MarketsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    }>
+      <MarketsPageContent />
+    </Suspense>
   )
 }

@@ -110,6 +110,9 @@ async function ensureSchemaExtensions() {
         ('spread_multiplier', '1.0')
       ON CONFLICT (key) DO NOTHING
     `)
+    // Add forex and index asset types to the enum (idempotent)
+    await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`)
+    await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`)
   } catch (err) {
     // Non-fatal: migrations may already be applied (e.g. column already exists)
     if (process.env.NODE_ENV === 'development') {
@@ -435,30 +438,59 @@ async function handleRoute(request, { params }) {
     if (route === '/assets/seed' && method === 'POST') {
       // Check if assets already exist to skip seeding
       const existingCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM assets`
-      if (parseInt(existingCount[0].count) >= 10) {
+      if (parseInt(existingCount[0].count) >= 40) {
         return handleCORS(NextResponse.json({ message: 'Assets already seeded', skipped: true }))
       }
 
       const defaultAssets = [
-        { symbol: 'AAPL', name: 'Apple Inc.', type: 'stock' },
-        { symbol: 'TSLA', name: 'Tesla Inc.', type: 'stock' },
-        { symbol: 'MSFT', name: 'Microsoft Corp.', type: 'stock' },
-        { symbol: 'GOOGL', name: 'Alphabet Inc.', type: 'stock' },
-        { symbol: 'AMZN', name: 'Amazon.com Inc.', type: 'stock' },
-        { symbol: 'NVDA', name: 'NVIDIA Corp.', type: 'stock' },
-        { symbol: 'META', name: 'Meta Platforms Inc.', type: 'stock' },
-        { symbol: 'NFLX', name: 'Netflix Inc.', type: 'stock' },
-        { symbol: 'AMD', name: 'AMD Inc.', type: 'stock' },
-        { symbol: 'BTCUSD', name: 'Bitcoin', type: 'crypto' },
-        { symbol: 'ETHUSD', name: 'Ethereum', type: 'crypto' },
-        { symbol: 'SOLUSD', name: 'Solana', type: 'crypto' },
-        { symbol: 'XRPUSD', name: 'Ripple', type: 'crypto' },
-        { symbol: 'DOGEUSD', name: 'Dogecoin', type: 'crypto' },
-        { symbol: 'ADAUSD', name: 'Cardano', type: 'crypto' },
+        // Forex (10)
+        { symbol: 'EURUSD',  name: 'Euro / US Dollar',          type: 'forex' },
+        { symbol: 'GBPUSD',  name: 'Pound / US Dollar',         type: 'forex' },
+        { symbol: 'USDJPY',  name: 'US Dollar / Japanese Yen',  type: 'forex' },
+        { symbol: 'USDCHF',  name: 'US Dollar / Swiss Franc',   type: 'forex' },
+        { symbol: 'USDCAD',  name: 'US Dollar / Canadian Dollar',type: 'forex' },
+        { symbol: 'AUDUSD',  name: 'Australian Dollar / USD',   type: 'forex' },
+        { symbol: 'NZDUSD',  name: 'New Zealand Dollar / USD',  type: 'forex' },
+        { symbol: 'EURGBP',  name: 'Euro / British Pound',      type: 'forex' },
+        { symbol: 'EURJPY',  name: 'Euro / Japanese Yen',       type: 'forex' },
+        { symbol: 'GBPJPY',  name: 'Pound / Japanese Yen',      type: 'forex' },
+        // Indices (10)
+        { symbol: 'US30',    name: 'Dow Jones Industrial',       type: 'index' },
+        { symbol: 'US100',   name: 'Nasdaq 100',                 type: 'index' },
+        { symbol: 'SPX500',  name: 'S&P 500',                    type: 'index' },
+        { symbol: 'GER40',   name: 'Germany 40 (DAX)',           type: 'index' },
+        { symbol: 'UK100',   name: 'UK 100 (FTSE)',              type: 'index' },
+        { symbol: 'FRA40',   name: 'France 40 (CAC)',            type: 'index' },
+        { symbol: 'JPN225',  name: 'Japan 225 (Nikkei)',         type: 'index' },
+        { symbol: 'AUS200',  name: 'Australia 200 (ASX)',        type: 'index' },
+        { symbol: 'HK50',    name: 'Hong Kong 50 (HSI)',         type: 'index' },
+        { symbol: 'CHN50',   name: 'China 50 (CSI)',             type: 'index' },
+        // Stocks (10)
+        { symbol: 'AAPL',    name: 'Apple Inc.',                 type: 'stock' },
+        { symbol: 'MSFT',    name: 'Microsoft Corp.',            type: 'stock' },
+        { symbol: 'GOOGL',   name: 'Alphabet Inc.',              type: 'stock' },
+        { symbol: 'AMZN',    name: 'Amazon.com Inc.',            type: 'stock' },
+        { symbol: 'TSLA',    name: 'Tesla Inc.',                 type: 'stock' },
+        { symbol: 'NVDA',    name: 'NVIDIA Corp.',               type: 'stock' },
+        { symbol: 'META',    name: 'Meta Platforms Inc.',        type: 'stock' },
+        { symbol: 'JPM',     name: 'JPMorgan Chase',             type: 'stock' },
+        { symbol: 'NFLX',    name: 'Netflix Inc.',               type: 'stock' },
+        { symbol: 'AMD',     name: 'AMD Inc.',                   type: 'stock' },
+        // Crypto (10)
+        { symbol: 'BTCUSD',  name: 'Bitcoin',                   type: 'crypto' },
+        { symbol: 'ETHUSD',  name: 'Ethereum',                  type: 'crypto' },
+        { symbol: 'BNBUSD',  name: 'BNB',                       type: 'crypto' },
+        { symbol: 'SOLUSD',  name: 'Solana',                    type: 'crypto' },
+        { symbol: 'XRPUSD',  name: 'Ripple',                    type: 'crypto' },
+        { symbol: 'ADAUSD',  name: 'Cardano',                   type: 'crypto' },
+        { symbol: 'DOGEUSD', name: 'Dogecoin',                  type: 'crypto' },
+        { symbol: 'AVAXUSD', name: 'Avalanche',                 type: 'crypto' },
+        { symbol: 'DOTUSD',  name: 'Polkadot',                  type: 'crypto' },
+        { symbol: 'LTCUSD',  name: 'Litecoin',                  type: 'crypto' },
       ]
 
       // Use batch insert with a single query for much better performance
-      const values = defaultAssets.map(a => `('${uuidv4()}', '${a.symbol}', '${a.name}', '${a.type}'::"AssetType", NOW())`).join(',')
+      const values = defaultAssets.map(a => `('${uuidv4()}', '${a.symbol}', '${a.name.replace(/'/g, "''")}', '${a.type}'::"AssetType", NOW())`).join(',')
       await prisma.$executeRawUnsafe(`
         INSERT INTO assets (id, symbol, name, type, created_at)
         VALUES ${values}
