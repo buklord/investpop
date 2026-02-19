@@ -9,8 +9,8 @@
       "visibility": "public"
     }
   },
-  "postCreateCommand": "npm install",
-  "postStartCommand": "npm run preview",
+  "postCreateCommand": "npm install && npm run build",
+  "postStartCommand": "npm start",
   "customizations": {
     "vscode": {
       "extensions": [
