@@ -104,7 +104,7 @@ export default function HistoryPage() {
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold text-white text-sm">PaperTrade</span>
+            <span className="font-bold text-white text-sm">InvestPop</span>
           </div>
           <Button variant="ghost" size="sm" onClick={refreshData} disabled={refreshing} className="text-slate-400 p-1">
             <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />

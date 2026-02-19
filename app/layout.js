@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'PaperTrade - Paper Trading Platform',
-  description: 'A paper trading simulation platform for stocks and crypto',
+  title: 'InvestPop - Live Trading Platform',
+  description: 'A professional trading platform for stocks and crypto',
 }
 
 export default function RootLayout({ children }) {

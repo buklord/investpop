@@ -42,14 +42,14 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
+              <span className="text-xl font-bold text-white">InvestPop</span>
             </Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400">
               <X className="h-5 w-5" />
             </button>
           </div>
           <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading
+            Live Trading
           </div>
         </div>
 

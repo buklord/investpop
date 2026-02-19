@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   BarChart3,
   Menu,
@@ -16,7 +17,12 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Radio,
+  TrendingUp,
+  UserX,
+  UserCheck,
+  Zap
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -28,6 +34,8 @@ export default function AdminPage() {
 
   const [users, setUsers] = useState([])
   const [auditLog, setAuditLog] = useState([])
+  const [activityFeed, setActivityFeed] = useState([])
+  const [systemSettings, setSystemSettings] = useState({ broadcast_message: '', spread_multiplier: '1.0' })
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
 
@@ -36,23 +44,31 @@ export default function AdminPage() {
   const [forceCloseLoading, setForceCloseLoading] = useState(false)
   const [forceCloseMsg, setForceCloseMsg] = useState(null)
 
-  // Override P&L state
+  // Adjust balance state
   const [adjustUserId, setAdjustUserId] = useState('')
   const [adjustAmount, setAdjustAmount] = useState('')
   const [adjustReason, setAdjustReason] = useState('')
   const [adjustLoading, setAdjustLoading] = useState(false)
   const [adjustMsg, setAdjustMsg] = useState(null)
 
-  useEffect(() => {
-    checkAuth()
-  }, [])
+  // Broadcast state
+  const [broadcastText, setBroadcastText] = useState('')
+  const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [broadcastMsg, setBroadcastMsg] = useState(null)
 
+  // Spread multiplier state
+  const [spreadValue, setSpreadValue] = useState('1.0')
+  const [spreadLoading, setSpreadLoading] = useState(false)
+  const [spreadMsg, setSpreadMsg] = useState(null)
+
+  // Suspend state
+  const [suspendMsg, setSuspendMsg] = useState(null)
+  const [suspendingId, setSuspendingId] = useState(null)
+
+  useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
-      if (user.role !== 'ADMIN') {
-        router.push('/dashboard')
-        return
-      }
+      if (user.role !== 'ADMIN') { router.push('/dashboard'); return }
       loadData()
     }
   }, [user])
@@ -63,126 +79,130 @@ export default function AdminPage() {
       if (!res.ok) { router.push('/'); return }
       const data = await res.json()
       setUser(data.user)
-    } catch {
-      router.push('/')
-    } finally {
-      setLoading(false)
-    }
+    } catch { router.push('/') }
+    finally { setLoading(false) }
   }
 
   const loadData = async () => {
     try {
-      const [usersRes, auditRes] = await Promise.all([
+      const [usersRes, auditRes, activityRes, settingsRes] = await Promise.all([
         fetch('/api/admin/users'),
-        fetch('/api/admin/audit-log')
+        fetch('/api/admin/audit-log'),
+        fetch('/api/admin/activity-feed'),
+        fetch('/api/admin/settings')
       ])
-      if (usersRes.ok) {
-        const usersData = await usersRes.json()
-        setUsers(usersData.users || [])
-      }
-      if (auditRes.ok) {
-        const auditData = await auditRes.json()
-        setAuditLog(auditData.log || [])
+      if (usersRes.ok) setUsers((await usersRes.json()).users || [])
+      if (auditRes.ok) setAuditLog((await auditRes.json()).log || [])
+      if (activityRes.ok) setActivityFeed((await activityRes.json()).feed || [])
+      if (settingsRes.ok) {
+        const s = (await settingsRes.json()).settings || {}
+        setSystemSettings(s)
+        setBroadcastText(s.broadcast_message || '')
+        setSpreadValue(s.spread_multiplier || '1.0')
       }
     } catch (err) {
       console.error('Failed to load admin data:', err)
     }
   }
 
-  const refreshData = async () => {
-    setRefreshing(true)
-    await loadData()
-    setRefreshing(false)
-  }
+  const refreshData = async () => { setRefreshing(true); await loadData(); setRefreshing(false) }
 
   const handleForceClose = async (e) => {
-    e.preventDefault()
-    setForceCloseMsg(null)
-    setForceCloseLoading(true)
+    e.preventDefault(); setForceCloseMsg(null); setForceCloseLoading(true)
     try {
       const res = await fetch('/api/admin/force-close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ positionId: forceClosePositionId })
       })
       const data = await res.json()
-      if (res.ok) {
-        setForceCloseMsg({ type: 'success', text: data.message || 'Position force-closed successfully.' })
-        setForceClosePositionId('')
-        loadData()
-      } else {
-        setForceCloseMsg({ type: 'error', text: data.error || 'Failed to force close position.' })
-      }
-    } catch {
-      setForceCloseMsg({ type: 'error', text: 'An error occurred.' })
-    } finally {
-      setForceCloseLoading(false)
-    }
+      if (res.ok) { setForceCloseMsg({ type: 'success', text: data.message || 'Position closed.' }); setForceClosePositionId(''); loadData() }
+      else setForceCloseMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setForceCloseMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setForceCloseLoading(false) }
   }
 
-  const handleAdjustPnl = async (e) => {
-    e.preventDefault()
-    setAdjustMsg(null)
-    setAdjustLoading(true)
+  const handleAdjustBalance = async (e) => {
+    e.preventDefault(); setAdjustMsg(null); setAdjustLoading(true)
     try {
       const res = await fetch('/api/admin/adjust-balance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetUserId: adjustUserId,
-          amount: parseFloat(adjustAmount),
-          reason: adjustReason
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: adjustUserId, amount: parseFloat(adjustAmount), reason: adjustReason })
       })
       const data = await res.json()
-      if (res.ok) {
-        setAdjustMsg({ type: 'success', text: data.message || 'Balance adjusted successfully.' })
-        setAdjustUserId('')
-        setAdjustAmount('')
-        setAdjustReason('')
-        loadData()
-      } else {
-        setAdjustMsg({ type: 'error', text: data.error || 'Failed to adjust balance.' })
-      }
-    } catch {
-      setAdjustMsg({ type: 'error', text: 'An error occurred.' })
-    } finally {
-      setAdjustLoading(false)
-    }
+      if (res.ok) { setAdjustMsg({ type: 'success', text: 'Balance adjusted.' }); setAdjustUserId(''); setAdjustAmount(''); setAdjustReason(''); loadData() }
+      else setAdjustMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setAdjustMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setAdjustLoading(false) }
+  }
+
+  const handleBroadcast = async (e) => {
+    e.preventDefault(); setBroadcastMsg(null); setBroadcastLoading(true)
+    try {
+      const res = await fetch('/api/admin/broadcast', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: broadcastText })
+      })
+      const data = await res.json()
+      if (res.ok) setBroadcastMsg({ type: 'success', text: broadcastText ? 'Broadcast sent to all users.' : 'Broadcast cleared.' })
+      else setBroadcastMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setBroadcastMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setBroadcastLoading(false) }
+  }
+
+  const handleSetSpread = async (e) => {
+    e.preventDefault(); setSpreadMsg(null); setSpreadLoading(true)
+    try {
+      const res = await fetch('/api/admin/spread-multiplier', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ multiplier: parseFloat(spreadValue) })
+      })
+      const data = await res.json()
+      if (res.ok) setSpreadMsg({ type: 'success', text: `Spread multiplier set to ${spreadValue}x.` })
+      else setSpreadMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setSpreadMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setSpreadLoading(false) }
+  }
+
+  const handleSuspend = async (targetUserId, suspend) => {
+    setSuspendMsg(null); setSuspendingId(targetUserId)
+    try {
+      const res = await fetch('/api/admin/suspend-user', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId, suspend })
+      })
+      const data = await res.json()
+      if (res.ok) { setSuspendMsg({ type: 'success', text: data.message }); loadData() }
+      else setSuspendMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setSuspendMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setSuspendingId(null) }
   }
 
   const formatCurrency = (value) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', minimumFractionDigits: 2
-    }).format(value || 0)
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value || 0)
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-      </div>
-    )
-  }
+  const Msg = ({ msg }) => msg ? (
+    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${msg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+      {msg.type === 'success' ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+      {msg.text}
+    </div>
+  ) : null
 
-  if (user?.role !== 'ADMIN') {
-    return null
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+    </div>
+  )
+
+  if (user?.role !== 'ADMIN') return null
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
-      <AppSidebar
-        currentPage="/admin"
-        user={user}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-      />
+      <AppSidebar currentPage="/admin" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 min-w-0">
         {/* Mobile header */}
         <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-white p-1">
-            <Menu className="h-6 w-6" />
-          </button>
+          <button onClick={() => setSidebarOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-white" />
@@ -196,23 +216,22 @@ export default function AdminPage() {
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                 <Shield className="h-6 w-6 text-amber-400" />
-                Admin Dashboard
+                Admin Control Centre
               </h1>
               <p className="text-slate-400 text-sm mt-1">Platform management and oversight</p>
             </div>
-            <Button variant="ghost" onClick={refreshData} disabled={refreshing}
-              className="hidden lg:flex text-slate-400 hover:text-white">
+            <Button variant="ghost" onClick={refreshData} disabled={refreshing} className="hidden lg:flex text-slate-400 hover:text-white">
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <Card className="bg-[#161b22] border-slate-800">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -227,15 +246,26 @@ export default function AdminPage() {
             <Card className="bg-[#161b22] border-slate-800">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <Activity className="h-5 w-5 text-emerald-400" />
+                  <UserX className="h-5 w-5 text-red-400" />
                   <div>
-                    <div className="text-slate-400 text-xs">Audit Events</div>
-                    <div className="text-xl font-bold text-white">{auditLog.length}</div>
+                    <div className="text-slate-400 text-xs">Suspended</div>
+                    <div className="text-xl font-bold text-white">{users.filter(u => u.is_suspended).length}</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-amber-500/5 border-amber-500/20 col-span-2 sm:col-span-1">
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-yellow-400" />
+                  <div>
+                    <div className="text-slate-400 text-xs">Spread ×</div>
+                    <div className="text-xl font-bold text-white">{systemSettings.spread_multiplier || '1.0'}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-500/5 border-amber-500/20">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <Shield className="h-5 w-5 text-amber-400" />
@@ -248,8 +278,71 @@ export default function AdminPage() {
             </Card>
           </div>
 
-          {/* Admin Actions */}
+          {/* God Mode Controls */}
           <div className="grid lg:grid-cols-2 gap-6 mb-6">
+            {/* System Broadcast */}
+            <Card className="bg-[#161b22] border-red-500/20">
+              <CardHeader>
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Radio className="h-5 w-5 text-red-400" />
+                  System Broadcast
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-3">
+                  Displays a scrolling banner on every user&apos;s dashboard. Clear the text to remove it.
+                </p>
+                <form onSubmit={handleBroadcast} className="space-y-3">
+                  <Textarea
+                    value={broadcastText}
+                    onChange={e => setBroadcastText(e.target.value)}
+                    placeholder='e.g. "WARNING: High Volatility Expected in BTC"'
+                    rows={2}
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 resize-none"
+                  />
+                  <Msg msg={broadcastMsg} />
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={broadcastLoading} className="bg-red-600 hover:bg-red-700 text-white flex-1">
+                      {broadcastLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {broadcastText ? 'Send Broadcast' : 'Clear Broadcast'}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Spread Multiplier */}
+            <Card className="bg-[#161b22] border-yellow-500/20">
+              <CardHeader>
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-400" />
+                  Market Spread Multiplier
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-3">
+                  Multiply the effective spread/fees for all trades. <span className="text-yellow-400">1.0 = normal</span>. 2.0 = double fees.
+                </p>
+                <form onSubmit={handleSetSpread} className="space-y-3">
+                  <Input
+                    value={spreadValue}
+                    onChange={e => setSpreadValue(e.target.value)}
+                    type="number"
+                    min="1"
+                    max="10"
+                    step="0.1"
+                    required
+                    className="bg-slate-800 border-slate-700 text-white"
+                  />
+                  <Msg msg={spreadMsg} />
+                  <Button type="submit" disabled={spreadLoading} className="bg-yellow-600 hover:bg-yellow-700 text-white w-full">
+                    {spreadLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Apply Multiplier
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
             {/* Force Close Position */}
             <Card className="bg-[#161b22] border-slate-800">
               <CardHeader>
@@ -259,8 +352,8 @@ export default function AdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-slate-400 text-sm mb-4">
-                  Force-close any open position by its ID. This will close the position at the current market price and log an audit entry.
+                <p className="text-slate-400 text-sm mb-3">
+                  Force-close any open position by ID at the current market price.
                 </p>
                 <form onSubmit={handleForceClose} className="space-y-3">
                   <Input
@@ -270,18 +363,8 @@ export default function AdminPage() {
                     required
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 font-mono text-sm"
                   />
-                  {forceCloseMsg && (
-                    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                      forceCloseMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                    }`}>
-                      {forceCloseMsg.type === 'success'
-                        ? <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                        : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
-                      {forceCloseMsg.text}
-                    </div>
-                  )}
-                  <Button type="submit" disabled={forceCloseLoading}
-                    className="bg-red-600 hover:bg-red-700 text-white w-full">
+                  <Msg msg={forceCloseMsg} />
+                  <Button type="submit" disabled={forceCloseLoading} className="bg-red-600 hover:bg-red-700 text-white w-full">
                     {forceCloseLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Force Close
                   </Button>
@@ -298,10 +381,10 @@ export default function AdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-slate-400 text-sm mb-4">
-                  Add or subtract virtual funds from a user's account. Creates an ADMIN_ADJUSTMENT ledger entry.
+                <p className="text-slate-400 text-sm mb-3">
+                  Add or subtract from a user&apos;s account. Use negative for deduction.
                 </p>
-                <form onSubmit={handleAdjustPnl} className="space-y-3">
+                <form onSubmit={handleAdjustBalance} className="space-y-3">
                   <Input
                     value={adjustUserId}
                     onChange={e => setAdjustUserId(e.target.value)}
@@ -312,10 +395,8 @@ export default function AdminPage() {
                   <Input
                     value={adjustAmount}
                     onChange={e => setAdjustAmount(e.target.value)}
-                    placeholder="Amount (use negative to subtract)"
-                    type="number"
-                    step="0.01"
-                    required
+                    placeholder="Amount (negative to subtract)"
+                    type="number" step="0.01" required
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                   />
                   <Input
@@ -324,18 +405,8 @@ export default function AdminPage() {
                     placeholder="Reason (optional)"
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                   />
-                  {adjustMsg && (
-                    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                      adjustMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                    }`}>
-                      {adjustMsg.type === 'success'
-                        ? <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                        : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
-                      {adjustMsg.text}
-                    </div>
-                  )}
-                  <Button type="submit" disabled={adjustLoading}
-                    className="bg-amber-600 hover:bg-amber-700 text-white w-full">
+                  <Msg msg={adjustMsg} />
+                  <Button type="submit" disabled={adjustLoading} className="bg-amber-600 hover:bg-amber-700 text-white w-full">
                     {adjustLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Apply Adjustment
                   </Button>
@@ -344,24 +415,22 @@ export default function AdminPage() {
             </Card>
           </div>
 
-          {/* Tabs: Users | Audit Log */}
-          <div className="flex gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'users' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Users ({users.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('audit')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === 'audit' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Audit Log ({auditLog.length})
-            </button>
+          {suspendMsg && <div className="mb-4"><Msg msg={suspendMsg} /></div>}
+
+          {/* Tabs */}
+          <div className="flex flex-wrap gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg w-fit">
+            {[
+              { id: 'users', label: `Users (${users.length})` },
+              { id: 'activity', label: `Live Feed (${activityFeed.length})` },
+              { id: 'audit', label: `Audit Log (${auditLog.length})` },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === tab.id ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}>
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* Users Table */}
@@ -375,27 +444,26 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[500px]">
+                    <table className="w-full min-w-[600px]">
                       <thead>
                         <tr className="text-slate-500 text-xs border-b border-slate-800">
-                          <th className="text-left p-4">Email</th>
+                          <th className="text-left p-4">Email / ID</th>
                           <th className="text-left p-4">Role</th>
                           <th className="text-right p-4">Balance</th>
-                          <th className="text-right p-4">Joined</th>
+                          <th className="text-center p-4">Status</th>
+                          <th className="text-right p-4">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {users.map(u => (
-                          <tr key={u.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                          <tr key={u.id} className={`border-b border-slate-800 hover:bg-slate-800/30 ${u.is_suspended ? 'opacity-60' : ''}`}>
                             <td className="p-4">
                               <div className="text-white text-sm">{u.email}</div>
-                              <div className="text-slate-500 text-xs font-mono">{u.id}</div>
+                              <div className="text-slate-500 text-xs font-mono truncate max-w-[180px]">{u.id}</div>
                             </td>
                             <td className="p-4">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                u.role === 'ADMIN'
-                                  ? 'bg-amber-500/10 text-amber-400'
-                                  : 'bg-slate-700 text-slate-400'
+                                u.role === 'ADMIN' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-700 text-slate-400'
                               }`}>
                                 {u.role || 'USER'}
                               </span>
@@ -403,13 +471,78 @@ export default function AdminPage() {
                             <td className="p-4 text-right text-white text-sm">
                               {u.balance !== null ? formatCurrency(u.balance) : '—'}
                             </td>
-                            <td className="p-4 text-right text-slate-500 text-xs">
-                              {new Date(u.created_at).toLocaleDateString()}
+                            <td className="p-4 text-center">
+                              {u.is_suspended
+                                ? <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded text-xs">Suspended</span>
+                                : <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs">Active</span>
+                              }
+                            </td>
+                            <td className="p-4 text-right">
+                              {u.role !== 'ADMIN' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={suspendingId === u.id}
+                                  onClick={() => handleSuspend(u.id, !u.is_suspended)}
+                                  className={u.is_suspended
+                                    ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs'
+                                    : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs'
+                                  }
+                                >
+                                  {suspendingId === u.id
+                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                    : u.is_suspended
+                                      ? <><UserCheck className="h-3 w-3 mr-1 inline" />Reactivate</>
+                                      : <><UserX className="h-3 w-3 mr-1 inline" />Suspend</>
+                                  }
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Live Activity Feed */}
+          {activeTab === 'activity' && (
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-emerald-400" />
+                  Live Activity Feed
+                  <span className="text-xs text-slate-500 font-normal">(last 20 actions)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {activityFeed.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Activity className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No activity yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800">
+                    {activityFeed.map(entry => (
+                      <div key={entry.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-800/30">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            entry.action.startsWith('TRADE') ? 'bg-emerald-500' :
+                            entry.action === 'LOGIN' ? 'bg-blue-500' : 'bg-amber-500'
+                          }`} />
+                          <div className="min-w-0">
+                            <div className="text-white text-sm font-medium">{entry.action}</div>
+                            <div className="text-slate-500 text-xs truncate">{entry.email || 'Unknown'}</div>
+                          </div>
+                        </div>
+                        <div className="text-slate-500 text-xs flex-shrink-0">
+                          {new Date(entry.created_at).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -444,7 +577,7 @@ export default function AdminPage() {
                                 {entry.action}
                               </span>
                             </td>
-                            <td className="p-4 text-slate-400 text-xs font-mono">{entry.admin_email || entry.admin_id}</td>
+                            <td className="p-4 text-slate-400 text-xs">{entry.admin_email || entry.admin_id}</td>
                             <td className="p-4 text-slate-400 text-xs font-mono">{entry.target_id || '—'}</td>
                             <td className="p-4 text-right text-slate-500 text-xs">
                               {new Date(entry.created_at).toLocaleString()}
@@ -467,3 +600,5 @@ export default function AdminPage() {
     </div>
   )
 }
+
+

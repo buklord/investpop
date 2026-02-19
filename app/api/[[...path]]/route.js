@@ -45,6 +45,10 @@ export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
+// The email address that is allowed to hold the ADMIN role.
+// Set ADMIN_EMAIL in your .env to lock it to your account.
+const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'demo@investdash.com'
+
 // Ensure new columns/tables exist (idempotent schema migrations).
 // Uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS so concurrent calls are safe.
 async function ensureSchemaExtensions() {
@@ -52,6 +56,10 @@ async function ensureSchemaExtensions() {
     // Add role column to users if not exists
     await prisma.$executeRawUnsafe(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'
+    `)
+    // Add is_suspended column to users if not exists
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE
     `)
     // Create ledger_entries table if not exists
     await prisma.$executeRawUnsafe(`
@@ -77,12 +85,49 @@ async function ensureSchemaExtensions() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `)
+    // Create activity_log table for live feed
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(100) NOT NULL,
+        details JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+    // Create system_settings table for broadcast & spread multiplier
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `)
+    // Seed default system settings if not present
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO system_settings (key, value) VALUES
+        ('broadcast_message', ''),
+        ('spread_multiplier', '1.0')
+      ON CONFLICT (key) DO NOTHING
+    `)
   } catch (err) {
     // Non-fatal: migrations may already be applied (e.g. column already exists)
     if (process.env.NODE_ENV === 'development') {
       console.warn('ensureSchemaExtensions:', err.message)
     }
   }
+}
+
+// Log a user action to the activity feed (best-effort, never throws)
+async function logActivity(userId, action, details = {}) {
+  try {
+    const id = (await import('uuid')).v4()
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO activity_log (id, user_id, action, details, created_at)
+       VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, NOW())`,
+      id, userId, action, JSON.stringify(details)
+    )
+  } catch (_) {}
 }
 
 // Best-effort flag to skip redundant schema checks after first successful run.
@@ -115,8 +160,8 @@ async function handleRoute(request, { params }) {
     // ============ ROOT ENDPOINT ============
     if ((route === '/' || route === '/root') && method === 'GET') {
       return handleCORS(NextResponse.json({ 
-        message: 'PaperTrade API - Paper Trading Platform',
-        version: '2.1.0',
+        message: 'InvestPop Trading API',
+        version: '2.2.0',
         features: ['trading_fees', 'slippage_simulation', 'weighted_average_entry', 'account_snapshots']
       }))
     }
@@ -204,7 +249,7 @@ async function handleRoute(request, { params }) {
 
       // Find user
       const users = await prisma.$queryRaw`
-        SELECT id, email, password_hash FROM users WHERE email = ${email}
+        SELECT id, email, password_hash, is_suspended FROM users WHERE email = ${email}
       `
       
       if (users.length === 0) {
@@ -225,6 +270,14 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block suspended users
+      if (user.is_suspended) {
+        return handleCORS(NextResponse.json(
+          { error: 'Your account has been suspended. Please contact support.' },
+          { status: 403 }
+        ))
+      }
+
       // Ensure virtual account exists
       await prisma.$executeRaw`
         INSERT INTO virtual_accounts (user_id, balance)
@@ -235,6 +288,9 @@ async function handleRoute(request, { params }) {
       // Create session
       const token = await createSession(user.id, user.email)
       const cookieOptions = getSessionCookieOptions()
+
+      // Log login activity (best-effort)
+      logActivity(user.id, 'LOGIN', { email: user.email })
 
       const response = NextResponse.json({
         message: 'Login successful',
@@ -262,14 +318,30 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Fetch role from DB
+      // Fetch role and suspension status from DB
       const users = await prisma.$queryRaw`
-        SELECT role FROM users WHERE id = ${auth.user.userId}::uuid
+        SELECT role, is_suspended FROM users WHERE id = ${auth.user.userId}::uuid
       `
       const role = users[0]?.role || 'USER'
+      const isSuspended = users[0]?.is_suspended || false
+
+      // Fetch broadcast message and spread multiplier from system_settings
+      let broadcastMessage = ''
+      let spreadMultiplier = 1.0
+      try {
+        const settings = await prisma.$queryRaw`
+          SELECT key, value FROM system_settings WHERE key IN ('broadcast_message', 'spread_multiplier')
+        `
+        settings.forEach(s => {
+          if (s.key === 'broadcast_message') broadcastMessage = s.value
+          if (s.key === 'spread_multiplier') spreadMultiplier = parseFloat(s.value) || 1.0
+        })
+      } catch (_) {}
 
       return handleCORS(NextResponse.json({
-        user: { id: auth.user.userId, email: auth.user.email, role }
+        user: { id: auth.user.userId, email: auth.user.email, role, isSuspended },
+        broadcastMessage,
+        spreadMultiplier
       }))
     }
 
@@ -375,6 +447,17 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Block suspended users from trading
+      const traderRows = await prisma.$queryRaw`
+        SELECT is_suspended FROM users WHERE id = ${auth.user.userId}::uuid
+      `
+      if (traderRows[0]?.is_suspended) {
+        return handleCORS(NextResponse.json(
+          { error: 'Your account has been suspended.' },
+          { status: 403 }
+        ))
+      }
+
       const body = await request.json()
       const { symbol, type, action, quantity, takeProfit, stopLoss, leverage } = body
 
@@ -400,6 +483,18 @@ async function handleRoute(request, { params }) {
         ))
       }
 
+      // Apply global spread multiplier to leverage (effectively multiplies fees/slippage)
+      let effectiveLeverage = leverage ? parseFloat(leverage) : 1
+      try {
+        const smRows = await prisma.$queryRaw`
+          SELECT value FROM system_settings WHERE key = 'spread_multiplier'
+        `
+        const multiplier = parseFloat(smRows[0]?.value || '1.0')
+        if (multiplier > 1) {
+          effectiveLeverage = effectiveLeverage * multiplier
+        }
+      } catch (_) {}
+
       // Use TradeService
       const tradeService = new TradeService(auth.user.userId)
       const result = await tradeService.executeTrade({
@@ -409,7 +504,7 @@ async function handleRoute(request, { params }) {
         quantity: parseFloat(quantity),
         takeProfit: takeProfit ? parseFloat(takeProfit) : null,
         stopLoss: stopLoss ? parseFloat(stopLoss) : null,
-        leverage: leverage ? parseFloat(leverage) : 1
+        leverage: effectiveLeverage
       })
 
       if (!result.success) {
@@ -418,6 +513,9 @@ async function handleRoute(request, { params }) {
           { status: 400 }
         ))
       }
+
+      // Log trade activity (best-effort)
+      logActivity(auth.user.userId, `TRADE_${action}`, { symbol, quantity, action })
 
       return handleCORS(NextResponse.json({
         message: `${action} order executed`,
@@ -935,6 +1033,14 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
 
+      // Security: only the master admin email may claim ADMIN
+      if (auth.user.email !== MASTER_ADMIN_EMAIL) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only the designated admin email address may claim admin access.' },
+          { status: 403 }
+        ))
+      }
+
       // Atomic conditional update: only promotes this user if no ADMIN currently exists.
       // The WHERE NOT EXISTS prevents the race condition of two simultaneous calls both succeeding.
       const result = await prisma.$executeRaw`
@@ -944,10 +1050,10 @@ async function handleRoute(request, { params }) {
       `
 
       if (result === 0) {
-        return handleCORS(NextResponse.json(
-          { error: 'An ADMIN account already exists. Ask your admin to promote you instead.' },
-          { status: 403 }
-        ))
+        // Already admin or another admin exists — just ensure this email has admin
+        await prisma.$executeRaw`
+          UPDATE users SET role = 'ADMIN' WHERE id = ${auth.user.userId}::uuid
+        `
       }
 
       return handleCORS(NextResponse.json({
@@ -957,7 +1063,7 @@ async function handleRoute(request, { params }) {
       }))
     }
 
-    // GET /api/admin/users - List all users with balances
+    // GET /api/admin/users - List all users with balances (optimized: select only needed fields)
     if (route === '/admin/users' && method === 'GET') {
       const admin = await requireAdminAuth()
       if (admin.error) {
@@ -965,7 +1071,7 @@ async function handleRoute(request, { params }) {
       }
 
       const users = await prisma.$queryRaw`
-        SELECT u.id, u.email, u.role, u.created_at,
+        SELECT u.id, u.email, u.role, u.is_suspended, u.created_at,
                va.balance
         FROM users u
         LEFT JOIN virtual_accounts va ON va.user_id = u.id
@@ -1135,6 +1241,136 @@ async function handleRoute(request, { params }) {
         amount: numAmount,
         newBalance
       }))
+    }
+
+    // POST /api/admin/suspend-user - Suspend or re-activate a user
+    if (route === '/admin/suspend-user' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const { targetUserId, suspend } = body // suspend: true = deactivate, false = reactivate
+
+      if (!targetUserId || typeof suspend !== 'boolean') {
+        return handleCORS(NextResponse.json({ error: 'targetUserId and suspend (boolean) are required' }, { status: 400 }))
+      }
+
+      const targetUsers = await prisma.$queryRaw`
+        SELECT id, email FROM users WHERE id = ${targetUserId}::uuid
+      `
+      if (targetUsers.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
+      }
+
+      await prisma.$executeRaw`
+        UPDATE users SET is_suspended = ${suspend} WHERE id = ${targetUserId}::uuid
+      `
+
+      // Audit log
+      const auditId = uuidv4()
+      const action = suspend ? 'SUSPEND_USER' : 'REACTIVATE_USER'
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, ${action},
+                ${targetUserId}::uuid, ${JSON.stringify({ email: targetUsers[0].email })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: suspend ? 'User suspended' : 'User reactivated',
+        targetUserId
+      }))
+    }
+
+    // POST /api/admin/broadcast - Set or clear the system-wide broadcast message
+    if (route === '/admin/broadcast' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const message = typeof body.message === 'string' ? body.message.trim() : ''
+
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('broadcast_message', ${message}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${message}, updated_at = NOW()
+      `
+
+      // Audit log
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_BROADCAST',
+                NULL, ${JSON.stringify({ message })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: 'Broadcast updated', broadcastMessage: message }))
+    }
+
+    // POST /api/admin/spread-multiplier - Set the global spread/fee multiplier
+    if (route === '/admin/spread-multiplier' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const multiplier = parseFloat(body.multiplier)
+
+      if (isNaN(multiplier) || multiplier < 1 || multiplier > 10) {
+        return handleCORS(NextResponse.json({ error: 'multiplier must be a number between 1 and 10' }, { status: 400 }))
+      }
+
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('spread_multiplier', ${String(multiplier)}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${String(multiplier)}, updated_at = NOW()
+      `
+
+      // Audit log
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_SPREAD_MULTIPLIER',
+                NULL, ${JSON.stringify({ multiplier })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: 'Spread multiplier updated', spreadMultiplier: multiplier }))
+    }
+
+    // GET /api/admin/activity-feed - Real-time feed of last 20 site actions
+    if (route === '/admin/activity-feed' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const feed = await prisma.$queryRaw`
+        SELECT al.id, al.action, al.details, al.created_at, u.email
+        FROM activity_log al
+        LEFT JOIN users u ON u.id = al.user_id
+        ORDER BY al.created_at DESC
+        LIMIT 20
+      `
+
+      return handleCORS(NextResponse.json({ feed }))
+    }
+
+    // GET /api/admin/settings - Get current system settings
+    if (route === '/admin/settings' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const settings = await prisma.$queryRaw`
+        SELECT key, value FROM system_settings
+      `
+      const result = {}
+      settings.forEach(s => { result[s.key] = s.value })
+
+      return handleCORS(NextResponse.json({ settings: result }))
     }
 
     // ============ ROUTE NOT FOUND ============

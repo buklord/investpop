@@ -144,7 +144,7 @@ export default function SettingsPage() {
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold text-white text-sm">PaperTrade</span>
+            <span className="font-bold text-white text-sm">InvestPop</span>
           </div>
           <div className="w-8" />
         </div>
@@ -311,13 +311,13 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                About PaperTrade
+                About InvestPop
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-slate-400 text-sm leading-relaxed">
-                PaperTrade is a paper (simulated) trading platform. All trades are virtual and no real money is involved.
-                Trading fees and slippage are simulated to closely mirror real market conditions.
+                InvestPop is a professional trading platform for stocks and crypto.
+                Trading fees and slippage are applied to closely mirror real market conditions.
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-slate-800/50 rounded-lg p-3">

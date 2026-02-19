@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   BarChart3, 
   TrendingUp, 
@@ -19,15 +19,47 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
-  Newspaper
+  Newspaper,
+  AlertTriangle
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+
+// Loading skeleton card
+function SkeletonCard() {
+  return (
+    <Card className="bg-[#161b22] border-slate-800">
+      <CardContent className="p-3 sm:p-6">
+        <div className="flex items-center gap-2 sm:gap-3 mb-2">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-700 rounded-lg animate-pulse" />
+          <div className="h-3 w-16 bg-slate-700 rounded animate-pulse" />
+        </div>
+        <div className="h-7 w-28 bg-slate-700 rounded animate-pulse" />
+      </CardContent>
+    </Card>
+  )
+}
+
+function SkeletonRow() {
+  return (
+    <div className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-lg">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-700 rounded-full animate-pulse" />
+        <div className="space-y-1">
+          <div className="h-3 w-20 bg-slate-700 rounded animate-pulse" />
+          <div className="h-2 w-28 bg-slate-700 rounded animate-pulse" />
+        </div>
+      </div>
+      <div className="h-4 w-16 bg-slate-700 rounded animate-pulse" />
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [broadcastMessage, setBroadcastMessage] = useState('')
   
   // Data states
   const [account, setAccount] = useState(null)
@@ -35,8 +67,8 @@ export default function DashboardPage() {
   const [watchlist, setWatchlist] = useState([])
   const [trades, setTrades] = useState([])
   const [quotes, setQuotes] = useState({})
+  const [dataLoading, setDataLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [notification, setNotification] = useState(null)
 
   useEffect(() => {
     checkAuth()
@@ -57,6 +89,7 @@ export default function DashboardPage() {
       }
       const data = await res.json()
       setUser(data.user)
+      if (data.broadcastMessage) setBroadcastMessage(data.broadcastMessage)
     } catch (err) {
       router.push('/')
     } finally {
@@ -65,6 +98,7 @@ export default function DashboardPage() {
   }
 
   const loadData = async () => {
+    setDataLoading(true)
     try {
       // Fire seed in background (don't block on it)
       fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
@@ -94,6 +128,8 @@ export default function DashboardPage() {
       fetchQuotesParallel(Array.from(symbols))
     } catch (err) {
       console.error('Failed to load data:', err)
+    } finally {
+      setDataLoading(false)
     }
   }
 
@@ -166,7 +202,7 @@ export default function DashboardPage() {
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold text-white text-sm">PaperTrade</span>
+            <span className="font-bold text-white text-sm">InvestPop</span>
           </div>
           <Button
             variant="ghost"
@@ -178,6 +214,16 @@ export default function DashboardPage() {
             <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
+
+        {/* Broadcast Banner */}
+        {broadcastMessage && (
+          <div className="bg-red-600/90 border-b border-red-500 px-4 py-2 flex items-center gap-2 overflow-hidden">
+            <AlertTriangle className="h-4 w-4 text-white flex-shrink-0" />
+            <div className="text-white text-sm font-medium whitespace-nowrap animate-marquee">
+              {broadcastMessage}
+            </div>
+          </div>
+        )}
         
         {/* Page content */}
         <div className="p-3 sm:p-4 lg:p-8 max-w-7xl mx-auto">
@@ -185,7 +231,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4 sm:mb-8">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white">Dashboard</h1>
-              <p className="text-slate-400 text-sm">Paper Trading Simulation</p>
+              <p className="text-slate-400 text-sm">Live Trading Platform</p>
             </div>
             <Button
               variant="ghost"
@@ -198,70 +244,78 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {/* Account Stats - 2x2 on mobile, 4 columns on desktop */}
+          {/* Account Stats - Skeleton while loading */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-8">
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-                  </div>
-                  <span className="text-slate-400 text-xs sm:text-sm">Cash</span>
-                </div>
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {formatCurrency(account?.balance || 0)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
-                  </div>
-                  <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
-                </div>
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {formatCurrency(account?.equity || 0)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                  <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                    {(account?.openPnl || 0) >= 0 ? (
-                      <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
-                    ) : (
-                      <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-                    )}
-                  </div>
-                  <span className="text-slate-400 text-xs sm:text-sm">Open P&L</span>
-                </div>
-                <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                  <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                    <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
-                  </div>
-                  <span className="text-slate-400 text-xs sm:text-sm">Realized</span>
-                </div>
-                <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl || 0)}
-                </div>
-              </CardContent>
-            </Card>
+            {dataLoading ? (
+              <>
+                <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+              </>
+            ) : (
+              <>
+                <Card className="bg-[#161b22] border-slate-800">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                        <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                      </div>
+                      <span className="text-slate-400 text-xs sm:text-sm">Cash</span>
+                    </div>
+                    <div className="text-lg sm:text-2xl font-bold text-white truncate">
+                      {formatCurrency(account?.balance || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#161b22] border-slate-800">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                        <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                      </div>
+                      <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
+                    </div>
+                    <div className="text-lg sm:text-2xl font-bold text-white truncate">
+                      {formatCurrency(account?.equity || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#161b22] border-slate-800">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
+                        {(account?.openPnl || 0) >= 0 ? (
+                          <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
+                        ) : (
+                          <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
+                        )}
+                      </div>
+                      <span className="text-slate-400 text-xs sm:text-sm">Open P&L</span>
+                    </div>
+                    <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-[#161b22] border-slate-800">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
+                        <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+                      </div>
+                      <span className="text-slate-400 text-xs sm:text-sm">Realized</span>
+                    </div>
+                    <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
 
-          {/* Positions and Watchlist - Stack on mobile */}
+          {/* Positions and Watchlist */}
           <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Open Positions */}
             <Card className="bg-[#161b22] border-slate-800">
@@ -276,7 +330,11 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {positions.length === 0 ? (
+                {dataLoading ? (
+                  <div className="space-y-2 sm:space-y-3">
+                    <SkeletonRow /><SkeletonRow />
+                  </div>
+                ) : positions.length === 0 ? (
                   <div className="text-center py-6 sm:py-8">
                     <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
                     <p className="text-slate-500 text-sm">No open positions</p>
@@ -341,7 +399,11 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {watchlist.length === 0 ? (
+                {dataLoading ? (
+                  <div className="space-y-2 sm:space-y-3">
+                    <SkeletonRow /><SkeletonRow />
+                  </div>
+                ) : watchlist.length === 0 ? (
                   <div className="text-center py-6 sm:py-8">
                     <Eye className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
                     <p className="text-slate-500 text-sm">No assets in watchlist</p>
@@ -403,7 +465,16 @@ export default function DashboardPage() {
               <CardTitle className="text-white text-base sm:text-lg">Recent Trades</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              {trades.length === 0 ? (
+              {dataLoading ? (
+                <div className="space-y-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex justify-between items-center py-2 border-t border-slate-800">
+                      <div className="h-3 w-24 bg-slate-700 rounded animate-pulse" />
+                      <div className="h-3 w-16 bg-slate-700 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : trades.length === 0 ? (
                 <div className="text-center py-6 sm:py-8">
                   <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
                   <p className="text-slate-500 text-sm">No trades yet</p>
@@ -523,3 +594,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+
