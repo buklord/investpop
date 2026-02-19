@@ -58,12 +58,12 @@ export default function AssetPage() {
     }
   }, [user, symbol])
 
-  // Auto-refresh quote every 30 seconds
+  // Auto-refresh quote every 5 seconds for live price feed
   useEffect(() => {
     if (!user || !symbol) return
     const interval = setInterval(() => {
       fetchQuote()
-    }, 30000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [user, symbol, type])
 

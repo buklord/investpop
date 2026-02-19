@@ -80,6 +80,18 @@ export default function DashboardPage() {
     }
   }, [user])
 
+  // Auto-refresh account stats every 30 seconds so Open P&L stays current
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/account')
+        if (res.ok) setAccount(await res.json())
+      } catch {}
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [user])
+
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me')

@@ -362,7 +362,7 @@ export default function PortfolioPage() {
                                   </div>
                                 </td>
                                 <td className="p-4 text-center">
-                                  <Link href={`/asset/${pos.symbol}?type=${pos.type}`}>
+                                  <Link href={`/markets?select=${pos.symbol}&type=${pos.type}`}>
                                     <Button size="sm" variant="outline" className="border-slate-700 text-white hover:bg-slate-700">
                                       Trade
                                     </Button>

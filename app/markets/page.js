@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,15 +9,25 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   TrendingUp, TrendingDown, Search, Star,
   Menu, RefreshCw, Loader2, BarChart3,
-  AlertCircle, CheckCircle, AlertTriangle
+  AlertCircle, CheckCircle, AlertTriangle, ChevronDown
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
 const MARGIN_RATE = 0.10
 const SPREAD_PCT = 0.0005
 
+function getTvSymbol(asset) {
+  if (!asset) return null
+  if (asset.type === 'crypto') {
+    const base = asset.symbol.replace(/USD$/, '')
+    return `BINANCE:${base}USDT`
+  }
+  return `NASDAQ:${asset.symbol}`
+}
+
 export default function MarketsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -40,11 +50,90 @@ export default function MarketsPage() {
   const [stopLoss, setStopLoss] = useState('')
   const [tpEnabled, setTpEnabled] = useState(false)
   const [slEnabled, setSlEnabled] = useState(false)
+  const [trailingStop, setTrailingStop] = useState(false)
   const [trading, setTrading] = useState(false)
   const [tradeResult, setTradeResult] = useState(null)
+  const [chartCollapsed, setChartCollapsed] = useState(false)
+  const chartContainerRef = useRef(null)
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
+
+  // 2-second fast-refresh for selected asset quote (the "alive" price feed)
+  useEffect(() => {
+    if (!user || !selectedAsset) return
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/quote?symbol=' + selectedAsset.symbol + '&type=' + selectedAsset.type)
+        if (res.ok) {
+          const data = await res.json()
+          setQuotes(prev => ({ ...prev, [selectedAsset.symbol]: data }))
+        }
+      } catch {}
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [user, selectedAsset?.symbol, selectedAsset?.type])
+
+  // 15-second full list refresh + account stats
+  useEffect(() => {
+    if (!user || assets.length === 0) return
+    const interval = setInterval(() => {
+      fetchQuotesParallel(assets)
+      fetch('/api/account').then(r => r.ok ? r.json() : null).then(d => { if (d) setAccount(d) })
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [user, assets])
+
+  // Auto-select asset from URL query (?select=SYMBOL&type=TYPE) once assets are loaded
+  useEffect(() => {
+    const selectSym = searchParams?.get('select')
+    const selectType = searchParams?.get('type')
+    if (!selectSym || assets.length === 0 || selectedAsset) return
+    const found = assets.find(a => a.symbol === selectSym && (!selectType || a.type === selectType))
+    if (found) setSelectedAsset(found)
+  }, [assets, searchParams, selectedAsset])
+
+  // TradingView chart: recreate when selected asset changes
+  useEffect(() => {
+    if (!selectedAsset || !chartContainerRef.current || chartCollapsed) return
+    const tvSym = getTvSymbol(selectedAsset)
+    if (!tvSym) return
+
+    const buildWidget = () => {
+      if (!chartContainerRef.current) return
+      chartContainerRef.current.innerHTML = ''
+      const containerId = 'tv-mkts-' + Date.now()
+      const el = document.createElement('div')
+      el.id = containerId
+      el.style.height = '100%'
+      chartContainerRef.current.appendChild(el)
+      try {
+        new window.TradingView.widget({
+          width: '100%', height: '100%',
+          symbol: tvSym, interval: 'D',
+          timezone: 'Etc/UTC', theme: 'dark', style: '1', locale: 'en',
+          toolbar_bg: '#161b22', enable_publishing: false,
+          hide_side_toolbar: true, allow_symbol_change: false,
+          container_id: containerId,
+          backgroundColor: '#0d1117', gridColor: '#1e293b',
+        })
+      } catch {}
+    }
+
+    if (window.TradingView) {
+      buildWidget()
+    } else {
+      const existing = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]')
+      if (existing) {
+        const poll = setInterval(() => { if (window.TradingView) { clearInterval(poll); buildWidget() } }, 100)
+      } else {
+        const s = document.createElement('script')
+        s.src = 'https://s3.tradingview.com/tv.js'
+        s.onload = buildWidget
+        document.head.appendChild(s)
+      }
+    }
+  }, [selectedAsset?.symbol, chartCollapsed])
 
   useEffect(() => {
     if (Object.keys(quotes).length === 0) return
@@ -69,6 +158,7 @@ export default function MarketsPage() {
     setStopLoss('')
     setTpEnabled(false)
     setSlEnabled(false)
+    setTrailingStop(false)
   }, [selectedAsset?.id, tradeAction])
 
   const checkAuth = async () => {
@@ -291,6 +381,33 @@ export default function MarketsPage() {
             </Tabs>
           </div>
 
+          {/* TradingView chart panel — shown when an asset is selected on desktop */}
+          {selectedAsset && (
+            <div className="hidden lg:flex flex-col border-b border-slate-800 flex-shrink-0" style={{ height: chartCollapsed ? 'auto' : '280px' }}>
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#0d1117] border-b border-slate-800/60 flex-shrink-0">
+                <span className="text-xs text-slate-400 font-medium">
+                  {selectedAsset.symbol} · {selectedAsset.name}
+                  {selQuote && (
+                    <span className={'ml-2 font-mono ' + ((selQuote.changePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                      {fmt$(selQuote.price)}
+                      <span className="ml-1 text-slate-500">{fmtPct(selQuote.changePercent)}</span>
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => setChartCollapsed(c => !c)}
+                  className="text-slate-500 hover:text-slate-300 p-0.5"
+                  title={chartCollapsed ? 'Expand chart' : 'Collapse chart'}
+                >
+                  <ChevronDown className={'h-4 w-4 transition-transform ' + (chartCollapsed ? 'rotate-180' : '')} />
+                </button>
+              </div>
+              {!chartCollapsed && (
+                <div ref={chartContainerRef} className="flex-1 w-full bg-[#0d1117]" />
+              )}
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto">
             {quotesLoading && Object.keys(quotes).length === 0 && (
               <div className="p-3 space-y-1.5">
@@ -509,30 +626,33 @@ export default function MarketsPage() {
                     </div>
                   </div>
                 )}
-                {tradeAction === 'BUY' && (
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                        <input type="checkbox" checked={tpEnabled} onChange={e => setTpEnabled(e.target.checked)} className="accent-emerald-500" />
-                        Close at Profit
-                      </label>
-                      {tpEnabled && (
-                        <Input type="number" step="any" placeholder="Price" value={takeProfit} onChange={e => setTakeProfit(e.target.value)}
-                          className="w-28 h-7 bg-slate-900 border-slate-700 text-white text-xs" />
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                        <input type="checkbox" checked={slEnabled} onChange={e => setSlEnabled(e.target.checked)} className="accent-red-500" />
-                        Close at Loss
-                      </label>
-                      {slEnabled && (
-                        <Input type="number" step="any" placeholder="Price" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
-                          className="w-28 h-7 bg-slate-900 border-slate-700 text-white text-xs" />
-                      )}
-                    </div>
+                <div className="space-y-2 text-xs border-t border-slate-800/60 pt-3">
+                  <div className="text-slate-500 text-xs mb-1">Risk Management</div>
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-emerald-500/80 cursor-pointer">
+                      <input type="checkbox" checked={tpEnabled} onChange={e => setTpEnabled(e.target.checked)} className="accent-emerald-500" />
+                      Close at Profit (TP)
+                    </label>
+                    {tpEnabled && (
+                      <Input type="number" step="any" placeholder="Price" value={takeProfit} onChange={e => setTakeProfit(e.target.value)}
+                        className="w-28 h-7 bg-slate-900 border-slate-700 text-white text-xs" />
+                    )}
                   </div>
-                )}
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-red-500/80 cursor-pointer">
+                      <input type="checkbox" checked={slEnabled} onChange={e => setSlEnabled(e.target.checked)} className="accent-red-500" />
+                      Close at Loss (SL)
+                    </label>
+                    {slEnabled && (
+                      <Input type="number" step="any" placeholder="Price" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
+                        className="w-28 h-7 bg-slate-900 border-slate-700 text-white text-xs" />
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 text-blue-400/80 cursor-pointer">
+                    <input type="checkbox" checked={trailingStop} onChange={e => setTrailingStop(e.target.checked)} className="accent-blue-500" />
+                    Trailing Stop
+                  </label>
+                </div>
                 {tradeResult && (
                   <div className={'rounded-lg p-3 flex items-start gap-2 text-xs ' + (tradeResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400')}>
                     {tradeResult.success ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
