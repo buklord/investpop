@@ -131,6 +131,10 @@ export default function HomePage() {
 
     setSubmitting(true)
 
+    // 20-second timeout — prevents indefinite hang when DB is paused/waking up
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+
     try {
       const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
       const body = { email, password }
@@ -140,10 +144,19 @@ export default function HomePage() {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
 
-      const data = await res.json()
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        // Server returned non-JSON (HTML error page) — treat as server error
+        setError('Server error. Please restart the dev server and try again.')
+        return
+      }
 
       if (!res.ok) {
         setError(data.error || 'Something went wrong')
@@ -154,14 +167,19 @@ export default function HomePage() {
       // Identify logged-in user inside Tawk.to so admin sees their name/email
       if (typeof window !== 'undefined' && window.Tawk_API && window.Tawk_API.setAttributes) {
         window.Tawk_API.setAttributes({
-          name:  data.user.name  || data.user.email,
-          email: data.user.email,
-          id:    data.user.id,
+          name:  data.user?.name  || data.user?.email,
+          email: data.user?.email,
+          id:    data.user?.id,
         }, function() {})
       }
       router.push('/dashboard')
     } catch (err) {
-      setError('Network error. Please try again.')
+      clearTimeout(timeoutId)
+      if (err?.name === 'AbortError') {
+        setError('Request timed out. Your Supabase database may be paused — visit app.supabase.com, restore your project, wait 30 seconds, then try again.')
+      } else {
+        setError('Network error. Please check your connection and try again.')
+      }
     } finally {
       setSubmitting(false)
     }

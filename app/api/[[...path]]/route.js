@@ -286,19 +286,18 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
-  // Run schema migrations once per process
+  // Run schema migrations once per process — fire-and-forget so they NEVER
+  // block or delay the first real request. Tables are created with IF NOT EXISTS
+  // so concurrent first-runs are safe.
   if (!schemaInitialized) {
     schemaInitialized = true
-    try {
-      await ensureSchemaExtensions()
-    } catch (schemaErr) {
-      console.error('[schema] ensureSchemaExtensions failed:', schemaErr.message)
-    }
-    // Sync market trend from DB into simulation engine
-    try {
-      const rows = await prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
-      if (rows[0]) setMarketTrend(rows[0].value)
-    } catch (_) {}
+    ensureSchemaExtensions()
+      .then(() => {
+        // Sync market trend from DB into simulation engine after schema is ready
+        return prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
+      })
+      .then(rows => { if (rows?.[0]) setMarketTrend(rows[0].value) })
+      .catch(e => console.warn('[schema] background init warning:', e.message))
   }
 
   // Rate limiting
@@ -2299,6 +2298,24 @@ async function handleRoute(request, { params }) {
     if (error?.name === 'DatabaseConfigError') {
       return handleCORS(NextResponse.json(
         { error: error.message },
+        { status: 503 }
+      ))
+    }
+    // Detect Prisma DB connection / initialisation errors — most common cause
+    // is a paused Supabase free-tier project or a missing DATABASE_URL.
+    const isPrismaConnectionError =
+      error?.name === 'PrismaClientInitializationError' ||
+      error?.name === 'PrismaClientKnownRequestError' ||
+      (error?.message && (
+        error.message.includes("Can't reach database") ||
+        error.message.includes('connect ECONNREFUSED') ||
+        error.message.includes('Connection refused') ||
+        error.message.includes('ENOTFOUND') ||
+        error.message.includes('timeout')
+      ))
+    if (isPrismaConnectionError) {
+      return handleCORS(NextResponse.json(
+        { error: 'Unable to reach the database. If you are using Supabase free tier, your project may be paused — visit app.supabase.com, open your project, and click "Restore project". Then try again in 30 seconds.' },
         { status: 503 }
       ))
     }
