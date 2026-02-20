@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,7 +26,9 @@ import {
   UserCheck,
   Zap,
   Inbox,
-  MonitorPlay
+  MonitorPlay,
+  Eye,
+  TrendingUp as BullIcon,
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -38,10 +41,14 @@ export default function AdminPage() {
   const [users, setUsers] = useState([])
   const [auditLog, setAuditLog] = useState([])
   const [activityFeed, setActivityFeed] = useState([])
-  const [systemSettings, setSystemSettings] = useState({ broadcast_message: '', spread_multiplier: '1.0' })
+  const [systemSettings, setSystemSettings] = useState({ broadcast_message: '', spread_multiplier: '1.0', market_trend: 'NEUTRAL' })
   const [deposits, setDeposits] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
+
+  // Market trend state
+  const [trendLoading, setTrendLoading] = useState(false)
+  const [trendMsg, setTrendMsg] = useState(null)
 
   // Force close state
   const [forceClosePositionId, setForceClosePositionId] = useState('')
@@ -171,6 +178,24 @@ export default function AdminPage() {
     } catch (err) {
       console.error('Failed to load admin data:', err)
     }
+  }
+
+  const handleSetMarketTrend = async (trend) => {
+    setTrendMsg(null); setTrendLoading(true)
+    try {
+      const res = await fetch('/api/admin/set-market-trend', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trend })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setTrendMsg({ type: 'success', text: `Market trend set to ${trend}.` })
+        setSystemSettings(prev => ({ ...prev, market_trend: trend }))
+      } else {
+        setTrendMsg({ type: 'error', text: data.error || 'Failed.' })
+      }
+    } catch { setTrendMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setTrendLoading(false) }
   }
 
   const refreshData = async () => { setRefreshing(true); await loadData(); setRefreshing(false) }
@@ -441,6 +466,45 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
+            {/* Market Trend Control */}
+            <Card className="bg-[#161b22] border-emerald-500/20">
+              <CardHeader>
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-emerald-400" />
+                  Market Simulation Trend
+                  {systemSettings.market_trend && (
+                    <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded ${
+                      systemSettings.market_trend === 'BULL' ? 'bg-emerald-500/20 text-emerald-400' :
+                      systemSettings.market_trend === 'BEAR' ? 'bg-red-500/20 text-red-400' :
+                      'bg-slate-700 text-slate-400'
+                    }`}>
+                      {systemSettings.market_trend}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-3">
+                  Bias the simulation engine. <span className="text-emerald-400">BULL</span> = prices drift up. <span className="text-red-400">BEAR</span> = drift down. Neutral = random.
+                </p>
+                <Msg msg={trendMsg} />
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  <Button disabled={trendLoading} onClick={() => handleSetMarketTrend('BULL')}
+                    className={`text-xs ${systemSettings.market_trend === 'BULL' ? 'bg-emerald-600 text-white' : 'bg-slate-700 hover:bg-emerald-600 text-slate-300'}`}>
+                    {trendLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : '📈 BULL'}
+                  </Button>
+                  <Button disabled={trendLoading} onClick={() => handleSetMarketTrend('NEUTRAL')}
+                    className={`text-xs ${systemSettings.market_trend === 'NEUTRAL' ? 'bg-slate-500 text-white' : 'bg-slate-700 hover:bg-slate-500 text-slate-300'}`}>
+                    {trendLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : '➡️ NEUTRAL'}
+                  </Button>
+                  <Button disabled={trendLoading} onClick={() => handleSetMarketTrend('BEAR')}
+                    className={`text-xs ${systemSettings.market_trend === 'BEAR' ? 'bg-red-600 text-white' : 'bg-slate-700 hover:bg-red-600 text-slate-300'}`}>
+                    {trendLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : '📉 BEAR'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Force Close / Force Settle Position */}
             <Card className="bg-[#161b22] border-slate-800">
               <CardHeader>
@@ -451,7 +515,7 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-slate-400 text-sm mb-3">
-                  Force-close any position by ID. Choose Force Profit (+5%) or Force Loss (−3%) — logged as &quot;System Settlement&quot;.
+                  Force-close any position by ID. Choose Force Profit (+10%) or Force Loss (−5%) — logged as &quot;Trade Settlement&quot;.
                 </p>
                 <form onSubmit={handleForceClose} className="space-y-3">
                   <Input
@@ -683,25 +747,33 @@ export default function AdminPage() {
                               }
                             </td>
                             <td className="p-4 text-right">
-                              {u.role !== 'ADMIN' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={suspendingId === u.id}
-                                  onClick={() => handleSuspend(u.id, !u.is_suspended)}
-                                  className={u.is_suspended
-                                    ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs'
-                                    : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs'
-                                  }
-                                >
-                                  {suspendingId === u.id
-                                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                                    : u.is_suspended
-                                      ? <><UserCheck className="h-3 w-3 mr-1 inline" />Reactivate</>
-                                      : <><UserX className="h-3 w-3 mr-1 inline" />Suspend</>
-                                  }
-                                </Button>
-                              )}
+                              <div className="flex items-center justify-end gap-2">
+                                <Link href={`/admin/users/${u.id}`}>
+                                  <Button variant="ghost" size="sm"
+                                    className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 text-xs">
+                                    <Eye className="h-3 w-3 mr-1 inline" />Shadow
+                                  </Button>
+                                </Link>
+                                {u.role !== 'ADMIN' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={suspendingId === u.id}
+                                    onClick={() => handleSuspend(u.id, !u.is_suspended)}
+                                    className={u.is_suspended
+                                      ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs'
+                                      : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs'
+                                    }
+                                  >
+                                    {suspendingId === u.id
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : u.is_suspended
+                                        ? <><UserCheck className="h-3 w-3 mr-1 inline" />Reactivate</>
+                                        : <><UserX className="h-3 w-3 mr-1 inline" />Suspend</>
+                                    }
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

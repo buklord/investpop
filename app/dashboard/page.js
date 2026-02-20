@@ -20,7 +20,10 @@ import {
   ArrowDownRight,
   Loader2,
   Newspaper,
-  AlertTriangle
+  AlertTriangle,
+  Bell,
+  X,
+  CheckCircle
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -70,6 +73,10 @@ export default function DashboardPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Notifications state
+  const [notifications, setNotifications] = useState([])
+  const [showNotifs, setShowNotifs] = useState(false)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -91,6 +98,27 @@ export default function DashboardPage() {
     }, 30000)
     return () => clearInterval(interval)
   }, [user])
+
+  // Poll for notifications every 15 seconds
+  useEffect(() => {
+    if (!user) return
+    const fetchNotifs = async () => {
+      try {
+        const res = await fetch('/api/notifications')
+        if (res.ok) setNotifications((await res.json()).notifications || [])
+      } catch (err) { console.error('Failed to fetch notifications:', err) }
+    }
+    fetchNotifs()
+    const interval = setInterval(fetchNotifs, 15000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  const markNotifsRead = async () => {
+    try {
+      await fetch('/api/notifications/read', { method: 'POST' })
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } catch (err) { console.error('Failed to mark notifications read:', err) }
+  }
 
   const checkAuth = async () => {
     try {
@@ -245,15 +273,60 @@ export default function DashboardPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-white">Dashboard</h1>
               <p className="text-slate-400 text-sm">Live Trading Platform</p>
             </div>
-            <Button
-              variant="ghost"
-              onClick={refreshData}
-              disabled={refreshing}
-              className="hidden lg:flex text-slate-400 hover:text-white"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Notification Bell */}
+              <div className="relative">
+                <Button variant="ghost" size="sm" onClick={() => {
+                    const opening = !showNotifs
+                    setShowNotifs(opening)
+                    if (opening) markNotifsRead()
+                  }}
+                  className="text-slate-400 hover:text-white relative">
+                  <Bell className="h-5 w-5" />
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold">
+                      {notifications.filter(n => !n.read).length}
+                    </span>
+                  )}
+                </Button>
+                {showNotifs && (
+                  <div className="absolute right-0 top-10 w-80 bg-[#161b22] border border-slate-700 rounded-xl shadow-2xl z-50">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                      <span className="text-white text-sm font-medium">Notifications</span>
+                      <Button variant="ghost" size="sm" onClick={() => setShowNotifs(false)} className="text-slate-400 h-6 w-6 p-0">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-slate-500 text-sm">No notifications</div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-800">
+                        {notifications.map(n => (
+                          <div key={n.id} className={`px-4 py-3 text-sm ${n.read ? 'text-slate-400' : 'text-white'}`}>
+                            <div className="flex items-start gap-2">
+                              <CheckCircle className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p>{n.message}</p>
+                                <p className="text-slate-500 text-xs mt-1">{new Date(n.created_at).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                onClick={refreshData}
+                disabled={refreshing}
+                className="hidden lg:flex text-slate-400 hover:text-white"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
           {/* Account Stats - Skeleton while loading */}
