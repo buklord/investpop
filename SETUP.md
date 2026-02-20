@@ -90,7 +90,8 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 | `DIRECT_URL` | Supabase → Project → Settings → Database → **Session pooler** (or direct) connection string |
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
 | `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://investpop.vercel.app` |
-| `TWELVE_DATA_API_KEY` | [twelvedata.com/account/api-keys](https://twelvedata.com/account/api-keys) (optional — platform simulates prices if missing) |
+| `NEXT_PUBLIC_TAWK_PROPERTY_ID` | Tawk.to → Administration → Channels → Chat Widget → **embed code** (see below) |
+| `NEXT_PUBLIC_TAWK_WIDGET_ID` | Same embed code — the second path segment after the property ID |
 
 > 💡 Copy `.env.example` in the repo for the full list of variable names.
 
@@ -102,6 +103,38 @@ Run this in your **Supabase SQL Editor** (replacing the email with the one you s
 ```sql
 UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
 ```
+
+---
+
+## 💬 Tawk.to Live Chat Setup (rings your phone when users click "Live Support")
+
+### Step 1 — Create a free Tawk.to account
+Go to **[tawk.to](https://tawk.to)** and sign up (free). Download the **Tawk.to** mobile app so chats ring your phone.
+
+### Step 2 — Get your Property ID and Widget ID
+1. In your Tawk.to dashboard → **Administration → Channels → Chat Widget → Installation**
+2. You will see a script snippet containing a line like:
+   ```
+   s1.src='https://embed.tawk.to/ABC123XYZ/1ikvn6t4a';
+   ```
+3. **Property ID** = `ABC123XYZ` (the segment before the `/`)
+4. **Widget ID** = `1ikvn6t4a` (the segment after the `/`)
+
+### Step 3 — Add to your Codespace `.env` (for local preview)
+```
+NEXT_PUBLIC_TAWK_PROPERTY_ID=ABC123XYZ
+NEXT_PUBLIC_TAWK_WIDGET_ID=1ikvn6t4a
+```
+Then restart the dev server: `npm run dev`
+
+### Step 4 — Add to Vercel Environment Variables (for live site)
+Same two variables in Vercel → Project → Settings → Environment Variables → Redeploy.
+
+### What it does
+- The Tawk.to chat widget loads silently (Tawk's default floating bubble is **hidden**)
+- Your custom **"💬 Live Support"** button (bottom-right corner) opens the chat window
+- When a user logs in, their **name and email are automatically sent** to Tawk.to so you know exactly who is chatting
+- Install the Tawk.to mobile app — you will receive a push notification whenever a visitor clicks the button
 
 ---
 

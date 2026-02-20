@@ -150,6 +150,14 @@ export default function HomePage() {
       }
 
       setUser(data.user)
+      // Identify logged-in user inside Tawk.to so admin sees their name/email
+      if (typeof window !== 'undefined' && window.Tawk_API && window.Tawk_API.setAttributes) {
+        window.Tawk_API.setAttributes({
+          name:  data.user.name  || data.user.email,
+          email: data.user.email,
+          id:    data.user.id,
+        }, function() {})
+      }
       router.push('/dashboard')
     } catch (err) {
       setError('Network error. Please try again.')
@@ -601,7 +609,13 @@ export default function HomePage() {
       {/* ── Floating Live Support ─────────────────────────────────────────── */}
       <button
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-4 py-3 shadow-xl shadow-emerald-500/30 transition-all hover:scale-105"
-        onClick={() => alert('Live support coming soon! Email: support@investpop.com')}
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.Tawk_API && window.Tawk_API.maximize) {
+            window.Tawk_API.maximize()
+          } else {
+            window.open('mailto:support@investpop.com', '_blank')
+          }
+        }}
       >
         <MessageCircle className="h-5 w-5" />
         <span className="text-sm font-medium hidden sm:inline">Live Support</span>
