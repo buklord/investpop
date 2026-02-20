@@ -66,8 +66,29 @@ const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 async function ensureSchemaExtensions() {
   const run = async (sql, label) => {
     try { await prisma.$executeRawUnsafe(sql) }
-    catch (err) { if (process.env.NODE_ENV !== 'production') console.warn(`[schema] ${label}:`, err.message) }
+    catch (err) { console.warn(`[schema] ${label}:`, err.message) }
   }
+
+  // ── Core tables first (CREATE before ALTER so foreign keys resolve) ──────
+  // Users table — created here if prisma db push was never run on this DB
+  await run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role VARCHAR(20) NOT NULL DEFAULT 'USER',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'users table')
+  // Assets table — required for FK constraints on trading tables
+  await run(`
+    CREATE TABLE IF NOT EXISTS assets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      symbol VARCHAR(20) NOT NULL UNIQUE,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) NOT NULL DEFAULT 'crypto',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'assets table')
 
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'`, 'role column')
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`, 'is_suspended column')
@@ -268,7 +289,11 @@ async function handleRoute(request, { params }) {
   // Run schema migrations once per process
   if (!schemaInitialized) {
     schemaInitialized = true
-    await ensureSchemaExtensions()
+    try {
+      await ensureSchemaExtensions()
+    } catch (schemaErr) {
+      console.error('[schema] ensureSchemaExtensions failed:', schemaErr.message)
+    }
     // Sync market trend from DB into simulation engine
     try {
       const rows = await prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
@@ -2268,18 +2293,17 @@ async function handleRoute(request, { params }) {
 
   } catch (error) {
     console.error('API Error:', error)
-    // Surface DB configuration errors with a clear, safe message
-    if (error instanceof DatabaseConfigError) {
+    // Surface DB configuration errors with a clear, safe message.
+    // Use name check (not instanceof) to avoid false negatives caused by
+    // Next.js HMR module re-evaluation creating separate class instances.
+    if (error?.name === 'DatabaseConfigError') {
       return handleCORS(NextResponse.json(
         { error: error.message },
         { status: 503 }
       ))
     }
-    // In development, surface the actual error so it can be diagnosed quickly.
-    // In production, keep the generic message.
-    const detail = process.env.NODE_ENV !== 'production'
-      ? ` — ${error?.message || String(error)}`
-      : ''
+    // Always include the real error message so it can be diagnosed from the UI.
+    const detail = ` — ${error?.message || String(error)}`
     return handleCORS(NextResponse.json(
       { error: `Internal server error${detail}` },
       { status: 500 }
