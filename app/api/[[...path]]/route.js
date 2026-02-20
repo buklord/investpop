@@ -60,89 +60,71 @@ const FORCE_PROFIT_RATIO = 0.05   // +5% of notional value
 const FORCE_LOSS_RATIO   = 0.03   // -3% of notional value
 
 // Ensure new columns/tables exist (idempotent schema migrations).
-// Uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS so concurrent calls are safe.
+// Each statement has its own try/catch so a failure in one does NOT
+// prevent the others from running (e.g. ALTER TYPE failing inside a
+// transaction must not block deposit_requests table creation).
 async function ensureSchemaExtensions() {
-  try {
-    // Add role column to users if not exists
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'
-    `)
-    // Add is_suspended column to users if not exists
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE
-    `)
-    // Create ledger_entries table if not exists
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS ledger_entries (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        type VARCHAR(50) NOT NULL,
-        amount DOUBLE PRECISION NOT NULL,
-        balance DOUBLE PRECISION NOT NULL,
-        description TEXT,
-        reference_id UUID,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-    // Create audit_logs table if not exists
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        admin_id UUID NOT NULL REFERENCES users(id),
-        action VARCHAR(100) NOT NULL,
-        target_id UUID,
-        details JSONB,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-    // Create activity_log table for live feed
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS activity_log (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-        action VARCHAR(100) NOT NULL,
-        details JSONB,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-    // Create system_settings table for broadcast & spread multiplier
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        key VARCHAR(100) PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-    // Seed default system settings if not present
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO system_settings (key, value) VALUES
-        ('broadcast_message', ''),
-        ('spread_multiplier', '1.0')
-      ON CONFLICT (key) DO NOTHING
-    `)
-    // Add forex and index asset types to the enum (idempotent)
-    await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`)
-    await prisma.$executeRawUnsafe(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`)
-    // Create deposit_requests table if not exists
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS deposit_requests (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        amount DOUBLE PRECISION NOT NULL,
-        method VARCHAR(20) NOT NULL DEFAULT 'BTC',
-        address TEXT NOT NULL DEFAULT '',
-        status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-        notes TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-  } catch (err) {
-    // Non-fatal: migrations may already be applied (e.g. column already exists)
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('ensureSchemaExtensions:', err.message)
-    }
+  const run = async (sql, label) => {
+    try { await prisma.$executeRawUnsafe(sql) }
+    catch (err) { if (process.env.NODE_ENV !== 'production') console.warn(`[schema] ${label}:`, err.message) }
   }
+
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'`, 'role column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`, 'is_suspended column')
+  await run(`
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL,
+      amount DOUBLE PRECISION NOT NULL,
+      balance DOUBLE PRECISION NOT NULL,
+      description TEXT,
+      reference_id UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'ledger_entries table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      admin_id UUID NOT NULL REFERENCES users(id),
+      action VARCHAR(100) NOT NULL,
+      target_id UUID,
+      details JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'audit_logs table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      action VARCHAR(100) NOT NULL,
+      details JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'activity_log table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'system_settings table')
+  await run(`
+    INSERT INTO system_settings (key, value) VALUES
+      ('broadcast_message', ''),
+      ('spread_multiplier', '1.0')
+    ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
+  // ALTER TYPE cannot run inside a transaction — separate try/catch is critical here
+  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
+  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
+  await run(`
+    CREATE TABLE IF NOT EXISTS deposit_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount DOUBLE PRECISION NOT NULL,
+      method VARCHAR(20) NOT NULL DEFAULT 'BTC',
+      address TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'deposit_requests table')
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -1500,7 +1482,8 @@ async function handleRoute(request, { params }) {
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
       const deposits = await prisma.$queryRawUnsafe(
-        `SELECT * FROM deposit_requests WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 20`,
+        `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, created_at, updated_at
+         FROM deposit_requests WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 20`,
         auth.user.userId
       )
       return handleCORS(NextResponse.json({ deposits }))
@@ -1547,56 +1530,67 @@ async function handleRoute(request, { params }) {
       }
 
       const deposits = await prisma.$queryRawUnsafe(
-        `SELECT * FROM deposit_requests WHERE id = $1::uuid AND status = 'PENDING'`,
+        `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, created_at, updated_at
+         FROM deposit_requests WHERE id = $1::uuid AND status = 'PENDING'`,
         depositId
       )
       if (deposits.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Pending deposit request not found' }, { status: 404 }))
       }
       const dep = deposits[0]
+      // Coerce types — $queryRawUnsafe returns Decimal/Buffer for some columns
+      const depUserId = String(dep.user_id)
+      const depAmount  = parseFloat(dep.amount)
+      const depMethod  = String(dep.method || 'BTC')
 
-      if (action === 'APPROVE') {
-        // Credit user's virtual account
+      try {
+        if (action === 'APPROVE') {
+          // Credit user's virtual account
+          await prisma.$executeRawUnsafe(
+            `UPDATE virtual_accounts SET balance = balance + $1 WHERE user_id = $2::uuid`,
+            depAmount, depUserId
+          )
+          // Get new balance
+          const accounts = await prisma.$queryRawUnsafe(
+            `SELECT balance::float8 AS balance FROM virtual_accounts WHERE user_id = $1::uuid`, depUserId
+          )
+          const newBalance = parseFloat(accounts[0]?.balance || 0)
+          // Ledger entry
+          const ledgerId = uuidv4()
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
+             VALUES ($1::uuid, $2::uuid, 'DEPOSIT', $3, $4, $5, $6::uuid, NOW())`,
+            ledgerId, depUserId, depAmount, newBalance,
+            `Deposit approved by admin (${depMethod})`, depositId
+          )
+          logActivity(depUserId, 'DEPOSIT_APPROVED', { amount: depAmount, method: depMethod })
+        }
+
+        // Update deposit status
+        const newStatus = action === 'APPROVE' ? 'COMPLETED' : 'REJECTED'
         await prisma.$executeRawUnsafe(
-          `UPDATE virtual_accounts SET balance = balance + $1 WHERE user_id = $2::uuid`,
-          dep.amount, dep.user_id
+          `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
+          newStatus, depositId
         )
-        // Get new balance
-        const accounts = await prisma.$queryRawUnsafe(
-          `SELECT balance FROM virtual_accounts WHERE user_id = $1::uuid`, dep.user_id
-        )
-        const newBalance = parseFloat(accounts[0]?.balance || 0)
-        // Ledger entry
-        const ledgerId = uuidv4()
+
+        // Audit log
+        const auditId = uuidv4()
         await prisma.$executeRawUnsafe(
-          `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-           VALUES ($1::uuid, $2::uuid, 'DEPOSIT', $3, $4, $5, $6::uuid, NOW())`,
-          ledgerId, dep.user_id, dep.amount, newBalance,
-          `Deposit approved by admin (${dep.method})`, depositId
+          `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+           VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::jsonb, NOW())`,
+          auditId, admin.user.userId,
+          action === 'APPROVE' ? 'DEPOSIT_APPROVE' : 'DEPOSIT_REJECT',
+          depUserId,
+          JSON.stringify({ depositId, amount: depAmount, method: depMethod })
         )
-        logActivity(dep.user_id, 'DEPOSIT_APPROVED', { amount: dep.amount, method: dep.method })
+        return handleCORS(NextResponse.json({
+          message: action === 'APPROVE' ? `$${depAmount.toFixed(2)} deposited to user account.` : 'Deposit request rejected.',
+          status: newStatus
+        }))
+      } catch (approveErr) {
+        console.error('Deposit approval error:', approveErr)
+        return handleCORS(NextResponse.json({ error: `Approval failed: ${approveErr.message}` }, { status: 500 }))
       }
-
-      // Update deposit status
-      const newStatus = action === 'APPROVE' ? 'COMPLETED' : 'REJECTED'
-      await prisma.$executeRawUnsafe(
-        `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
-        newStatus, depositId
-      )
-
-      // Audit log
-      const auditId = uuidv4()
-      await prisma.$executeRaw`
-        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid,
-                ${action === 'APPROVE' ? 'DEPOSIT_APPROVE' : 'DEPOSIT_REJECT'},
-                ${dep.user_id}::uuid,
-                ${JSON.stringify({ depositId, amount: dep.amount, method: dep.method })}::jsonb, NOW())
-      `
-      return handleCORS(NextResponse.json({
-        message: action === 'APPROVE' ? `$${dep.amount} deposited to user account.` : 'Deposit request rejected.',
-        status: newStatus
-      }))
     }
 
     // POST /api/admin/force-settle — Force Profit or Force Loss on a position (God Mode)
