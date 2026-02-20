@@ -470,11 +470,11 @@ async function handleRoute(request, { params }) {
 
       const { email, password } = validation.data
 
-      // Find user — query only the core columns that always exist.
+      // Find user — query core columns + role so we can embed role in JWT.
       // is_suspended is fetched separately with a fallback so a missing column
       // never blocks a valid login.
       const users = await prisma.$queryRaw`
-        SELECT id, email, password_hash FROM users WHERE email = ${email}
+        SELECT id, email, password_hash, role FROM users WHERE email = ${email}
       `
       
       if (users.length === 0) {
@@ -518,8 +518,8 @@ async function handleRoute(request, { params }) {
         `
       } catch (_) {}
 
-      // Create session
-      const token = await createSession(user.id, user.email)
+      // Create session — embed role in JWT so middleware can check it without a DB call
+      const token = await createSession(user.id, user.email, user.role || 'USER')
       const cookieOptions = getSessionCookieOptions()
 
       // Log login activity (best-effort)
