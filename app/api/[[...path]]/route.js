@@ -404,11 +404,10 @@ async function handleRoute(request, { params }) {
       }
 
       // Create virtual account with starting demo balance (real_balance starts at $0).
-      // Supply an explicit id so the INSERT never fails due to a missing DEFAULT.
-      const vaId = uuidv4()
+      // Let the DB generate the id via DEFAULT gen_random_uuid().
       await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (id, user_id, balance, demo_balance, real_balance, trading_mode)
-        VALUES (${vaId}::uuid, ${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
+        VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
         ON CONFLICT (user_id) DO NOTHING
       `
 
