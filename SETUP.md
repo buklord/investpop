@@ -43,9 +43,13 @@ Click the **PORTS** tab at the bottom of VS Code → right-click port **3000** �
 
 ## Become Admin
 
-1. Log in → click **Settings** in the sidebar
-2. Scroll to **"Claim Admin Access"** → click the button
-3. The **Admin** link appears in the sidebar immediately
+The "Claim Admin Access" button has been removed for security. To grant yourself Admin access, run this SQL query in your **Supabase SQL Editor**:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
+```
+
+Replace `your@email.com` with your account email. After running it, log out and log back in — the **Admin** link will appear in the sidebar.
 
 ---
 
