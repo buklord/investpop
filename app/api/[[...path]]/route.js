@@ -213,6 +213,8 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
+  // Ensure user_id is unique so ON CONFLICT works (table may pre-date this constraint)
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
   // Migrate existing accounts: treat their current balance as demo funds
   await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
   // KYC columns on users table
@@ -285,6 +287,19 @@ async function handleRoute(request, { params }) {
   }
 
   try {
+    // ============ HEALTH CHECK ============
+    if (route === '/health' && method === 'GET') {
+      try {
+        await prisma.$queryRaw`SELECT 1 AS ok`
+        return handleCORS(NextResponse.json({ status: 'ok', db: 'connected' }))
+      } catch (dbErr) {
+        return handleCORS(NextResponse.json(
+          { status: 'error', db: 'disconnected', detail: dbErr.message },
+          { status: 503 }
+        ))
+      }
+    }
+
     // ============ ROOT ENDPOINT ============
     if ((route === '/' || route === '/root') && method === 'GET') {
       return handleCORS(NextResponse.json({ 
@@ -382,9 +397,11 @@ async function handleRoute(request, { params }) {
 
       const { email, password } = validation.data
 
-      // Find user
+      // Find user — query only the core columns that always exist.
+      // is_suspended is fetched separately with a fallback so a missing column
+      // never blocks a valid login.
       const users = await prisma.$queryRaw`
-        SELECT id, email, password_hash, is_suspended FROM users WHERE email = ${email}
+        SELECT id, email, password_hash FROM users WHERE email = ${email}
       `
       
       if (users.length === 0) {
@@ -405,20 +422,28 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Block suspended users
-      if (user.is_suspended) {
-        return handleCORS(NextResponse.json(
-          { error: 'Your account has been suspended. Please contact support.' },
-          { status: 403 }
-        ))
-      }
+      // Check suspension (best-effort — never blocks login if column missing)
+      try {
+        const suspendRows = await prisma.$queryRaw`
+          SELECT is_suspended FROM users WHERE id = ${user.id}::uuid
+        `
+        if (suspendRows[0]?.is_suspended) {
+          return handleCORS(NextResponse.json(
+            { error: 'Your account has been suspended. Please contact support.' },
+            { status: 403 }
+          ))
+        }
+      } catch (_) {}
 
-      // Ensure virtual account exists with dual-wallet columns
-      await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-        VALUES (${user.id}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
-        ON CONFLICT (user_id) DO NOTHING
-      `
+      // Ensure virtual account exists — wrapped in try/catch so a constraint
+      // issue never blocks a valid login.
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
+          VALUES (${user.id}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          ON CONFLICT (user_id) DO NOTHING
+        `
+      } catch (_) {}
 
       // Create session
       const token = await createSession(user.id, user.email)
@@ -2250,8 +2275,13 @@ async function handleRoute(request, { params }) {
         { status: 503 }
       ))
     }
+    // In development, surface the actual error so it can be diagnosed quickly.
+    // In production, keep the generic message.
+    const detail = process.env.NODE_ENV !== 'production'
+      ? ` — ${error?.message || String(error)}`
+      : ''
     return handleCORS(NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Internal server error${detail}` },
       { status: 500 }
     ))
   }
