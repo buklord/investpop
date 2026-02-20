@@ -1,11 +1,8 @@
 import './globals.css'
-import { Inter } from 'next/font/google'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'InvestDash - Investment Dashboard',
-  description: 'Track your stocks and crypto investments in one place',
+  title: 'InvestPop - Live Trading Platform',
+  description: 'A professional trading platform for stocks and crypto',
 }
 
 export default function RootLayout({ children }) {
@@ -14,7 +11,7 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
       </head>
-      <body className={inter.className}>
+      <body>
         {children}
       </body>
     </html>

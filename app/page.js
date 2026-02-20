@@ -111,7 +111,7 @@ export default function HomePage() {
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
+              <span className="text-xl font-bold text-white">InvestPop</span>
             </div>
 
             {/* Desktop Nav */}
@@ -179,7 +179,7 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 mb-8">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-              <span className="text-emerald-400 text-sm font-medium">Paper Trading Simulation</span>
+              <span className="text-emerald-400 text-sm font-medium">Live Trading Platform</span>
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
@@ -198,7 +198,7 @@ export default function HomePage() {
                 onClick={() => { setAuthMode('register'); setShowAuthModal(true); }}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-6 text-lg"
               >
-                Start Paper Trading
+                Start Trading Now
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button 
@@ -244,7 +244,7 @@ export default function HomePage() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   </div>
-                  <span className="text-slate-400 text-sm">PaperTrade Dashboard</span>
+                  <span className="text-slate-400 text-sm">InvestPop Dashboard</span>
                 </div>
                 <div className="text-emerald-500 text-sm font-medium">● Live</div>
               </div>
@@ -306,7 +306,7 @@ export default function HomePage() {
               Everything You Need to Learn Trading
             </h2>
             <p className="text-slate-400 max-w-2xl mx-auto">
-              Our paper trading platform gives you all the tools of a real brokerage, without the risk.
+              Our professional trading platform gives you all the tools of a real brokerage.
             </p>
           </div>
 
@@ -378,10 +378,10 @@ export default function HomePage() {
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
+              <span className="text-xl font-bold text-white">InvestPop</span>
             </div>
             <div className="text-slate-500 text-sm">
-              Paper Trading Simulation - Not Real Trading
+              InvestPop - Professional Trading Platform
             </div>
           </div>
         </div>
@@ -407,7 +407,7 @@ export default function HomePage() {
               </CardTitle>
               <CardDescription className="text-slate-400">
                 {authMode === 'login' 
-                  ? 'Sign in to access your paper trading account' 
+                  ? 'Sign in to access your trading account' 
                   : 'Start trading with $100,000 in virtual funds'}
               </CardDescription>
             </CardHeader>
@@ -461,7 +461,7 @@ export default function HomePage() {
 
                   {authMode === 'register' && (
                     <p className="text-xs text-slate-500 text-center">
-                      By signing up, you agree that this is a paper trading simulation and not real trading.
+                      By signing up, you agree to our terms of service.
                     </p>
                   )}
                 </form>

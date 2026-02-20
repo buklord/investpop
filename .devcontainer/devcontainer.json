@@ -1,0 +1,22 @@
+{
+  "name": "InvestPop",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "InvestPop App",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "npm run build && npm start",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}
