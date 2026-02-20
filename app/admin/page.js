@@ -24,7 +24,8 @@ import {
   UserX,
   UserCheck,
   Zap,
-  Inbox
+  Inbox,
+  MonitorPlay
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -76,6 +77,11 @@ export default function AdminPage() {
   const [settleMsg, setSettleMsg] = useState(null)
   const [settlingId, setSettlingId] = useState(null)
 
+  // Live positions state
+  const [livePositions, setLivePositions] = useState([])
+  const [liveLoading, setLiveLoading] = useState(false)
+  const [toast, setToast] = useState(null)
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
@@ -83,6 +89,21 @@ export default function AdminPage() {
       loadData()
     }
   }, [user])
+
+  // Auto-refresh live positions every 10 seconds
+  useEffect(() => {
+    if (!user || user.role !== 'ADMIN') return
+    loadLivePositions()
+    const interval = setInterval(loadLivePositions, 10000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const checkAuth = async () => {
     try {
@@ -92,6 +113,40 @@ export default function AdminPage() {
       setUser(data.user)
     } catch { router.push('/') }
     finally { setLoading(false) }
+  }
+
+  const loadLivePositions = async () => {
+    try {
+      const res = await fetch('/api/admin/live-positions')
+      if (res.ok) setLivePositions((await res.json()).positions || [])
+    } catch (err) {
+      console.error('Failed to load live positions:', err)
+    }
+  }
+
+  const handleLiveSettle = async (positionId, outcome) => {
+    // outcome: 'PROFIT' | 'LOSS' | 'MARKET'
+    setSettlingId(`${positionId}-${outcome}`)
+    try {
+      const endpoint = outcome === 'MARKET' ? '/api/admin/market-close' : '/api/admin/force-settle'
+      const body = outcome === 'MARKET' ? { positionId } : { positionId, outcome }
+      const res = await fetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setToast({ type: 'success', text: `Position ${positionId.slice(0, 8)}… settled successfully. Ledger updated.` })
+        await loadLivePositions()
+        await loadData()
+      } else {
+        setToast({ type: 'error', text: data.error || 'Settlement failed.' })
+      }
+    } catch {
+      setToast({ type: 'error', text: 'An error occurred during settlement.' })
+    } finally {
+      setSettlingId(null)
+    }
   }
 
   const loadData = async () => {
@@ -476,6 +531,7 @@ export default function AdminPage() {
           {/* Tabs */}
           <div className="flex flex-wrap gap-1 mb-4 bg-slate-800/50 p-1 rounded-lg w-fit">
             {[
+              { id: 'live-positions', label: `Live Positions (${livePositions.length})`, highlight: livePositions.length > 0 },
               { id: 'users', label: `Users (${users.length})` },
               { id: 'deposits', label: 'Deposits', badge: deposits.filter(d => d.status === 'PENDING').length },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
@@ -494,6 +550,93 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+
+          {/* Users Table */}
+          {activeTab === 'live-positions' && (
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <MonitorPlay className="h-5 w-5 text-emerald-400" />
+                  Live Open Positions
+                  <span className="text-xs text-slate-500 font-normal">(auto-refreshes every 10 s)</span>
+                  {liveLoading && <Loader2 className="h-3 w-3 animate-spin text-slate-500" />}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {livePositions.length === 0 ? (
+                  <div className="text-center py-10">
+                    <MonitorPlay className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No open positions right now</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead>
+                        <tr className="text-slate-500 text-xs border-b border-slate-800">
+                          <th className="text-left p-4">User</th>
+                          <th className="text-left p-4">Instrument</th>
+                          <th className="text-right p-4">Size</th>
+                          <th className="text-right p-4">Entry Price</th>
+                          <th className="text-right p-4">P&amp;L (unrealized)</th>
+                          <th className="text-right p-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {livePositions.map(pos => {
+                          const entryPrice = parseFloat(pos.entry_price)
+                          const qty = parseFloat(pos.quantity)
+                          const notional = entryPrice * qty
+                          return (
+                            <tr key={pos.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                              <td className="p-4">
+                                <div className="text-white text-sm">{pos.user_email}</div>
+                                <div className="text-slate-500 text-xs font-mono truncate max-w-[160px]">{pos.id}</div>
+                              </td>
+                              <td className="p-4">
+                                <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-xs font-medium">
+                                  {pos.symbol}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right text-white text-sm">{qty}</td>
+                              <td className="p-4 text-right text-white text-sm">{formatCurrency(entryPrice)}</td>
+                              <td className="p-4 text-right text-sm">
+                                <span className="text-slate-400 text-xs">Cost: {formatCurrency(notional)}</span>
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button size="sm" disabled={settlingId !== null}
+                                    onClick={() => handleLiveSettle(pos.id, 'PROFIT')}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2">
+                                    {settlingId === `${pos.id}-PROFIT`
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <><TrendingUp className="h-3 w-3 mr-1 inline" />Profit</>}
+                                  </Button>
+                                  <Button size="sm" disabled={settlingId !== null}
+                                    onClick={() => handleLiveSettle(pos.id, 'LOSS')}
+                                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7 px-2">
+                                    {settlingId === `${pos.id}-LOSS`
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <><TrendingDown className="h-3 w-3 mr-1 inline" />Loss</>}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" disabled={settlingId !== null}
+                                    onClick={() => handleLiveSettle(pos.id, 'MARKET')}
+                                    className="text-slate-400 hover:text-white hover:bg-slate-700 text-xs h-7 px-2">
+                                    {settlingId === `${pos.id}-MARKET`
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : <><X className="h-3 w-3 mr-1 inline" />Market</>}
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Users Table */}
           {activeTab === 'users' && (
@@ -751,6 +894,16 @@ export default function AdminPage() {
 
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.type === 'success' ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+          {toast.text}
+        </div>
       )}
     </div>
   )

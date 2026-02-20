@@ -1681,6 +1681,103 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // GET /api/admin/live-positions — list all open positions across all users
+    if (route === '/admin/live-positions' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const positions = await prisma.$queryRaw`
+        SELECT
+          p.id,
+          p.user_id,
+          p.quantity,
+          p.entry_price,
+          p.created_at,
+          a.symbol,
+          a.name,
+          a.type,
+          u.email AS user_email
+        FROM trading_positions p
+        JOIN assets a ON a.id = p.asset_id
+        JOIN users u ON u.id = p.user_id
+        WHERE p.status = 'OPEN'
+        ORDER BY p.created_at DESC
+      `
+
+      return handleCORS(NextResponse.json({ positions }))
+    }
+
+    // POST /api/admin/market-close — close a position at current market price with no P&L adjustment
+    if (route === '/admin/market-close' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const body = await request.json()
+      const { positionId } = body
+      if (!positionId) {
+        return handleCORS(NextResponse.json({ error: 'positionId is required' }, { status: 400 }))
+      }
+
+      const positions = await prisma.$queryRaw`
+        SELECT p.*, a.symbol, a.name, a.type
+        FROM trading_positions p
+        JOIN assets a ON a.id = p.asset_id
+        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+      `
+      if (positions.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Open position not found' }, { status: 404 }))
+      }
+      const pos = positions[0]
+
+      let currentPrice = parseFloat(pos.entry_price)
+      try {
+        const provider = getMarketDataProvider()
+        const quote = await provider.getQuote(pos.symbol, pos.type)
+        currentPrice = quote.price
+      } catch (_) {}
+
+      const qty = parseFloat(pos.quantity)
+      const entryPrice = parseFloat(pos.entry_price)
+      const realizedPnl = (currentPrice - entryPrice) * qty
+      const saleValue = currentPrice * qty
+
+      await prisma.$executeRaw`
+        UPDATE trading_positions
+        SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
+        WHERE id = ${positionId}::uuid
+      `
+
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        WHERE user_id = ${pos.user_id}::uuid
+      `
+
+      const accounts = await prisma.$queryRaw`
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+      `
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
+
+      const ledgerId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
+        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT',
+                ${saleValue}, ${newBalance}, ${'Admin market-close: ' + pos.symbol}, ${positionId}::uuid, NOW())
+      `
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'MARKET_CLOSE',
+                ${positionId}::uuid, ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, currentPrice, realizedPnl })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: `Position ${pos.symbol} closed at market price. P&L: $${realizedPnl.toFixed(2)}`,
+        realizedPnl,
+        saleValue
+      }))
+    }
+
     // ============ ROUTE NOT FOUND ============
     return handleCORS(NextResponse.json(
       { error: `Route ${route} not found` },
