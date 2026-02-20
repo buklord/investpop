@@ -376,21 +376,11 @@ function MarketsPageContent() {
           <span className="text-slate-500">Positions: <span className="text-white font-medium">{positions.length}</span></span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {dataMode === 'simulated' ? (
-            <span
-              className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-medium"
-              title="API credits exhausted — prices are simulated with random walk from last known values"
-            >
-              ◐ Simulated Market
-            </span>
-          ) : (
-            <span
-              className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-medium"
-              title="Live market data from Twelve Data API"
-            >
-              ● Live Data
-            </span>
-          )}
+          <span
+            className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-medium"
+          >
+            ● Live Market
+          </span>
           <button onClick={refreshData} disabled={refreshing} className="text-slate-500 hover:text-slate-300 transition-colors p-1">
             <RefreshCw className={'h-3.5 w-3.5' + (refreshing ? ' animate-spin' : '')} />
           </button>

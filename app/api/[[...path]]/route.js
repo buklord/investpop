@@ -136,6 +136,12 @@ async function ensureSchemaExtensions() {
       read BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'notifications table')
+  // Dual-wallet columns
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
+  // Migrate existing accounts: treat their current balance as demo funds
+  await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -229,10 +235,10 @@ async function handleRoute(request, { params }) {
         VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
       `
 
-      // Create virtual account with starting balance
+      // Create virtual account with starting demo balance (real_balance starts at $0)
       await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (user_id, balance)
-        VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE})
+        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
+        VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
       `
 
       // Create initial account snapshot
@@ -304,10 +310,10 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Ensure virtual account exists
+      // Ensure virtual account exists with dual-wallet columns
       await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (user_id, balance)
-        VALUES (${user.id}::uuid, ${TRADING_CONFIG.STARTING_BALANCE})
+        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
+        VALUES (${user.id}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
         ON CONFLICT (user_id) DO NOTHING
       `
 
@@ -462,14 +468,8 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ assets }))
     }
 
-    // POST /api/assets/seed - Seed default assets (optimized with batch insert)
+    // POST /api/assets/seed - Seed default assets (idempotent — always upserts missing assets)
     if (route === '/assets/seed' && method === 'POST') {
-      // Check if assets already exist to skip seeding
-      const existingCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM assets`
-      if (parseInt(existingCount[0].count) >= 40) {
-        return handleCORS(NextResponse.json({ message: 'Assets already seeded', skipped: true }))
-      }
-
       const defaultAssets = [
         // Forex (10)
         { symbol: 'EURUSD',  name: 'Euro / US Dollar',          type: 'forex' },
@@ -629,8 +629,81 @@ async function handleRoute(request, { params }) {
 
       const accountService = new AccountService(auth.user.userId)
       const summary = await accountService.getAccountSummary()
-      
-      return handleCORS(NextResponse.json(summary))
+
+      // Fetch dual-wallet data
+      const walletRows = await prisma.$queryRaw`
+        SELECT demo_balance, real_balance, trading_mode
+        FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+      `
+      const wallet = walletRows[0] || {}
+
+      return handleCORS(NextResponse.json({
+        ...summary,
+        demoBalance: parseFloat(wallet.demo_balance || 0),
+        realBalance: parseFloat(wallet.real_balance || 0),
+        tradingMode: wallet.trading_mode || 'DEMO',
+      }))
+    }
+
+    // POST /api/account/switch-mode — switch between DEMO and REAL wallets
+    if (route === '/account/switch-mode' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const body = await request.json()
+      const { mode } = body
+      if (!['DEMO', 'REAL'].includes(mode)) {
+        return handleCORS(NextResponse.json({ error: 'mode must be DEMO or REAL' }, { status: 400 }))
+      }
+
+      // Read current wallet state
+      const rows = await prisma.$queryRaw`
+        SELECT balance, demo_balance, real_balance, trading_mode
+        FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+      `
+      if (rows.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Account not found' }, { status: 404 }))
+      }
+      const curr = rows[0]
+      const currentMode = curr.trading_mode || 'DEMO'
+
+      if (currentMode === mode) {
+        return handleCORS(NextResponse.json({
+          message: `Already in ${mode} mode`,
+          tradingMode: mode,
+          balance: parseFloat(curr.balance),
+          demoBalance: parseFloat(curr.demo_balance || 0),
+          realBalance: parseFloat(curr.real_balance || 0),
+        }))
+      }
+
+      // Save current balance back to the correct mode's column, then load new mode balance
+      const currentBalance = parseFloat(curr.balance)
+      const newBalance = mode === 'DEMO'
+        ? parseFloat(curr.demo_balance || 0)
+        : parseFloat(curr.real_balance || 0)
+
+      if (currentMode === 'DEMO') {
+        await prisma.$executeRaw`
+          UPDATE virtual_accounts
+          SET demo_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
+          WHERE user_id = ${auth.user.userId}::uuid
+        `
+      } else {
+        await prisma.$executeRaw`
+          UPDATE virtual_accounts
+          SET real_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
+          WHERE user_id = ${auth.user.userId}::uuid
+        `
+      }
+
+      return handleCORS(NextResponse.json({
+        message: `Switched to ${mode} mode`,
+        tradingMode: mode,
+        balance: newBalance,
+        demoBalance: mode === 'DEMO' ? newBalance : parseFloat(curr.demo_balance || 0),
+        realBalance: mode === 'REAL' ? newBalance : parseFloat(curr.real_balance || 0),
+      }))
     }
 
     // GET /api/positions - Get positions (Using Service Layer)
@@ -1049,29 +1122,33 @@ async function handleRoute(request, { params }) {
 
       const DEMO_AMOUNT = 10000
 
-      // Add funds to virtual account
+      // Add funds to demo wallet (and to active balance if currently in DEMO mode)
       await prisma.$executeRaw`
-        UPDATE virtual_accounts SET balance = balance + ${DEMO_AMOUNT}
+        UPDATE virtual_accounts
+        SET demo_balance = demo_balance + ${DEMO_AMOUNT},
+            balance = CASE WHEN trading_mode = 'DEMO' THEN balance + ${DEMO_AMOUNT} ELSE balance END
         WHERE user_id = ${auth.user.userId}::uuid
       `
 
       // Get new balance
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+        SELECT balance, demo_balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
+      const newDemoBalance = parseFloat(accounts[0]?.demo_balance || 0)
 
-      // Create ledger entry
+      // Create ledger entry — record active balance as snapshot
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
-        VALUES (${ledgerId}::uuid, ${auth.user.userId}::uuid, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds request', NOW())
+        VALUES (${ledgerId}::uuid, ${auth.user.userId}::uuid, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', NOW())
       `
 
       return handleCORS(NextResponse.json({
-        message: 'Demo funds added successfully',
+        message: 'Demo funds added to your practice account',
         amount: DEMO_AMOUNT,
-        newBalance
+        newBalance,
+        newDemoBalance
       }))
     }
 
@@ -1561,23 +1638,26 @@ async function handleRoute(request, { params }) {
 
       try {
         if (action === 'APPROVE') {
-          // Credit user's virtual account
+          // Credit real wallet (and active balance if user is currently in REAL mode)
           await prisma.$executeRawUnsafe(
-            `UPDATE virtual_accounts SET balance = balance + $1 WHERE user_id = $2::uuid`,
+            `UPDATE virtual_accounts
+             SET real_balance = real_balance + $1,
+                 balance = CASE WHEN trading_mode = 'REAL' THEN balance + $1 ELSE balance END
+             WHERE user_id = $2::uuid`,
             depAmount, depUserId
           )
-          // Get new balance
+          // Get active balance for ledger snapshot
           const accounts = await prisma.$queryRawUnsafe(
             `SELECT balance::float8 AS balance FROM virtual_accounts WHERE user_id = $1::uuid`, depUserId
           )
-          const newBalance = parseFloat(accounts[0]?.balance || 0)
-          // Ledger entry
+          const activeBalance = parseFloat(accounts[0]?.balance || 0)
+          // Ledger entry — snapshot uses active balance
           const ledgerId = uuidv4()
           await prisma.$executeRawUnsafe(
             `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
              VALUES ($1::uuid, $2::uuid, 'DEPOSIT', $3, $4, $5, $6::uuid, NOW())`,
-            ledgerId, depUserId, depAmount, newBalance,
-            `Deposit approved by admin (${depMethod})`, depositId
+            ledgerId, depUserId, depAmount, activeBalance,
+            `Deposit approved — Real Wallet funded via ${depMethod}`, depositId
           )
           logActivity(depUserId, 'DEPOSIT_APPROVED', { amount: depAmount, method: depMethod })
         }

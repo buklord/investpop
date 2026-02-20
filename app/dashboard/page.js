@@ -77,6 +77,10 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState([])
   const [showNotifs, setShowNotifs] = useState(false)
 
+  // Trading mode toggle
+  const [tradingMode, setTradingMode] = useState('DEMO')
+  const [switchingMode, setSwitchingMode] = useState(false)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -156,6 +160,7 @@ export default function DashboardPage() {
       const tradesData = await tradesRes.json()
       
       setAccount(accountData)
+      if (accountData.tradingMode) setTradingMode(accountData.tradingMode)
       setPositions(positionsData.positions || [])
       setWatchlist(watchlistData.watchlist || [])
       setTrades(tradesData.trades || [])
@@ -196,6 +201,22 @@ export default function DashboardPage() {
     setRefreshing(true)
     await loadData()
     setRefreshing(false)
+  }
+
+  const switchMode = async (newMode) => {
+    if (newMode === tradingMode || switchingMode) return
+    setSwitchingMode(true)
+    try {
+      const res = await fetch('/api/account/switch-mode', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: newMode })
+      })
+      if (res.ok) {
+        setTradingMode(newMode)
+        await loadData()
+      }
+    } catch (err) { console.error('Failed to switch mode:', err) }
+    finally { setSwitchingMode(false) }
   }
 
   const formatCurrency = (value) => {
@@ -271,9 +292,36 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4 sm:mb-8">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white">Dashboard</h1>
-              <p className="text-slate-400 text-sm">Live Trading Platform</p>
+              <p className="text-slate-400 text-sm">
+                {tradingMode === 'DEMO' ? '🎯 Practice Account' : '💼 Live Account'}
+              </p>
             </div>
             <div className="flex items-center gap-2">
+              {/* Demo / Real toggle */}
+              <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+                <button
+                  onClick={() => switchMode('DEMO')}
+                  disabled={switchingMode}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    tradingMode === 'DEMO'
+                      ? 'bg-amber-500 text-black shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Demo
+                </button>
+                <button
+                  onClick={() => switchMode('REAL')}
+                  disabled={switchingMode}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    tradingMode === 'REAL'
+                      ? 'bg-emerald-500 text-black shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Real
+                </button>
+              </div>
               {/* Notification Bell */}
               <div className="relative">
                 <Button variant="ghost" size="sm" onClick={() => {
