@@ -1,23 +1,28 @@
 # InvestPop — How to Start the Server
 
-## 🆕 New changes not showing? Pick ONE command:
+## ▶️ START HERE — Copy this into your Codespaces terminal:
 
-Open a terminal in your Codespace and paste **one** of these options:
-
-### Option A — Fast (dev mode, hot reload, no rebuild needed):
 ```bash
 fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run dev
 ```
-Server is ready in **~30 seconds**. Wait for: ` ✓ Ready on http://localhost:3000`
 
-### Option B — Stable (production mode, uses less memory):
+⏳ Wait **~30 seconds** for this line, then open the browser:
+```
+ ✓ Ready on http://localhost:3000
+```
+
+---
+
+## Alternative: Stable production mode (if dev crashes with out-of-memory):
+
 ```bash
 fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run preview
 ```
-Takes **2–3 minutes** to build. Wait for: ` ✓ Ready on http://0.0.0.0:3000`
 
-> **Use Option A** for development/testing (faster iteration).  
-> **Use Option B** if the Codespace crashes/OOMs with dev mode.
+⏳ Takes **2–3 minutes** to build. Wait for:
+```
+ ✓ Ready on http://0.0.0.0:3000
+```
 
 ---
 
