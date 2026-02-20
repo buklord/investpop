@@ -142,6 +142,30 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
   // Migrate existing accounts: treat their current balance as demo funds
   await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
+  // KYC columns on users table
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'`, 'kyc_status column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)`, 'first_name column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)`, 'last_name column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)`, 'phone_number column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)`, 'country column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE`, 'date_of_birth column')
+  await run(`
+    CREATE TABLE IF NOT EXISTS kyc_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      first_name VARCHAR(100) NOT NULL,
+      last_name VARCHAR(100) NOT NULL,
+      date_of_birth DATE NOT NULL,
+      country VARCHAR(100) NOT NULL,
+      phone_number VARCHAR(50),
+      document_type VARCHAR(50) NOT NULL DEFAULT 'PASSPORT',
+      document_note TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',
+      reviewed_by UUID REFERENCES users(id),
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'kyc_requests table')
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -212,6 +236,10 @@ async function handleRoute(request, { params }) {
       }
 
       const { email, password } = validation.data
+      // Extract optional profile fields — not validated by schema, safe to read directly
+      const regFirstName = typeof body.firstName === 'string' ? body.firstName.trim().slice(0, 100) : null
+      const regLastName  = typeof body.lastName  === 'string' ? body.lastName.trim().slice(0, 100)  : null
+      const regPhone     = typeof body.phone     === 'string' ? body.phone.trim().slice(0, 50)      : null
 
       // Check if user exists
       const existingUser = await prisma.$queryRaw`
@@ -231,8 +259,8 @@ async function handleRoute(request, { params }) {
       const userId = uuidv4()
       
       await prisma.$executeRaw`
-        INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
-        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
+        INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone_number, created_at, updated_at)
+        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', ${regFirstName}, ${regLastName}, ${regPhone}, NOW(), NOW())
       `
 
       // Create virtual account with starting demo balance (real_balance starts at $0)
@@ -352,10 +380,11 @@ async function handleRoute(request, { params }) {
 
       // Fetch role and suspension status from DB
       const users = await prisma.$queryRaw`
-        SELECT role, is_suspended FROM users WHERE id = ${auth.user.userId}::uuid
+        SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}::uuid
       `
       const role = users[0]?.role || 'USER'
       const isSuspended = users[0]?.is_suspended || false
+      const kycStatus = users[0]?.kyc_status || 'PENDING'
 
       // Fetch broadcast message and spread multiplier from system_settings
       let broadcastMessage = ''
@@ -371,7 +400,7 @@ async function handleRoute(request, { params }) {
       } catch (_) {}
 
       return handleCORS(NextResponse.json({
-        user: { id: auth.user.userId, email: auth.user.email, role, isSuspended },
+        user: { id: auth.user.userId, email: auth.user.email, role, isSuspended, kycStatus },
         broadcastMessage,
         spreadMultiplier
       }))
@@ -704,6 +733,122 @@ async function handleRoute(request, { params }) {
         demoBalance: mode === 'DEMO' ? newBalance : parseFloat(curr.demo_balance || 0),
         realBalance: mode === 'REAL' ? newBalance : parseFloat(curr.real_balance || 0),
       }))
+    }
+
+    // ============ KYC ENDPOINTS ============
+
+    // GET /api/kyc/status — return current user's KYC status
+    if (route === '/kyc/status' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      const rows = await prisma.$queryRaw`
+        SELECT kyc_status, first_name, last_name, phone_number, country, date_of_birth
+        FROM users WHERE id = ${auth.user.userId}::uuid
+      `
+      const u = rows[0] || {}
+      return handleCORS(NextResponse.json({
+        kycStatus: u.kyc_status || 'PENDING',
+        firstName: u.first_name || '',
+        lastName: u.last_name || '',
+        phoneNumber: u.phone_number || '',
+        country: u.country || '',
+        dateOfBirth: u.date_of_birth ? u.date_of_birth.toISOString().split('T')[0] : '',
+      }))
+    }
+
+    // POST /api/kyc/submit — submit KYC details
+    if (route === '/kyc/submit' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      const body = await request.json()
+      const { firstName, lastName, dateOfBirth, country, phoneNumber, documentType } = body
+      if (!firstName || !lastName || !dateOfBirth || !country) {
+        return handleCORS(NextResponse.json({ error: 'First name, last name, date of birth, and country are required.' }, { status: 400 }))
+      }
+      // Block re-submission if already approved
+      const existing = await prisma.$queryRaw`SELECT kyc_status FROM users WHERE id = ${auth.user.userId}::uuid`
+      if (existing[0]?.kyc_status === 'APPROVED') {
+        return handleCORS(NextResponse.json({ error: 'Your identity is already verified.' }, { status: 400 }))
+      }
+      // Upsert KYC request — update if user has previously submitted
+      const kycId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO kyc_requests (id, user_id, first_name, last_name, date_of_birth, country, phone_number, document_type, status, created_at, updated_at)
+        VALUES (${kycId}::uuid, ${auth.user.userId}::uuid, ${firstName}, ${lastName}, ${dateOfBirth}::date, ${country}, ${phoneNumber || ''}, ${documentType || 'PASSPORT'}, 'SUBMITTED', NOW(), NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+          date_of_birth = EXCLUDED.date_of_birth, country = EXCLUDED.country,
+          phone_number = EXCLUDED.phone_number, document_type = EXCLUDED.document_type,
+          status = 'SUBMITTED', reviewed_by = NULL, reviewed_at = NULL, updated_at = NOW()
+      `
+      // Update user profile + status
+      await prisma.$executeRaw`
+        UPDATE users
+        SET kyc_status = 'SUBMITTED', first_name = ${firstName}, last_name = ${lastName},
+            date_of_birth = ${dateOfBirth}::date, country = ${country},
+            phone_number = ${phoneNumber || ''}, updated_at = NOW()
+        WHERE id = ${auth.user.userId}::uuid
+      `
+      logActivity(auth.user.userId, 'KYC_SUBMITTED', { firstName, lastName, country })
+      return handleCORS(NextResponse.json({ message: 'KYC submitted successfully. Verification is in progress.' }))
+    }
+
+    // GET /api/admin/kyc-requests — list all submitted KYC requests
+    if (route === '/admin/kyc-requests' && method === 'GET') {
+      const admin = await requireAdmin()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      const requests = await prisma.$queryRaw`
+        SELECT k.*, u.email
+        FROM kyc_requests k
+        JOIN users u ON k.user_id = u.id
+        ORDER BY k.created_at DESC
+        LIMIT 100
+      `
+      return handleCORS(NextResponse.json({ requests }))
+    }
+
+    // POST /api/admin/kyc/:id/approve — approve a KYC request
+    if (route.startsWith('/admin/kyc/') && route.endsWith('/approve') && method === 'POST') {
+      const admin = await requireAdmin()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      const kycId = route.replace('/admin/kyc/', '').replace('/approve', '')
+      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}::uuid`
+      if (rows.length === 0) return handleCORS(NextResponse.json({ error: 'KYC request not found' }, { status: 404 }))
+      const targetUserId = String(rows[0].user_id)
+      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'APPROVED', reviewed_by = ${admin.user.userId}::uuid, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}::uuid`
+      await prisma.$executeRaw`UPDATE users SET kyc_status = 'APPROVED', updated_at = NOW() WHERE id = ${targetUserId}::uuid`
+      // Notification to user
+      const nId = uuidv4()
+      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}::uuid, ${targetUserId}::uuid, 'Your identity has been verified! You can now deposit real funds.')`
+      // Audit log
+      const auditId = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1::uuid, $2::uuid, 'KYC_APPROVE', $3::uuid, $4::jsonb, NOW())`,
+        auditId, admin.user.userId, targetUserId, JSON.stringify({ kycId })
+      )
+      return handleCORS(NextResponse.json({ message: 'KYC approved. User can now deposit.' }))
+    }
+
+    // POST /api/admin/kyc/:id/reject — reject a KYC request
+    if (route.startsWith('/admin/kyc/') && route.endsWith('/reject') && method === 'POST') {
+      const admin = await requireAdmin()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      const kycId = route.replace('/admin/kyc/', '').replace('/reject', '')
+      const body = await request.json().catch(() => ({}))
+      const reason = body.reason || 'Identity could not be verified.'
+      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}::uuid`
+      if (rows.length === 0) return handleCORS(NextResponse.json({ error: 'KYC request not found' }, { status: 404 }))
+      const targetUserId = String(rows[0].user_id)
+      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'REJECTED', reviewed_by = ${admin.user.userId}::uuid, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}::uuid`
+      await prisma.$executeRaw`UPDATE users SET kyc_status = 'REJECTED', updated_at = NOW() WHERE id = ${targetUserId}::uuid`
+      const nId = uuidv4()
+      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}::uuid, ${targetUserId}::uuid, ${'KYC verification rejected: ' + reason})`
+      const auditId = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1::uuid, $2::uuid, 'KYC_REJECT', $3::uuid, $4::jsonb, NOW())`,
+        auditId, admin.user.userId, targetUserId, JSON.stringify({ kycId, reason })
+      )
+      return handleCORS(NextResponse.json({ message: 'KYC rejected.' }))
     }
 
     // GET /api/positions - Get positions (Using Service Layer)

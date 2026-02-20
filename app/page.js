@@ -30,6 +30,10 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -57,14 +61,24 @@ export default function HomePage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    if (authMode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setSubmitting(true)
 
     try {
       const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const body = { email, password }
+      if (authMode === 'register' && firstName) body.firstName = firstName
+      if (authMode === 'register' && lastName) body.lastName = lastName
+      if (authMode === 'register' && phone) body.phone = phone
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(body)
       })
 
       const data = await res.json()
@@ -419,6 +433,30 @@ export default function HomePage() {
                 </TabsList>
                 
                 <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+                  {authMode === 'register' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-sm text-slate-300">First Name</label>
+                        <Input
+                          type="text"
+                          placeholder="John"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm text-slate-300">Last Name</label>
+                        <Input
+                          type="text"
+                          placeholder="Smith"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-sm text-slate-300">Email</label>
                     <Input
@@ -430,6 +468,18 @@ export default function HomePage() {
                       required
                     />
                   </div>
+                  {authMode === 'register' && (
+                    <div className="space-y-2">
+                      <label className="text-sm text-slate-300">Phone (optional)</label>
+                      <Input
+                        type="tel"
+                        placeholder="+1 555 000 0000"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <label className="text-sm text-slate-300">Password</label>
                     <Input
@@ -442,6 +492,20 @@ export default function HomePage() {
                       minLength={authMode === 'register' ? 8 : 1}
                     />
                   </div>
+                  {authMode === 'register' && (
+                    <div className="space-y-2">
+                      <label className="text-sm text-slate-300">Confirm Password</label>
+                      <Input
+                        type="password"
+                        placeholder="Repeat your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                  )}
                   
                   {error && (
                     <div className="text-red-400 text-sm bg-red-900/20 p-3 rounded-lg">

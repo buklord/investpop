@@ -89,6 +89,11 @@ export default function AdminPage() {
   const [liveLoading, setLiveLoading] = useState(false)
   const [toast, setToast] = useState(null)
 
+  // KYC state
+  const [kycRequests, setKycRequests] = useState([])
+  const [kycActionId, setKycActionId] = useState(null)
+  const [kycMsg, setKycMsg] = useState(null)
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
@@ -158,17 +163,19 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const [usersRes, auditRes, activityRes, settingsRes, depositsRes] = await Promise.all([
+      const [usersRes, auditRes, activityRes, settingsRes, depositsRes, kycRes] = await Promise.all([
         fetch('/api/admin/users'),
         fetch('/api/admin/audit-log'),
         fetch('/api/admin/activity-feed'),
         fetch('/api/admin/settings'),
-        fetch('/api/admin/deposits')
+        fetch('/api/admin/deposits'),
+        fetch('/api/admin/kyc-requests'),
       ])
       if (usersRes.ok) setUsers((await usersRes.json()).users || [])
       if (auditRes.ok) setAuditLog((await auditRes.json()).log || [])
       if (activityRes.ok) setActivityFeed((await activityRes.json()).feed || [])
       if (depositsRes.ok) setDeposits((await depositsRes.json()).deposits || [])
+      if (kycRes.ok) setKycRequests((await kycRes.json()).requests || [])
       if (settingsRes.ok) {
         const s = (await settingsRes.json()).settings || {}
         setSystemSettings(s)
@@ -199,6 +206,22 @@ export default function AdminPage() {
   }
 
   const refreshData = async () => { setRefreshing(true); await loadData(); setRefreshing(false) }
+
+  const handleKycAction = async (kycId, action) => {
+    setKycActionId(`${kycId}-${action}`)
+    setKycMsg(null)
+    try {
+      const res = await fetch(`/api/admin/kyc/${kycId}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const data = await res.json()
+      if (res.ok) {
+        setKycMsg({ type: 'success', text: data.message })
+        await loadData()
+      } else {
+        setKycMsg({ type: 'error', text: data.error || 'Action failed.' })
+      }
+    } catch { setKycMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setKycActionId(null) }
+  }
 
   const handleForceClose = async (e) => {
     e.preventDefault(); setForceCloseMsg(null); setForceCloseLoading(true)
@@ -598,6 +621,7 @@ export default function AdminPage() {
               { id: 'live-positions', label: `Live Positions (${livePositions.length})`, highlight: livePositions.length > 0 },
               { id: 'users', label: `Users (${users.length})` },
               { id: 'deposits', label: 'Deposits', badge: deposits.filter(d => d.status === 'PENDING').length },
+              { id: 'kyc', label: 'KYC Requests', badge: kycRequests.filter(k => k.status === 'SUBMITTED').length },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
               { id: 'audit', label: `Audit Log (${auditLog.length})` },
             ].map(tab => (
@@ -954,6 +978,92 @@ export default function AdminPage() {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* KYC Requests Tab */}
+          {activeTab === 'kyc' && (
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-blue-400" />
+                  KYC Verification Requests
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {kycMsg && (
+                  <div className={`mx-4 mt-4 flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg ${kycMsg.type === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                    {kycMsg.type === 'success' ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+                    {kycMsg.text}
+                  </div>
+                )}
+                {kycRequests.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Shield className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No KYC requests yet</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead>
+                        <tr className="text-slate-500 text-xs border-b border-slate-800">
+                          <th className="text-left p-4">User</th>
+                          <th className="text-left p-4">Name</th>
+                          <th className="text-left p-4">Country</th>
+                          <th className="text-left p-4">DOB</th>
+                          <th className="text-left p-4">Document</th>
+                          <th className="text-left p-4">Status</th>
+                          <th className="text-left p-4">Submitted</th>
+                          <th className="text-right p-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kycRequests.map(req => {
+                          const isActing = kycActionId === `${req.id}-approve` || kycActionId === `${req.id}-reject`
+                          return (
+                            <tr key={req.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                              <td className="p-4 text-slate-400 text-xs">{req.email}</td>
+                              <td className="p-4 text-white text-sm font-medium">{req.first_name} {req.last_name}</td>
+                              <td className="p-4 text-slate-400 text-xs">{req.country}</td>
+                              <td className="p-4 text-slate-400 text-xs">{req.date_of_birth ? String(req.date_of_birth).split('T')[0] : '—'}</td>
+                              <td className="p-4 text-slate-400 text-xs">{req.document_type}</td>
+                              <td className="p-4">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  req.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' :
+                                  req.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' :
+                                  'bg-amber-500/10 text-amber-400'
+                                }`}>{req.status}</span>
+                              </td>
+                              <td className="p-4 text-slate-500 text-xs">{new Date(req.created_at).toLocaleDateString()}</td>
+                              <td className="p-4 text-right">
+                                {req.status === 'SUBMITTED' && (
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <Button size="sm"
+                                      disabled={isActing}
+                                      onClick={() => handleKycAction(req.id, 'approve')}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-3">
+                                      {kycActionId === `${req.id}-approve` ? <Loader2 className="h-3 w-3 animate-spin" /> : '✓ Approve'}
+                                    </Button>
+                                    <Button size="sm"
+                                      disabled={isActing}
+                                      onClick={() => handleKycAction(req.id, 'reject')}
+                                      className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-3">
+                                      {kycActionId === `${req.id}-reject` ? <Loader2 className="h-3 w-3 animate-spin" /> : '✕ Reject'}
+                                    </Button>
+                                  </div>
+                                )}
+                                {req.status !== 'SUBMITTED' && (
+                                  <span className="text-slate-600 text-xs">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

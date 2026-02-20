@@ -71,7 +71,6 @@ export default function DepositPage() {
     } catch { router.push('/') }
     finally { setLoading(false) }
   }
-
   const loadDeposits = async () => {
     try {
       const res = await fetch('/api/wallet/deposits')
@@ -142,6 +141,36 @@ export default function DepositPage() {
       <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
     </div>
   )
+
+  // KYC gate — block access until verified
+  const kycStatus = user?.kycStatus || 'PENDING'
+  if (kycStatus !== 'APPROVED') {
+    const kycMessages = {
+      PENDING:   { icon: '🔒', title: 'Verification Required', desc: 'To deposit real funds you must complete identity verification (KYC). This takes less than 5 minutes.', cta: 'Start Verification', href: '/kyc/verify', color: 'border-amber-500/30 bg-amber-500/5' },
+      SUBMITTED: { icon: '⏳', title: 'Verification In Progress', desc: 'Your documents are under review. You will be notified within 24 hours once your account is verified.', cta: 'Check Status', href: '/kyc/verify', color: 'border-blue-500/30 bg-blue-500/5' },
+      REJECTED:  { icon: '❌', title: 'Verification Rejected', desc: 'Your identity verification was not successful. Please re-submit with valid documents.', cta: 'Re-Submit Documents', href: '/kyc/verify', color: 'border-red-500/30 bg-red-500/5' },
+    }
+    const info = kycMessages[kycStatus] || kycMessages.PENDING
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex">
+        <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className={`max-w-md w-full rounded-2xl border p-8 text-center space-y-4 ${info.color}`}>
+            <div className="text-5xl">{info.icon}</div>
+            <h2 className="text-xl font-bold text-white">{info.title}</h2>
+            <p className="text-slate-400 text-sm">{info.desc}</p>
+            <Link href={info.href}>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white mt-2 w-full">
+                {info.cta}
+              </Button>
+            </Link>
+            <Link href="/wallet" className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">← Back to Wallet</Link>
+          </div>
+        </div>
+        {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
