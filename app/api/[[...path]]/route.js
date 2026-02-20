@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import prisma, { DatabaseConfigError } from '@/lib/db'
 import { hashPassword, verifyPassword, createSession, getSessionFromCookies, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
 import { getMarketDataProvider, getProviderStatus, setMarketTrend } from '@/lib/providers/marketDataProvider'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
@@ -2243,6 +2243,13 @@ async function handleRoute(request, { params }) {
 
   } catch (error) {
     console.error('API Error:', error)
+    // Surface DB configuration errors with a clear, safe message
+    if (error instanceof DatabaseConfigError) {
+      return handleCORS(NextResponse.json(
+        { error: error.message },
+        { status: 503 }
+      ))
+    }
     return handleCORS(NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

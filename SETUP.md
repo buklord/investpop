@@ -15,9 +15,9 @@ git pull origin copilot/add-live-trade-monitor && npm run dev
 
 ## 🔴 FIX: "Internal Server Error" on login
 
-This happens when the database tables haven't been created yet, or when the `@` symbol in your Supabase password breaks the connection URL.
+This error is almost always caused by one of two things:
 
-### Step 1 — Encode special characters in your `.env`
+### Cause A — `DATABASE_URL` has a special character in the password (most common)
 
 If your Supabase password contains `@`, `#`, `%`, `?`, or `&`, you **must** percent-encode them in the URL — otherwise the URL parser treats them as URL separators.
 
@@ -27,31 +27,24 @@ If your Supabase password contains `@`, `#`, `%`, `?`, or `&`, you **must** perc
 | `#` | `%23` |
 | `%` | `%25` |
 
-**Example:** If your password is `Allnations@1128`, your `.env` must say:
+**Example:** If your password is `Allnations@1128`:
 ```
-DIRECT_URL="postgresql://postgres:Allnations%401128@db.<ref>.supabase.co:5432/postgres"
 DATABASE_URL="postgresql://postgres:Allnations%401128@db.<ref>.supabase.co:5432/postgres"
 ```
 
-> Open your `.env` file in the Codespace and check the password portion of both `DATABASE_URL` and `DIRECT_URL`.
+> ✅ `DIRECT_URL` is **no longer required** — only `DATABASE_URL` is needed.
 
-### Step 2 — Sync / create the database tables
+### Cause B — Prisma client hasn't been generated
 
-Run these three commands **in order** in your Codespace terminal:
+Run this in your Codespace terminal:
 
 ```bash
-# 1. Regenerate the Prisma client
-npx prisma generate
-
-# 2. Push the schema to Supabase (creates all missing tables)
-npx prisma db push
+npm install
 ```
 
-When prompted `"Do you want to continue? (y/n)"` — type `y` and press Enter.
+> The `postinstall` script automatically runs `prisma generate` when you install dependencies.
 
-Wait for: `"The database is now in sync with your Prisma schema."`
-
-### Step 3 — Restart the server
+### After fixing — restart the server
 
 ```bash
 npm run dev
@@ -133,13 +126,12 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 | Variable | Where to get it |
 |---|---|
 | `DATABASE_URL` | Supabase → Project → Settings → Database → **Transaction pooler** connection string |
-| `DIRECT_URL` | Supabase → Project → Settings → Database → **Session pooler** (or direct) connection string |
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
 | `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://investpop.vercel.app` |
 | `NEXT_PUBLIC_TAWK_PROPERTY_ID` | Tawk.to → Administration → Channels → Chat Widget → **embed code** (see below) |
 | `NEXT_PUBLIC_TAWK_WIDGET_ID` | Same embed code — the second path segment after the property ID |
 
-> 💡 Copy `.env.example` in the repo for the full list of variable names.
+> 💡 `DIRECT_URL` is **no longer required** — only `DATABASE_URL` is needed.
 
 ### Step 5 — Redeploy
 After adding the env vars, click **Redeploy** → wait ~2 min → your live URL appears at the top of the Vercel dashboard.
@@ -198,7 +190,8 @@ Your `.env` file is now in `.gitignore` and will **never be committed again**.
 
 | Problem | Fix |
 |---------|-----|
-| "Internal Server Error" on login | Password has `@` or other special char → encode it: `@` → `%40` in `.env`, then run `npx prisma db push` (see section above) |
+| "Internal Server Error" on login | (1) Check `DATABASE_URL` in `.env` — encode special chars: `@` → `%40`. (2) Run `npm install` to regenerate Prisma client. (3) Restart: `npm run dev` |
+| "Database not configured" error | `DATABASE_URL` is not set in `.env` — add it and restart. `DIRECT_URL` is no longer needed. |
 | Dashes (—) instead of prices | Expected if API credits exhausted — the platform auto-switches to **Simulated Market** mode (prices still move!) |
 | `✓ Compiled successfully` then server is down | Stage 1 only — keep waiting for `✓ Ready` |
 | `Could not find a production build` | Run `npm run build && npm start` and wait for `✓ Ready` |
