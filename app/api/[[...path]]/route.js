@@ -551,13 +551,22 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      // Fetch role and suspension status from DB
-      const users = await prisma.$queryRaw`
-        SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}
-      `
-      const role = users[0]?.role || 'USER'
-      const isSuspended = users[0]?.is_suspended || false
-      const kycStatus = users[0]?.kyc_status || 'PENDING'
+      // Fetch role and suspension status from DB (defensive: is_suspended/kyc_status may not exist yet)
+      let role = 'USER', isSuspended = false, kycStatus = 'PENDING'
+      try {
+        const users = await prisma.$queryRaw`
+          SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}
+        `
+        role = users[0]?.role || 'USER'
+        isSuspended = users[0]?.is_suspended || false
+        kycStatus = users[0]?.kyc_status || 'PENDING'
+      } catch (_e1) {
+        // Fallback: is_suspended or kyc_status column may not exist yet — fetch only role
+        try {
+          const users2 = await run('SELECT role FROM users WHERE id = $1', [auth.user.userId])
+          role = users2[0]?.role || 'USER'
+        } catch (_e2) {}
+      }
 
       // Fetch broadcast message and spread multiplier from system_settings
       let broadcastMessage = ''
