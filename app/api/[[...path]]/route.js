@@ -69,99 +69,45 @@ async function ensureSchemaExtensions() {
     catch (err) { console.warn(`[schema] ${label}:`, err.message) }
   }
 
-  // ── Core tables first (CREATE before ALTER so foreign keys resolve) ──────
-  // Users table — created here if prisma db push was never run on this DB
+  // ── IMPORTANT: All id/user_id columns use TEXT to match Prisma's String @id
+  // mapping.  Prisma stores UUIDs as plain text strings; using the postgres UUID
+  // type would cause "incompatible types text vs uuid" FK errors.  No REFERENCES
+  // constraints are used for the same reason — integrity is enforced in code.
+
+  // ── Core tables ──────────────────────────────────────────────────────────
   await run(`
     CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id TEXT PRIMARY KEY,
       email VARCHAR(255) NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role VARCHAR(20) NOT NULL DEFAULT 'USER',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'users table')
-  // Assets table — required for FK constraints on trading tables
   await run(`
     CREATE TABLE IF NOT EXISTS assets (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id TEXT PRIMARY KEY,
       symbol VARCHAR(20) NOT NULL UNIQUE,
       name VARCHAR(100) NOT NULL,
       type VARCHAR(20) NOT NULL DEFAULT 'crypto',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'assets table')
 
+  // ── Users table: add optional columns idempotently ───────────────────────
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'`, 'role column')
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`, 'is_suspended column')
-  // Ensure balance column exists on ledger_entries (may be missing if table was created by an older migration)
-  await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
-  await run(`
-    CREATE TABLE IF NOT EXISTS ledger_entries (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type VARCHAR(50) NOT NULL,
-      amount DOUBLE PRECISION NOT NULL,
-      balance DOUBLE PRECISION NOT NULL,
-      description TEXT,
-      reference_id UUID,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'ledger_entries table')
-  await run(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      admin_id UUID NOT NULL REFERENCES users(id),
-      action VARCHAR(100) NOT NULL,
-      target_id UUID,
-      details JSONB,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'audit_logs table')
-  await run(`
-    CREATE TABLE IF NOT EXISTS activity_log (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-      action VARCHAR(100) NOT NULL,
-      details JSONB,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'activity_log table')
-  await run(`
-    CREATE TABLE IF NOT EXISTS system_settings (
-      key VARCHAR(100) PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'system_settings table')
-  await run(`
-    INSERT INTO system_settings (key, value) VALUES
-      ('broadcast_message', ''),
-      ('spread_multiplier', '1.0'),
-      ('market_trend', 'NEUTRAL')
-    ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
-  // ALTER TYPE cannot run inside a transaction — separate try/catch is critical here
-  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
-  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
-  await run(`
-    CREATE TABLE IF NOT EXISTS deposit_requests (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      amount DOUBLE PRECISION NOT NULL,
-      method VARCHAR(20) NOT NULL DEFAULT 'BTC',
-      address TEXT NOT NULL DEFAULT '',
-      status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-      notes TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'deposit_requests table')
-  await run(`
-    CREATE TABLE IF NOT EXISTS notifications (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      message TEXT NOT NULL,
-      read BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'notifications table')
-  // ── Core tables that must exist before any trading can happen ─────────
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'`, 'kyc_status column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)`, 'first_name column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)`, 'last_name column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)`, 'phone_number column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)`, 'country column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE`, 'date_of_birth column')
+
+  // ── Virtual accounts (the most critical table) ────────────────────────────
   await run(`
     CREATE TABLE IF NOT EXISTS virtual_accounts (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL UNIQUE,
       balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       real_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -170,11 +116,22 @@ async function ensureSchemaExtensions() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'virtual_accounts table')
+  // Add new columns to existing virtual_accounts tables (idempotent)
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
+  // Ensure user_id UNIQUE index exists so ON CONFLICT (user_id) works
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
+  // Migrate existing rows: treat old balance as demo balance
+  await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
+
+  // ── Trading tables ────────────────────────────────────────────────────────
   await run(`
     CREATE TABLE IF NOT EXISTS trading_positions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      asset_id UUID NOT NULL REFERENCES assets(id),
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      asset_id TEXT NOT NULL,
+      symbol VARCHAR(20) NOT NULL DEFAULT '',
       side VARCHAR(10) NOT NULL DEFAULT 'LONG',
       quantity DOUBLE PRECISION NOT NULL,
       entry_price DOUBLE PRECISION NOT NULL,
@@ -191,10 +148,10 @@ async function ensureSchemaExtensions() {
     )`, 'trading_positions table')
   await run(`
     CREATE TABLE IF NOT EXISTS trades (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      asset_id UUID NOT NULL REFERENCES assets(id),
-      position_id UUID REFERENCES trading_positions(id),
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      asset_id TEXT NOT NULL,
+      position_id TEXT,
       side VARCHAR(10) NOT NULL,
       quantity DOUBLE PRECISION NOT NULL,
       price DOUBLE PRECISION NOT NULL,
@@ -204,23 +161,109 @@ async function ensureSchemaExtensions() {
       market_price DOUBLE PRECISION NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'trades table')
+
+  // ── Ledger & audit tables ─────────────────────────────────────────────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS ledger_entries (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      type VARCHAR(50) NOT NULL,
+      amount DOUBLE PRECISION NOT NULL,
+      balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      description TEXT,
+      reference_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'ledger_entries table')
+  await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
+  await run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      admin_id TEXT NOT NULL,
+      action VARCHAR(100) NOT NULL,
+      target_id TEXT,
+      details JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'audit_logs table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT,
+      action VARCHAR(100) NOT NULL,
+      details JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'activity_log table')
+
+  // ── System settings ────────────────────────────────────────────────────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'system_settings table')
+  await run(`
+    INSERT INTO system_settings (key, value) VALUES
+      ('broadcast_message', ''),
+      ('spread_multiplier', '1.0'),
+      ('market_trend', 'NEUTRAL')
+    ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
+
+  // ── Deposit, notifications, KYC ───────────────────────────────────────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS deposit_requests (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      amount DOUBLE PRECISION NOT NULL,
+      method VARCHAR(20) NOT NULL DEFAULT 'BTC',
+      address TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'deposit_requests table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      message TEXT NOT NULL,
+      read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'notifications table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS kyc_requests (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL UNIQUE,
+      first_name VARCHAR(100) NOT NULL DEFAULT '',
+      last_name VARCHAR(100) NOT NULL DEFAULT '',
+      date_of_birth DATE,
+      country VARCHAR(100) NOT NULL DEFAULT '',
+      phone_number VARCHAR(50),
+      document_type VARCHAR(50) NOT NULL DEFAULT 'PASSPORT',
+      document_note TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',
+      reviewed_by TEXT,
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'kyc_requests table')
+
+  // ── Analytics tables (best-effort only) ───────────────────────────────────
   await run(`
     CREATE TABLE IF NOT EXISTS account_snapshots (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
       equity DOUBLE PRECISION NOT NULL DEFAULT 0,
       balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       positions_value DOUBLE PRECISION NOT NULL DEFAULT 0,
       open_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
       realized_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
-      trade_id UUID,
+      trade_id TEXT,
       snapshot_type VARCHAR(30) NOT NULL DEFAULT 'TRADE',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'account_snapshots table')
   await run(`
     CREATE TABLE IF NOT EXISTS daily_performance (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
       date DATE NOT NULL,
       starting_equity DOUBLE PRECISION NOT NULL DEFAULT 0,
       ending_equity DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -230,38 +273,10 @@ async function ensureSchemaExtensions() {
       fees_paid DOUBLE PRECISION NOT NULL DEFAULT 0,
       UNIQUE (user_id, date)
     )`, 'daily_performance table')
-  // ── Dual-wallet columns (for existing virtual_accounts rows) ────────────
-  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
-  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
-  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
-  // Ensure user_id is unique so ON CONFLICT works (table may pre-date this constraint)
-  await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
-  // Migrate existing accounts: treat their current balance as demo funds
-  await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
-  // KYC columns on users table
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'`, 'kyc_status column')
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)`, 'first_name column')
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)`, 'last_name column')
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)`, 'phone_number column')
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)`, 'country column')
-  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE`, 'date_of_birth column')
-  await run(`
-    CREATE TABLE IF NOT EXISTS kyc_requests (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-      first_name VARCHAR(100) NOT NULL,
-      last_name VARCHAR(100) NOT NULL,
-      date_of_birth DATE NOT NULL,
-      country VARCHAR(100) NOT NULL,
-      phone_number VARCHAR(50),
-      document_type VARCHAR(50) NOT NULL DEFAULT 'PASSPORT',
-      document_note TEXT,
-      status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',
-      reviewed_by UUID REFERENCES users(id),
-      reviewed_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`, 'kyc_requests table')
+
+  // ALTER TYPE cannot run inside a transaction — separate try/catch is critical
+  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
+  await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -404,12 +419,16 @@ async function handleRoute(request, { params }) {
       }
 
       // Create virtual account with starting demo balance (real_balance starts at $0).
-      // Let the DB generate the id via DEFAULT gen_random_uuid().
-      await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-        VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
-        ON CONFLICT (user_id) DO NOTHING
-      `
+      // Wrapped in try/catch so any unexpected constraint issue never blocks signup.
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
+          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          ON CONFLICT (user_id) DO NOTHING
+        `
+      } catch (vaErr) {
+        console.warn('[register] virtual_accounts insert failed (non-fatal):', vaErr.message)
+      }
 
       // Create initial account snapshot (best-effort — never block registration)
       try {
