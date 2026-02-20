@@ -276,9 +276,24 @@ async function logActivity(userId, action, details = {}) {
   } catch (_) {}
 }
 
-// Best-effort flag to skip redundant schema checks after first successful run.
-// The SQL operations are idempotent so concurrent first-runs are still safe.
-let schemaInitialized = false
+// Cache the schema-init promise at module level so it runs exactly once per
+// process.  Auth routes (register / login) await it before touching the DB so
+// that the users + virtual_accounts tables are guaranteed to exist.  All other
+// routes leave it running in the background; they will benefit from IF NOT
+// EXISTS idempotency on subsequent requests.
+let schemaInitPromise = null
+
+function getSchemaInitPromise() {
+  if (!schemaInitPromise) {
+    schemaInitPromise = ensureSchemaExtensions()
+      .then(() =>
+        prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
+      )
+      .then(rows => { if (rows?.[0]) setMarketTrend(rows[0].value) })
+      .catch(e => console.warn('[schema] init warning:', e.message))
+  }
+  return schemaInitPromise
+}
 
 // Route handler function
 async function handleRoute(request, { params }) {
@@ -286,18 +301,13 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
-  // Run schema migrations once per process — fire-and-forget so they NEVER
-  // block or delay the first real request. Tables are created with IF NOT EXISTS
-  // so concurrent first-runs are safe.
-  if (!schemaInitialized) {
-    schemaInitialized = true
-    ensureSchemaExtensions()
-      .then(() => {
-        // Sync market trend from DB into simulation engine after schema is ready
-        return prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
-      })
-      .then(rows => { if (rows?.[0]) setMarketTrend(rows[0].value) })
-      .catch(e => console.warn('[schema] background init warning:', e.message))
+  // For auth routes, always ensure schema is ready BEFORE running any SQL.
+  // The promise resolves instantly on subsequent calls (already cached).
+  if (route.startsWith('/auth/')) {
+    await getSchemaInitPromise()
+  } else {
+    // For all other routes kick off (or reuse) the background init — non-blocking.
+    getSchemaInitPromise()
   }
 
   // Rate limiting
@@ -367,18 +377,39 @@ async function handleRoute(request, { params }) {
 
       // Create user — role is always forced to 'USER' server-side;
       // any role value sent in the request body is ignored by the schema.
+      // Only insert core columns that are guaranteed to exist in every version
+      // of the users table.  Optional profile columns (first_name etc.) are
+      // added via a separate UPDATE so a missing column never blocks signup.
       const passwordHash = await hashPassword(password)
       const userId = uuidv4()
       
       await prisma.$executeRaw`
-        INSERT INTO users (id, email, password_hash, role, first_name, last_name, phone_number, created_at, updated_at)
-        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', ${regFirstName}, ${regLastName}, ${regPhone}, NOW(), NOW())
+        INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
+        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
       `
 
-      // Create virtual account with starting demo balance (real_balance starts at $0)
+      // Best-effort: save optional profile fields — column may not exist on
+      // older DB schemas; failure here must never block registration.
+      if (regFirstName || regLastName || regPhone) {
+        try {
+          await prisma.$executeRawUnsafe(`
+            UPDATE users
+            SET first_name  = COALESCE(first_name,  $1),
+                last_name   = COALESCE(last_name,   $2),
+                phone_number= COALESCE(phone_number,$3),
+                updated_at  = NOW()
+            WHERE id = $4::uuid
+          `, regFirstName, regLastName, regPhone, userId)
+        } catch (_) {}
+      }
+
+      // Create virtual account with starting demo balance (real_balance starts at $0).
+      // Supply an explicit id so the INSERT never fails due to a missing DEFAULT.
+      const vaId = uuidv4()
       await prisma.$executeRaw`
-        INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-        VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+        INSERT INTO virtual_accounts (id, user_id, balance, demo_balance, real_balance, trading_mode)
+        VALUES (${vaId}::uuid, ${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+        ON CONFLICT (user_id) DO NOTHING
       `
 
       // Create initial account snapshot (best-effort — never block registration)
