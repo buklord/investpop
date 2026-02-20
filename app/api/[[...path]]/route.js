@@ -32,7 +32,7 @@ async function requireAdminAuth() {
   const auth = await requireAuth()
   if (auth.error) return auth
   const users = await prisma.$queryRaw`
-    SELECT role FROM users WHERE id = ${auth.user.userId}::uuid
+    SELECT role FROM users WHERE id = ${auth.user.userId}
   `
   if (!users[0] || users[0].role !== 'ADMIN') {
     return { error: 'Forbidden: Admin access required', status: 403 }
@@ -270,7 +270,7 @@ async function logActivity(userId, action, details = {}) {
     const id = (await import('uuid')).v4()
     await prisma.$executeRawUnsafe(
       `INSERT INTO activity_log (id, user_id, action, details, created_at)
-       VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, NOW())`,
+       VALUES ($1, $2, $3, $4::jsonb, NOW())`,
       id, userId, action, JSON.stringify(details)
     )
   } catch (_) {}
@@ -385,7 +385,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         INSERT INTO users (id, email, password_hash, role, created_at, updated_at)
-        VALUES (${userId}::uuid, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
+        VALUES (${userId}, ${email}, ${passwordHash}, 'USER', NOW(), NOW())
       `
 
       // Best-effort: save optional profile fields — column may not exist on
@@ -398,7 +398,7 @@ async function handleRoute(request, { params }) {
                 last_name   = COALESCE(last_name,   $2),
                 phone_number= COALESCE(phone_number,$3),
                 updated_at  = NOW()
-            WHERE id = $4::uuid
+            WHERE id = $4
           `, regFirstName, regLastName, regPhone, userId)
         } catch (_) {}
       }
@@ -407,7 +407,7 @@ async function handleRoute(request, { params }) {
       // Let the DB generate the id via DEFAULT gen_random_uuid().
       await prisma.$executeRaw`
         INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-        VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+        VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
         ON CONFLICT (user_id) DO NOTHING
       `
 
@@ -416,7 +416,7 @@ async function handleRoute(request, { params }) {
         const snapshotId = uuidv4()
         await prisma.$executeRaw`
           INSERT INTO account_snapshots (id, user_id, equity, balance, snapshot_type)
-          VALUES (${snapshotId}::uuid, ${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REGISTRATION')
+          VALUES (${snapshotId}, ${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REGISTRATION')
         `
       } catch (_) {}
 
@@ -479,7 +479,7 @@ async function handleRoute(request, { params }) {
       // Check suspension (best-effort — never blocks login if column missing)
       try {
         const suspendRows = await prisma.$queryRaw`
-          SELECT is_suspended FROM users WHERE id = ${user.id}::uuid
+          SELECT is_suspended FROM users WHERE id = ${user.id}
         `
         if (suspendRows[0]?.is_suspended) {
           return handleCORS(NextResponse.json(
@@ -494,7 +494,7 @@ async function handleRoute(request, { params }) {
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${user.id}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          VALUES (${user.id}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
           ON CONFLICT (user_id) DO NOTHING
         `
       } catch (_) {}
@@ -534,7 +534,7 @@ async function handleRoute(request, { params }) {
 
       // Fetch role and suspension status from DB
       const users = await prisma.$queryRaw`
-        SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}::uuid
+        SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}
       `
       const role = users[0]?.role || 'USER'
       const isSuspended = users[0]?.is_suspended || false
@@ -725,7 +725,7 @@ async function handleRoute(request, { params }) {
 
       // Block suspended users from trading
       const traderRows = await prisma.$queryRaw`
-        SELECT is_suspended FROM users WHERE id = ${auth.user.userId}::uuid
+        SELECT is_suspended FROM users WHERE id = ${auth.user.userId}
       `
       if (traderRows[0]?.is_suspended) {
         return handleCORS(NextResponse.json(
@@ -816,7 +816,7 @@ async function handleRoute(request, { params }) {
       // Fetch dual-wallet data
       const walletRows = await prisma.$queryRaw`
         SELECT demo_balance, real_balance, trading_mode
-        FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+        FROM virtual_accounts WHERE user_id = ${auth.user.userId}
       `
       const wallet = walletRows[0] || {}
 
@@ -842,7 +842,7 @@ async function handleRoute(request, { params }) {
       // Read current wallet state
       const rows = await prisma.$queryRaw`
         SELECT balance, demo_balance, real_balance, trading_mode
-        FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+        FROM virtual_accounts WHERE user_id = ${auth.user.userId}
       `
       if (rows.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Account not found' }, { status: 404 }))
@@ -870,13 +870,13 @@ async function handleRoute(request, { params }) {
         await prisma.$executeRaw`
           UPDATE virtual_accounts
           SET demo_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
-          WHERE user_id = ${auth.user.userId}::uuid
+          WHERE user_id = ${auth.user.userId}
         `
       } else {
         await prisma.$executeRaw`
           UPDATE virtual_accounts
           SET real_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
-          WHERE user_id = ${auth.user.userId}::uuid
+          WHERE user_id = ${auth.user.userId}
         `
       }
 
@@ -897,7 +897,7 @@ async function handleRoute(request, { params }) {
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       const rows = await prisma.$queryRaw`
         SELECT kyc_status, first_name, last_name, phone_number, country, date_of_birth
-        FROM users WHERE id = ${auth.user.userId}::uuid
+        FROM users WHERE id = ${auth.user.userId}
       `
       const u = rows[0] || {}
       return handleCORS(NextResponse.json({
@@ -920,7 +920,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'First name, last name, date of birth, and country are required.' }, { status: 400 }))
       }
       // Block re-submission if already approved
-      const existing = await prisma.$queryRaw`SELECT kyc_status FROM users WHERE id = ${auth.user.userId}::uuid`
+      const existing = await prisma.$queryRaw`SELECT kyc_status FROM users WHERE id = ${auth.user.userId}`
       if (existing[0]?.kyc_status === 'APPROVED') {
         return handleCORS(NextResponse.json({ error: 'Your identity is already verified.' }, { status: 400 }))
       }
@@ -929,7 +929,7 @@ async function handleRoute(request, { params }) {
       try {
         await prisma.$executeRaw`
           INSERT INTO kyc_requests (id, user_id, first_name, last_name, date_of_birth, country, phone_number, document_type, status, created_at, updated_at)
-          VALUES (${kycId}::uuid, ${auth.user.userId}::uuid, ${firstName}, ${lastName}, ${dateOfBirth}::date, ${country}, ${phoneNumber || ''}, ${documentType || 'PASSPORT'}, 'SUBMITTED', NOW(), NOW())
+          VALUES (${kycId}, ${auth.user.userId}, ${firstName}, ${lastName}, ${dateOfBirth}::date, ${country}, ${phoneNumber || ''}, ${documentType || 'PASSPORT'}, 'SUBMITTED', NOW(), NOW())
           ON CONFLICT (user_id) DO UPDATE SET
             first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
             date_of_birth = EXCLUDED.date_of_birth, country = EXCLUDED.country,
@@ -946,14 +946,14 @@ async function handleRoute(request, { params }) {
         SET kyc_status = 'SUBMITTED', first_name = ${firstName}, last_name = ${lastName},
             date_of_birth = ${dateOfBirth}::date, country = ${country},
             phone_number = ${phoneNumber || ''}, updated_at = NOW()
-        WHERE id = ${auth.user.userId}::uuid
+        WHERE id = ${auth.user.userId}
       `
       // Audit log — visible in admin Live Feed immediately
       try {
         const auditId = uuidv4()
         await prisma.$executeRawUnsafe(
           `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-           VALUES ($1::uuid, $2::uuid, 'KYC_SUBMITTED', $2::uuid, $3::jsonb, NOW())`,
+           VALUES ($1, $2, 'KYC_SUBMITTED', $2, $3::jsonb, NOW())`,
           auditId, auth.user.userId,
           JSON.stringify({ email: auth.user.email, firstName, lastName, country })
         )
@@ -1007,18 +1007,18 @@ async function handleRoute(request, { params }) {
       const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
       const kycId = route.replace('/admin/kyc/', '').replace('/approve', '')
-      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}::uuid`
+      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}`
       if (rows.length === 0) return handleCORS(NextResponse.json({ error: 'KYC request not found' }, { status: 404 }))
       const targetUserId = String(rows[0].user_id)
-      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'APPROVED', reviewed_by = ${admin.user.userId}::uuid, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}::uuid`
-      await prisma.$executeRaw`UPDATE users SET kyc_status = 'APPROVED', updated_at = NOW() WHERE id = ${targetUserId}::uuid`
+      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'APPROVED', reviewed_by = ${admin.user.userId}, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}`
+      await prisma.$executeRaw`UPDATE users SET kyc_status = 'APPROVED', updated_at = NOW() WHERE id = ${targetUserId}`
       // Notification to user
       const nId = uuidv4()
-      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}::uuid, ${targetUserId}::uuid, 'Your identity has been verified! You can now deposit real funds.')`
+      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}, ${targetUserId}, 'Your identity has been verified! You can now deposit real funds.')`
       // Audit log
       const auditId = uuidv4()
       await prisma.$executeRawUnsafe(
-        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1::uuid, $2::uuid, 'KYC_APPROVE', $3::uuid, $4::jsonb, NOW())`,
+        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1, $2, 'KYC_APPROVE', $3, $4::jsonb, NOW())`,
         auditId, admin.user.userId, targetUserId, JSON.stringify({ kycId })
       )
       return handleCORS(NextResponse.json({ message: 'KYC approved. User can now deposit.' }))
@@ -1031,16 +1031,16 @@ async function handleRoute(request, { params }) {
       const kycId = route.replace('/admin/kyc/', '').replace('/reject', '')
       const body = await request.json().catch(() => ({}))
       const reason = body.reason || 'Identity could not be verified.'
-      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}::uuid`
+      const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}`
       if (rows.length === 0) return handleCORS(NextResponse.json({ error: 'KYC request not found' }, { status: 404 }))
       const targetUserId = String(rows[0].user_id)
-      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'REJECTED', reviewed_by = ${admin.user.userId}::uuid, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}::uuid`
-      await prisma.$executeRaw`UPDATE users SET kyc_status = 'REJECTED', updated_at = NOW() WHERE id = ${targetUserId}::uuid`
+      await prisma.$executeRaw`UPDATE kyc_requests SET status = 'REJECTED', reviewed_by = ${admin.user.userId}, reviewed_at = NOW(), updated_at = NOW() WHERE id = ${kycId}`
+      await prisma.$executeRaw`UPDATE users SET kyc_status = 'REJECTED', updated_at = NOW() WHERE id = ${targetUserId}`
       const nId = uuidv4()
-      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}::uuid, ${targetUserId}::uuid, ${'KYC verification rejected: ' + reason})`
+      await prisma.$executeRaw`INSERT INTO notifications (id, user_id, message) VALUES (${nId}, ${targetUserId}, ${'KYC verification rejected: ' + reason})`
       const auditId = uuidv4()
       await prisma.$executeRawUnsafe(
-        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1::uuid, $2::uuid, 'KYC_REJECT', $3::uuid, $4::jsonb, NOW())`,
+        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1, $2, 'KYC_REJECT', $3, $4::jsonb, NOW())`,
         auditId, admin.user.userId, targetUserId, JSON.stringify({ kycId, reason })
       )
       return handleCORS(NextResponse.json({ message: 'KYC rejected.' }))
@@ -1218,7 +1218,7 @@ async function handleRoute(request, { params }) {
         SELECT w.id, w.created_at, a.id as asset_id, a.symbol, a.name, a.type
         FROM watchlist_items w
         JOIN assets a ON w.asset_id = a.id
-        WHERE w.user_id = ${auth.user.userId}::uuid
+        WHERE w.user_id = ${auth.user.userId}
         ORDER BY w.created_at DESC
       `
 
@@ -1246,7 +1246,7 @@ async function handleRoute(request, { params }) {
       }
 
       const assets = await prisma.$queryRaw`
-        SELECT id FROM assets WHERE id = ${assetId}::uuid
+        SELECT id FROM assets WHERE id = ${assetId}
       `
       
       if (assets.length === 0) {
@@ -1260,7 +1260,7 @@ async function handleRoute(request, { params }) {
       try {
         await prisma.$executeRaw`
           INSERT INTO watchlist_items (id, user_id, asset_id, created_at)
-          VALUES (${id}::uuid, ${auth.user.userId}::uuid, ${assetId}::uuid, NOW())
+          VALUES (${id}, ${auth.user.userId}, ${assetId}, NOW())
         `
       } catch (error) {
         if (error.code === 'P2002' || error.message?.includes('unique constraint')) {
@@ -1292,7 +1292,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         DELETE FROM watchlist_items 
-        WHERE id = ${itemId}::uuid AND user_id = ${auth.user.userId}::uuid
+        WHERE id = ${itemId} AND user_id = ${auth.user.userId}
       `
 
       return handleCORS(NextResponse.json({ message: 'Removed from watchlist' }))
@@ -1314,7 +1314,7 @@ async function handleRoute(request, { params }) {
                a.id as asset_id, a.symbol, a.name, a.type
         FROM portfolio_positions p
         JOIN assets a ON p.asset_id = a.id
-        WHERE p.user_id = ${auth.user.userId}::uuid
+        WHERE p.user_id = ${auth.user.userId}
         ORDER BY p.created_at DESC
       `
 
@@ -1343,7 +1343,7 @@ async function handleRoute(request, { params }) {
       const { assetId, quantity, entryPrice, entryDate } = validation.data
 
       const assets = await prisma.$queryRaw`
-        SELECT id FROM assets WHERE id = ${assetId}::uuid
+        SELECT id FROM assets WHERE id = ${assetId}
       `
       
       if (assets.length === 0) {
@@ -1358,7 +1358,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         INSERT INTO portfolio_positions (id, user_id, asset_id, quantity, entry_price, entry_date, created_at)
-        VALUES (${id}::uuid, ${auth.user.userId}::uuid, ${assetId}::uuid, ${quantity}, ${entryPrice}, ${entryDateParsed}, NOW())
+        VALUES (${id}, ${auth.user.userId}, ${assetId}, ${quantity}, ${entryPrice}, ${entryDateParsed}, NOW())
       `
 
       return handleCORS(NextResponse.json({ 
@@ -1391,14 +1391,14 @@ async function handleRoute(request, { params }) {
         await prisma.$executeRaw`
           UPDATE portfolio_positions 
           SET quantity = ${quantity}
-          WHERE id = ${positionId}::uuid AND user_id = ${auth.user.userId}::uuid
+          WHERE id = ${positionId} AND user_id = ${auth.user.userId}
         `
       }
       if (entryPrice !== undefined) {
         await prisma.$executeRaw`
           UPDATE portfolio_positions 
           SET entry_price = ${entryPrice}
-          WHERE id = ${positionId}::uuid AND user_id = ${auth.user.userId}::uuid
+          WHERE id = ${positionId} AND user_id = ${auth.user.userId}
         `
       }
       if (entryDate !== undefined) {
@@ -1406,7 +1406,7 @@ async function handleRoute(request, { params }) {
         await prisma.$executeRaw`
           UPDATE portfolio_positions 
           SET entry_date = ${entryDateParsed}
-          WHERE id = ${positionId}::uuid AND user_id = ${auth.user.userId}::uuid
+          WHERE id = ${positionId} AND user_id = ${auth.user.userId}
         `
       }
 
@@ -1426,7 +1426,7 @@ async function handleRoute(request, { params }) {
       
       await prisma.$executeRaw`
         DELETE FROM portfolio_positions 
-        WHERE id = ${positionId}::uuid AND user_id = ${auth.user.userId}::uuid
+        WHERE id = ${positionId} AND user_id = ${auth.user.userId}
       `
 
       return handleCORS(NextResponse.json({ message: 'Position deleted' }))
@@ -1443,7 +1443,7 @@ async function handleRoute(request, { params }) {
 
       const entries = await prisma.$queryRaw`
         SELECT * FROM ledger_entries
-        WHERE user_id = ${auth.user.userId}::uuid
+        WHERE user_id = ${auth.user.userId}
         ORDER BY created_at DESC
         LIMIT 100
       `
@@ -1467,12 +1467,12 @@ async function handleRoute(request, { params }) {
         UPDATE virtual_accounts
         SET demo_balance = demo_balance + ${DEMO_AMOUNT},
             balance = CASE WHEN trading_mode = 'DEMO' THEN balance + ${DEMO_AMOUNT} ELSE balance END
-        WHERE user_id = ${auth.user.userId}::uuid
+        WHERE user_id = ${auth.user.userId}
       `
 
       // Get new balance
       const accounts = await prisma.$queryRaw`
-        SELECT balance, demo_balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}::uuid
+        SELECT balance, demo_balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
       const newDemoBalance = parseFloat(accounts[0]?.demo_balance || 0)
@@ -1481,7 +1481,7 @@ async function handleRoute(request, { params }) {
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
-        VALUES (${ledgerId}::uuid, ${auth.user.userId}::uuid, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', NOW())
+        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1513,7 +1513,7 @@ async function handleRoute(request, { params }) {
       }
 
       const users = await prisma.$queryRaw`
-        SELECT id, password_hash FROM users WHERE id = ${auth.user.userId}::uuid
+        SELECT id, password_hash FROM users WHERE id = ${auth.user.userId}
       `
 
       if (users.length === 0) {
@@ -1528,7 +1528,7 @@ async function handleRoute(request, { params }) {
       const newHash = await hashPassword(newPassword)
       await prisma.$executeRaw`
         UPDATE users SET password_hash = ${newHash}, updated_at = NOW()
-        WHERE id = ${auth.user.userId}::uuid
+        WHERE id = ${auth.user.userId}
       `
 
       return handleCORS(NextResponse.json({ message: 'Password updated successfully' }))
@@ -1555,14 +1555,14 @@ async function handleRoute(request, { params }) {
       // The WHERE NOT EXISTS prevents the race condition of two simultaneous calls both succeeding.
       const result = await prisma.$executeRaw`
         UPDATE users SET role = 'ADMIN'
-        WHERE id = ${auth.user.userId}::uuid
+        WHERE id = ${auth.user.userId}
           AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'ADMIN')
       `
 
       if (result === 0) {
         // Already admin or another admin exists — just ensure this email has admin
         await prisma.$executeRaw`
-          UPDATE users SET role = 'ADMIN' WHERE id = ${auth.user.userId}::uuid
+          UPDATE users SET role = 'ADMIN' WHERE id = ${auth.user.userId}
         `
       }
 
@@ -1628,7 +1628,7 @@ async function handleRoute(request, { params }) {
         SELECT p.*, a.symbol, a.name, a.type
         FROM trading_positions p
         JOIN assets a ON a.id = p.asset_id
-        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+        WHERE p.id = ${positionId} AND p.status = 'OPEN'
       `
 
       if (positions.length === 0) {
@@ -1652,18 +1652,18 @@ async function handleRoute(request, { params }) {
       await prisma.$executeRaw`
         UPDATE trading_positions
         SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
-        WHERE id = ${positionId}::uuid
+        WHERE id = ${positionId}
       `
 
       // Return sale value to user's balance
       await prisma.$executeRaw`
         UPDATE virtual_accounts SET balance = balance + ${saleValue}
-        WHERE user_id = ${pos.user_id}::uuid
+        WHERE user_id = ${pos.user_id}
       `
 
       // Get new balance
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
@@ -1671,16 +1671,16 @@ async function handleRoute(request, { params }) {
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT', ${saleValue},
-                ${newBalance}, ${'Admin force-closed position: ' + pos.symbol}, ${positionId}::uuid, NOW())
+        VALUES (${ledgerId}, ${pos.user_id}, 'ADMIN_ADJUSTMENT', ${saleValue},
+                ${newBalance}, ${'Admin force-closed position: ' + pos.symbol}, ${positionId}, NOW())
       `
 
       // Create audit log entry
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'FORCE_CLOSE_POSITION',
-                ${positionId}::uuid, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, realizedPnl })}::jsonb, NOW())
+        VALUES (${auditId}, ${admin.user.userId}, 'FORCE_CLOSE_POSITION',
+                ${positionId}, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, realizedPnl })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1711,7 +1711,7 @@ async function handleRoute(request, { params }) {
 
       // Check target user exists
       const targetUsers = await prisma.$queryRaw`
-        SELECT id FROM users WHERE id = ${targetUserId}::uuid
+        SELECT id FROM users WHERE id = ${targetUserId}
       `
       if (targetUsers.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
@@ -1720,12 +1720,12 @@ async function handleRoute(request, { params }) {
       // Adjust balance
       await prisma.$executeRaw`
         UPDATE virtual_accounts SET balance = balance + ${numAmount}
-        WHERE user_id = ${targetUserId}::uuid
+        WHERE user_id = ${targetUserId}
       `
 
       // Get new balance
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}::uuid
+        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
@@ -1734,7 +1734,7 @@ async function handleRoute(request, { params }) {
       const desc = reason ? `Admin adjustment: ${reason}` : 'Admin balance adjustment'
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
-        VALUES (${ledgerId}::uuid, ${targetUserId}::uuid, 'ADMIN_ADJUSTMENT',
+        VALUES (${ledgerId}, ${targetUserId}, 'ADMIN_ADJUSTMENT',
                 ${numAmount}, ${newBalance}, ${desc}, NOW())
       `
 
@@ -1742,8 +1742,8 @@ async function handleRoute(request, { params }) {
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'ADJUST_BALANCE',
-                ${targetUserId}::uuid, ${JSON.stringify({ amount: numAmount, reason: reason || null, newBalance })}::jsonb, NOW())
+        VALUES (${auditId}, ${admin.user.userId}, 'ADJUST_BALANCE',
+                ${targetUserId}, ${JSON.stringify({ amount: numAmount, reason: reason || null, newBalance })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1768,14 +1768,14 @@ async function handleRoute(request, { params }) {
       }
 
       const targetUsers = await prisma.$queryRaw`
-        SELECT id, email FROM users WHERE id = ${targetUserId}::uuid
+        SELECT id, email FROM users WHERE id = ${targetUserId}
       `
       if (targetUsers.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
       }
 
       await prisma.$executeRaw`
-        UPDATE users SET is_suspended = ${suspend} WHERE id = ${targetUserId}::uuid
+        UPDATE users SET is_suspended = ${suspend} WHERE id = ${targetUserId}
       `
 
       // Audit log
@@ -1783,8 +1783,8 @@ async function handleRoute(request, { params }) {
       const action = suspend ? 'SUSPEND_USER' : 'REACTIVATE_USER'
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, ${action},
-                ${targetUserId}::uuid, ${JSON.stringify({ email: targetUsers[0].email })}::jsonb, NOW())
+        VALUES (${auditId}, ${admin.user.userId}, ${action},
+                ${targetUserId}, ${JSON.stringify({ email: targetUsers[0].email })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1812,7 +1812,7 @@ async function handleRoute(request, { params }) {
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_BROADCAST',
+        VALUES (${auditId}, ${admin.user.userId}, 'SET_BROADCAST',
                 NULL, ${JSON.stringify({ message })}::jsonb, NOW())
       `
 
@@ -1842,7 +1842,7 @@ async function handleRoute(request, { params }) {
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_SPREAD_MULTIPLIER',
+        VALUES (${auditId}, ${admin.user.userId}, 'SET_SPREAD_MULTIPLIER',
                 NULL, ${JSON.stringify({ multiplier })}::jsonb, NOW())
       `
 
@@ -1902,7 +1902,7 @@ async function handleRoute(request, { params }) {
       const id = uuidv4()
       await prisma.$executeRawUnsafe(
         `INSERT INTO deposit_requests (id, user_id, amount, method, address, status, created_at, updated_at)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'PENDING', NOW(), NOW())`,
+         VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW(), NOW())`,
         id, auth.user.userId, parseFloat(amount), chosenMethod, address
       )
       logActivity(auth.user.userId, 'DEPOSIT_REQUEST', { amount: parseFloat(amount), method: chosenMethod })
@@ -1916,7 +1916,7 @@ async function handleRoute(request, { params }) {
 
       const deposits = await prisma.$queryRawUnsafe(
         `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, created_at, updated_at
-         FROM deposit_requests WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 20`,
+         FROM deposit_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
         auth.user.userId
       )
       return handleCORS(NextResponse.json({ deposits }))
@@ -1964,7 +1964,7 @@ async function handleRoute(request, { params }) {
 
       const deposits = await prisma.$queryRawUnsafe(
         `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, created_at, updated_at
-         FROM deposit_requests WHERE id = $1::uuid AND status = 'PENDING'`,
+         FROM deposit_requests WHERE id = $1 AND status = 'PENDING'`,
         depositId
       )
       if (deposits.length === 0) {
@@ -1983,19 +1983,19 @@ async function handleRoute(request, { params }) {
             `UPDATE virtual_accounts
              SET real_balance = real_balance + $1,
                  balance = CASE WHEN trading_mode = 'REAL' THEN balance + $1 ELSE balance END
-             WHERE user_id = $2::uuid`,
+             WHERE user_id = $2`,
             depAmount, depUserId
           )
           // Get active balance for ledger snapshot
           const accounts = await prisma.$queryRawUnsafe(
-            `SELECT balance::float8 AS balance FROM virtual_accounts WHERE user_id = $1::uuid`, depUserId
+            `SELECT balance::float8 AS balance FROM virtual_accounts WHERE user_id = $1`, depUserId
           )
           const activeBalance = parseFloat(accounts[0]?.balance || 0)
           // Ledger entry — snapshot uses active balance
           const ledgerId = uuidv4()
           await prisma.$executeRawUnsafe(
             `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-             VALUES ($1::uuid, $2::uuid, 'DEPOSIT', $3, $4, $5, $6::uuid, NOW())`,
+             VALUES ($1, $2, 'DEPOSIT', $3, $4, $5, $6, NOW())`,
             ledgerId, depUserId, depAmount, activeBalance,
             `Deposit approved — Real Wallet funded via ${depMethod}`, depositId
           )
@@ -2005,7 +2005,7 @@ async function handleRoute(request, { params }) {
         // Update deposit status
         const newStatus = action === 'APPROVE' ? 'COMPLETED' : 'REJECTED'
         await prisma.$executeRawUnsafe(
-          `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2::uuid`,
+          `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2`,
           newStatus, depositId
         )
 
@@ -2013,7 +2013,7 @@ async function handleRoute(request, { params }) {
         const auditId = uuidv4()
         await prisma.$executeRawUnsafe(
           `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-           VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5::jsonb, NOW())`,
+           VALUES ($1, $2, $3, $4, $5::jsonb, NOW())`,
           auditId, admin.user.userId,
           action === 'APPROVE' ? 'DEPOSIT_APPROVE' : 'DEPOSIT_REJECT',
           depUserId,
@@ -2044,7 +2044,7 @@ async function handleRoute(request, { params }) {
         SELECT p.*, a.symbol, a.name, a.type
         FROM trading_positions p
         JOIN assets a ON a.id = p.asset_id
-        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+        WHERE p.id = ${positionId} AND p.status = 'OPEN'
       `
       if (positions.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Open position not found' }, { status: 404 }))
@@ -2074,17 +2074,17 @@ async function handleRoute(request, { params }) {
       await prisma.$executeRaw`
         UPDATE trading_positions
         SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${targetPnl}
-        WHERE id = ${positionId}::uuid
+        WHERE id = ${positionId}
       `
 
       // Credit sale value back to user's account
       await prisma.$executeRaw`
         UPDATE virtual_accounts SET balance = balance + ${saleValue}
-        WHERE user_id = ${pos.user_id}::uuid
+        WHERE user_id = ${pos.user_id}
       `
 
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
@@ -2093,17 +2093,17 @@ async function handleRoute(request, { params }) {
       const desc = `${outcome === 'PROFIT' ? 'Trade Settlement (Win)' : 'Trade Settlement (Loss)'}: ${pos.symbol}`
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'TRADE_SELL',
-                ${saleValue}, ${newBalance}, ${desc}, ${positionId}::uuid, NOW())
+        VALUES (${ledgerId}, ${pos.user_id}, 'TRADE_SELL',
+                ${saleValue}, ${newBalance}, ${desc}, ${positionId}, NOW())
       `
 
       // Audit log
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid,
+        VALUES (${auditId}, ${admin.user.userId},
                 ${outcome === 'PROFIT' ? 'FORCE_PROFIT' : 'FORCE_LOSS'},
-                ${positionId}::uuid,
+                ${positionId},
                 ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, targetPnl, saleValue })}::jsonb, NOW())
       `
 
@@ -2112,7 +2112,7 @@ async function handleRoute(request, { params }) {
       const notifMsg = `Trade ${pos.symbol} has been settled by the liquidity provider. ${outcome === 'PROFIT' ? `Profit of $${targetPnl.toFixed(2)} credited.` : `Loss of $${Math.abs(targetPnl).toFixed(2)} applied.`}`
       await prisma.$executeRaw`
         INSERT INTO notifications (id, user_id, message, created_at)
-        VALUES (${notifId}::uuid, ${pos.user_id}::uuid, ${notifMsg}, NOW())
+        VALUES (${notifId}, ${pos.user_id}, ${notifMsg}, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -2164,7 +2164,7 @@ async function handleRoute(request, { params }) {
         SELECT p.*, a.symbol, a.name, a.type
         FROM trading_positions p
         JOIN assets a ON a.id = p.asset_id
-        WHERE p.id = ${positionId}::uuid AND p.status = 'OPEN'
+        WHERE p.id = ${positionId} AND p.status = 'OPEN'
       `
       if (positions.length === 0) {
         return handleCORS(NextResponse.json({ error: 'Open position not found' }, { status: 404 }))
@@ -2186,31 +2186,31 @@ async function handleRoute(request, { params }) {
       await prisma.$executeRaw`
         UPDATE trading_positions
         SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
-        WHERE id = ${positionId}::uuid
+        WHERE id = ${positionId}
       `
 
       await prisma.$executeRaw`
         UPDATE virtual_accounts SET balance = balance + ${saleValue}
-        WHERE user_id = ${pos.user_id}::uuid
+        WHERE user_id = ${pos.user_id}
       `
 
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}::uuid
+        SELECT balance FROM virtual_accounts WHERE user_id = ${pos.user_id}
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-        VALUES (${ledgerId}::uuid, ${pos.user_id}::uuid, 'ADMIN_ADJUSTMENT',
-                ${saleValue}, ${newBalance}, ${'Admin market-close: ' + pos.symbol}, ${positionId}::uuid, NOW())
+        VALUES (${ledgerId}, ${pos.user_id}, 'ADMIN_ADJUSTMENT',
+                ${saleValue}, ${newBalance}, ${'Admin market-close: ' + pos.symbol}, ${positionId}, NOW())
       `
 
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'MARKET_CLOSE',
-                ${positionId}::uuid, ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, currentPrice, realizedPnl })}::jsonb, NOW())
+        VALUES (${auditId}, ${admin.user.userId}, 'MARKET_CLOSE',
+                ${positionId}, ${JSON.stringify({ symbol: pos.symbol, qty, entryPrice, currentPrice, realizedPnl })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -2247,12 +2247,12 @@ async function handleRoute(request, { params }) {
           a.type
         FROM trading_positions p
         JOIN assets a ON a.id = p.asset_id
-        WHERE p.user_id = ${targetUserId}::uuid AND p.status = 'OPEN'
+        WHERE p.user_id = ${targetUserId} AND p.status = 'OPEN'
         ORDER BY p.opened_at DESC
       `
 
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}::uuid
+        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}
       `
       const balance = parseFloat(accounts[0]?.balance || 0)
 
@@ -2281,7 +2281,7 @@ async function handleRoute(request, { params }) {
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
-        VALUES (${auditId}::uuid, ${admin.user.userId}::uuid, 'SET_MARKET_TREND',
+        VALUES (${auditId}, ${admin.user.userId}, 'SET_MARKET_TREND',
                 NULL, ${JSON.stringify({ trend })}::jsonb, NOW())
       `
 
@@ -2296,7 +2296,7 @@ async function handleRoute(request, { params }) {
       const notifications = await prisma.$queryRaw`
         SELECT id, message, read, created_at
         FROM notifications
-        WHERE user_id = ${auth.user.userId}::uuid
+        WHERE user_id = ${auth.user.userId}
         ORDER BY created_at DESC
         LIMIT 20
       `
@@ -2309,7 +2309,7 @@ async function handleRoute(request, { params }) {
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
       await prisma.$executeRaw`
-        UPDATE notifications SET read = TRUE WHERE user_id = ${auth.user.userId}::uuid
+        UPDATE notifications SET read = TRUE WHERE user_id = ${auth.user.userId}
       `
       return handleCORS(NextResponse.json({ message: 'Notifications marked as read' }))
     }
