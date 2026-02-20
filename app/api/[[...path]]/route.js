@@ -71,6 +71,8 @@ async function ensureSchemaExtensions() {
 
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'`, 'role column')
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT FALSE`, 'is_suspended column')
+  // Ensure balance column exists on ledger_entries (may be missing if table was created by an older migration)
+  await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
   await run(`
     CREATE TABLE IF NOT EXISTS ledger_entries (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
