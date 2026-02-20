@@ -13,6 +13,52 @@ git pull origin copilot/add-live-trade-monitor && npm run dev
 
 ---
 
+## 🔴 FIX: "Internal Server Error" on login
+
+This happens when the database tables haven't been created yet, or when the `@` symbol in your Supabase password breaks the connection URL.
+
+### Step 1 — Encode special characters in your `.env`
+
+If your Supabase password contains `@`, `#`, `%`, `?`, or `&`, you **must** percent-encode them in the URL — otherwise the URL parser treats them as URL separators.
+
+| Character | Replace with |
+|-----------|-------------|
+| `@` | `%40` |
+| `#` | `%23` |
+| `%` | `%25` |
+
+**Example:** If your password is `Allnations@1128`, your `.env` must say:
+```
+DIRECT_URL="postgresql://postgres:Allnations%401128@db.<ref>.supabase.co:5432/postgres"
+DATABASE_URL="postgresql://postgres:Allnations%401128@db.<ref>.supabase.co:5432/postgres"
+```
+
+> Open your `.env` file in the Codespace and check the password portion of both `DATABASE_URL` and `DIRECT_URL`.
+
+### Step 2 — Sync / create the database tables
+
+Run these three commands **in order** in your Codespace terminal:
+
+```bash
+# 1. Regenerate the Prisma client
+npx prisma generate
+
+# 2. Push the schema to Supabase (creates all missing tables)
+npx prisma db push
+```
+
+When prompted `"Do you want to continue? (y/n)"` — type `y` and press Enter.
+
+Wait for: `"The database is now in sync with your Prisma schema."`
+
+### Step 3 — Restart the server
+
+```bash
+npm run dev
+```
+
+---
+
 ## ▶️ FULL RESET (if you have errors or old code):
 
 ```bash
@@ -152,6 +198,7 @@ Your `.env` file is now in `.gitignore` and will **never be committed again**.
 
 | Problem | Fix |
 |---------|-----|
+| "Internal Server Error" on login | Password has `@` or other special char → encode it: `@` → `%40` in `.env`, then run `npx prisma db push` (see section above) |
 | Dashes (—) instead of prices | Expected if API credits exhausted — the platform auto-switches to **Simulated Market** mode (prices still move!) |
 | `✓ Compiled successfully` then server is down | Stage 1 only — keep waiting for `✓ Ready` |
 | `Could not find a production build` | Run `npm run build && npm start` and wait for `✓ Ready` |
