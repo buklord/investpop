@@ -1,6 +1,19 @@
 # InvestPop — Setup & Deployment Guide
 
-## ▶️ START HERE — Copy this into your Codespaces terminal:
+---
+
+## 🟢 PREVIEW AT PORT 3000 — Run this ONE command:
+
+```bash
+git pull origin copilot/add-live-trade-monitor && npm run dev
+```
+
+> Then open the **PORTS** tab → click the link next to port **3000**.  
+> Wait for `✓ Ready on http://localhost:3000` before opening.
+
+---
+
+## ▶️ FULL RESET (if you have errors or old code):
 
 ```bash
 fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/add-live-trade-monitor && npm run dev
