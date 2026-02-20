@@ -1,4 +1,4 @@
-# InvestPop — How to Start the Server
+# InvestPop — Setup & Deployment Guide
 
 ## ▶️ START HERE — Copy this into your Codespaces terminal:
 
@@ -50,6 +50,55 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
 ```
 
 Replace `your@email.com` with your account email. After running it, log out and log back in — the **Admin** link will appear in the sidebar.
+
+---
+
+## 🚀 Deploy to Vercel (Go Live — Public URL)
+
+Vercel gives you a free public URL (e.g. `investpop.vercel.app`) that anyone can visit — no Codespaces required.
+
+### Step 1 — Merge this branch first
+In GitHub, open the Pull Request for `copilot/add-live-trade-monitor` and click **Merge**. This puts all your code onto `main`.
+
+### Step 2 — Create a Vercel account
+Go to **[vercel.com](https://vercel.com)** and sign up with your GitHub account (free).
+
+### Step 3 — Import your repository
+1. Click **"Add New… → Project"**
+2. Select the `ay4real5/investpop` repository
+3. Vercel auto-detects **Next.js** — click **Deploy**
+
+### Step 4 — Add Environment Variables
+Before the first deploy succeeds you must add these in Vercel → Project → **Settings → Environment Variables**:
+
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Supabase → Project → Settings → Database → **Transaction pooler** connection string |
+| `DIRECT_URL` | Supabase → Project → Settings → Database → **Session pooler** (or direct) connection string |
+| `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
+| `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://investpop.vercel.app` |
+| `TWELVE_DATA_API_KEY` | [twelvedata.com/account/api-keys](https://twelvedata.com/account/api-keys) (optional — platform simulates prices if missing) |
+
+> 💡 Copy `.env.example` in the repo for the full list of variable names.
+
+### Step 5 — Redeploy
+After adding the env vars, click **Redeploy** → wait ~2 min → your live URL appears at the top of the Vercel dashboard.
+
+### Step 6 — Become Admin on the live site
+Run this in your **Supabase SQL Editor** (replacing the email with the one you sign up with on the live site):
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
+```
+
+---
+
+## ⚠️ Security Notice — Rotate Your Credentials
+
+If you received a warning that credentials were found in git history, **immediately** rotate:
+- **Supabase database password**: Supabase → Project → Settings → Database → **Reset password**
+- **Twelve Data API key**: [twelvedata.com/account/api-keys](https://twelvedata.com/account/api-keys) → Regenerate
+
+Your `.env` file is now in `.gitignore` and will **never be committed again**.
 
 ---
 
