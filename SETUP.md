@@ -128,8 +128,7 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 | `DATABASE_URL` | Supabase → Project → Settings → Database → **Transaction pooler** connection string |
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
 | `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://investpop.vercel.app` |
-| `NEXT_PUBLIC_TAWK_PROPERTY_ID` | Tawk.to → Administration → Channels → Chat Widget → **embed code** (see below) |
-| `NEXT_PUBLIC_TAWK_WIDGET_ID` | Same embed code — the second path segment after the property ID |
+| `NEXT_PUBLIC_TAWK_SRC` | `https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk` (already configured — just paste this) |
 
 > 💡 `DIRECT_URL` is **no longer required** — only `DATABASE_URL` is needed.
 
@@ -146,32 +145,40 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
 
 ## 💬 Tawk.to Live Chat Setup (rings your phone when users click "Live Support")
 
-### Step 1 — Create a free Tawk.to account
-Go to **[tawk.to](https://tawk.to)** and sign up (free). Download the **Tawk.to** mobile app so chats ring your phone.
+### ✅ Already configured — just add to your `.env`
 
-### Step 2 — Get your Property ID and Widget ID
-1. In your Tawk.to dashboard → **Administration → Channels → Chat Widget → Installation**
-2. You will see a script snippet containing a line like:
-   ```
-   s1.src='https://embed.tawk.to/ABC123XYZ/1ikvn6t4a';
-   ```
-3. **Property ID** = `ABC123XYZ` (the segment before the `/`)
-4. **Widget ID** = `1ikvn6t4a` (the segment after the `/`)
+Your Tawk.to property is already set up. You just need to paste the URL into your environment.
 
-### Step 3 — Add to your Codespace `.env` (for local preview)
+### Step 1 — Add to your Codespace `.env` (for local preview at port 3000)
+
+Open your `.env` file in the Codespace and add (or confirm it already has):
 ```
-NEXT_PUBLIC_TAWK_PROPERTY_ID=ABC123XYZ
-NEXT_PUBLIC_TAWK_WIDGET_ID=1ikvn6t4a
+NEXT_PUBLIC_TAWK_SRC=https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk
 ```
-Then restart the dev server: `npm run dev`
 
-### Step 4 — Add to Vercel Environment Variables (for live site)
-Same two variables in Vercel → Project → Settings → Environment Variables → Redeploy.
+Then restart the dev server:
+```bash
+npm run dev
+```
+
+### Step 2 — Add to Vercel Environment Variables (for the live site)
+
+In Vercel → Project → Settings → Environment Variables, add:
+- **Key**: `NEXT_PUBLIC_TAWK_SRC`
+- **Value**: `https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk`
+
+Click **Save** then **Redeploy**.
+
+### Step 3 — Verify it works
+
+1. Open the site in your browser
+2. Press **F12** → Console — you should see no errors
+3. Click the **"💬 Live Support"** button (bottom-right) — the Tawk.to chat window should open
+4. On your phone, open the Tawk.to app — you'll get a push notification
 
 ### What it does
-- The Tawk.to chat widget loads silently (Tawk's default floating bubble is **hidden**)
-- Your custom **"💬 Live Support"** button (bottom-right corner) opens the chat window
-- When a user logs in, their **name and email are automatically sent** to Tawk.to so you know exactly who is chatting
+- The Tawk.to chat widget loads silently on **every page** (the default bubble is **hidden** — only your custom "Live Support" button opens it)
+- When a user logs in, their **name and email are automatically sent** to Tawk.to so you know who is chatting
 - Install the Tawk.to mobile app — you will receive a push notification whenever a visitor clicks the button
 
 ---
