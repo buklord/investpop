@@ -136,7 +136,80 @@ async function ensureSchemaExtensions() {
       read BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'notifications table')
-  // Dual-wallet columns
+  // ── Core tables that must exist before any trading can happen ─────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS virtual_accounts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      real_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO',
+      base_currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'virtual_accounts table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS trading_positions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      asset_id UUID NOT NULL REFERENCES assets(id),
+      side VARCHAR(10) NOT NULL DEFAULT 'LONG',
+      quantity DOUBLE PRECISION NOT NULL,
+      entry_price DOUBLE PRECISION NOT NULL,
+      exit_price DOUBLE PRECISION,
+      take_profit DOUBLE PRECISION,
+      stop_loss DOUBLE PRECISION,
+      leverage DOUBLE PRECISION NOT NULL DEFAULT 1,
+      status VARCHAR(10) NOT NULL DEFAULT 'OPEN',
+      total_invested DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_fees DOUBLE PRECISION NOT NULL DEFAULT 0,
+      realized_pnl DOUBLE PRECISION,
+      opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      closed_at TIMESTAMPTZ
+    )`, 'trading_positions table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS trades (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      asset_id UUID NOT NULL REFERENCES assets(id),
+      position_id UUID REFERENCES trading_positions(id),
+      side VARCHAR(10) NOT NULL,
+      quantity DOUBLE PRECISION NOT NULL,
+      price DOUBLE PRECISION NOT NULL,
+      total_value DOUBLE PRECISION NOT NULL,
+      fee_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      slippage DOUBLE PRECISION NOT NULL DEFAULT 0,
+      market_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'trades table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS account_snapshots (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      equity DOUBLE PRECISION NOT NULL DEFAULT 0,
+      balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      positions_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+      open_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+      realized_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+      trade_id UUID,
+      snapshot_type VARCHAR(30) NOT NULL DEFAULT 'TRADE',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'account_snapshots table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS daily_performance (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      date DATE NOT NULL,
+      starting_equity DOUBLE PRECISION NOT NULL DEFAULT 0,
+      ending_equity DOUBLE PRECISION NOT NULL DEFAULT 0,
+      daily_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+      daily_return_pct DOUBLE PRECISION NOT NULL DEFAULT 0,
+      trades_count INTEGER NOT NULL DEFAULT 0,
+      fees_paid DOUBLE PRECISION NOT NULL DEFAULT 0,
+      UNIQUE (user_id, date)
+    )`, 'daily_performance table')
+  // ── Dual-wallet columns (for existing virtual_accounts rows) ────────────
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
@@ -269,12 +342,14 @@ async function handleRoute(request, { params }) {
         VALUES (${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
       `
 
-      // Create initial account snapshot
-      const snapshotId = uuidv4()
-      await prisma.$executeRaw`
-        INSERT INTO account_snapshots (id, user_id, equity, balance, snapshot_type)
-        VALUES (${snapshotId}::uuid, ${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REGISTRATION')
-      `
+      // Create initial account snapshot (best-effort — never block registration)
+      try {
+        const snapshotId = uuidv4()
+        await prisma.$executeRaw`
+          INSERT INTO account_snapshots (id, user_id, equity, balance, snapshot_type)
+          VALUES (${snapshotId}::uuid, ${userId}::uuid, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REGISTRATION')
+        `
+      } catch (_) {}
 
       // Create session
       const token = await createSession(userId, email)

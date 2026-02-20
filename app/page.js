@@ -99,6 +99,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [supportToast, setSupportToast] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -607,13 +608,19 @@ export default function HomePage() {
       </footer>
 
       {/* ── Floating Live Support ─────────────────────────────────────────── */}
+      {supportToast && (
+        <div className="fixed bottom-20 right-6 z-50 bg-slate-800 border border-slate-600 text-white text-sm px-4 py-3 rounded-xl shadow-2xl max-w-xs">
+          💬 Chat is loading… Please wait a moment and try again.
+        </div>
+      )}
       <button
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full px-4 py-3 shadow-xl shadow-emerald-500/30 transition-all hover:scale-105"
         onClick={() => {
           if (typeof window !== 'undefined' && window.Tawk_API && window.Tawk_API.maximize) {
             window.Tawk_API.maximize()
           } else {
-            window.open('mailto:support@investpop.com', '_blank')
+            setSupportToast(true)
+            setTimeout(() => setSupportToast(false), 3000)
           }
         }}
       >
