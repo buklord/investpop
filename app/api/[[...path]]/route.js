@@ -772,15 +772,20 @@ async function handleRoute(request, { params }) {
       }
       // Upsert KYC request — update if user has previously submitted
       const kycId = uuidv4()
-      await prisma.$executeRaw`
-        INSERT INTO kyc_requests (id, user_id, first_name, last_name, date_of_birth, country, phone_number, document_type, status, created_at, updated_at)
-        VALUES (${kycId}::uuid, ${auth.user.userId}::uuid, ${firstName}, ${lastName}, ${dateOfBirth}::date, ${country}, ${phoneNumber || ''}, ${documentType || 'PASSPORT'}, 'SUBMITTED', NOW(), NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-          first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
-          date_of_birth = EXCLUDED.date_of_birth, country = EXCLUDED.country,
-          phone_number = EXCLUDED.phone_number, document_type = EXCLUDED.document_type,
-          status = 'SUBMITTED', reviewed_by = NULL, reviewed_at = NULL, updated_at = NOW()
-      `
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO kyc_requests (id, user_id, first_name, last_name, date_of_birth, country, phone_number, document_type, status, created_at, updated_at)
+          VALUES (${kycId}::uuid, ${auth.user.userId}::uuid, ${firstName}, ${lastName}, ${dateOfBirth}::date, ${country}, ${phoneNumber || ''}, ${documentType || 'PASSPORT'}, 'SUBMITTED', NOW(), NOW())
+          ON CONFLICT (user_id) DO UPDATE SET
+            first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+            date_of_birth = EXCLUDED.date_of_birth, country = EXCLUDED.country,
+            phone_number = EXCLUDED.phone_number, document_type = EXCLUDED.document_type,
+            status = 'SUBMITTED', reviewed_by = NULL, reviewed_at = NULL, updated_at = NOW()
+        `
+      } catch (insertErr) {
+        console.error('KYC INSERT error:', insertErr.message)
+        return handleCORS(NextResponse.json({ error: 'Could not record KYC request. Please try again.' }, { status: 500 }))
+      }
       // Update user profile + status
       await prisma.$executeRaw`
         UPDATE users
@@ -789,14 +794,50 @@ async function handleRoute(request, { params }) {
             phone_number = ${phoneNumber || ''}, updated_at = NOW()
         WHERE id = ${auth.user.userId}::uuid
       `
+      // Audit log — visible in admin Live Feed immediately
+      try {
+        const auditId = uuidv4()
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+           VALUES ($1::uuid, $2::uuid, 'KYC_SUBMITTED', $2::uuid, $3::jsonb, NOW())`,
+          auditId, auth.user.userId,
+          JSON.stringify({ email: auth.user.email, firstName, lastName, country })
+        )
+      } catch (_) {}
       logActivity(auth.user.userId, 'KYC_SUBMITTED', { firstName, lastName, country })
       return handleCORS(NextResponse.json({ message: 'KYC submitted successfully. Verification is in progress.' }))
     }
 
-    // GET /api/admin/kyc-requests — list all submitted KYC requests
+    // GET /api/admin/kyc-requests — list all KYC requests (with reconciliation for legacy submissions)
     if (route === '/admin/kyc-requests' && method === 'GET') {
       const admin = await requireAdmin()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      // Auto-reconcile: users whose kyc_status is SUBMITTED/REJECTED but have no kyc_requests row
+      // (happens when submission occurred before the table was created, or INSERT silently failed)
+      try {
+        await prisma.$executeRaw`
+          INSERT INTO kyc_requests (id, user_id, first_name, last_name, date_of_birth, country, phone_number, document_type, status, created_at, updated_at)
+          SELECT
+            gen_random_uuid(),
+            u.id,
+            COALESCE(u.first_name, 'Unknown'),
+            COALESCE(u.last_name, 'Unknown'),
+            COALESCE(u.date_of_birth, CURRENT_DATE),
+            COALESCE(u.country, 'Unknown'),
+            u.phone_number,
+            'PASSPORT',
+            u.kyc_status,
+            COALESCE(u.updated_at, NOW()),
+            NOW()
+          FROM users u
+          WHERE u.kyc_status IN ('SUBMITTED', 'REJECTED', 'APPROVED')
+            AND NOT EXISTS (SELECT 1 FROM kyc_requests k WHERE k.user_id = u.id)
+        `
+      } catch (reconcileErr) {
+        console.error('KYC reconcile error (non-fatal):', reconcileErr.message)
+      }
+
       const requests = await prisma.$queryRaw`
         SELECT k.*, u.email
         FROM kyc_requests k
