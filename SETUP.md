@@ -3,7 +3,7 @@
 ## ▶️ START HERE — Copy this into your Codespaces terminal:
 
 ```bash
-fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run dev
+fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/add-live-trade-monitor && npm run dev
 ```
 
 ⏳ Wait **~30 seconds** for this line, then open the browser:
@@ -16,7 +16,7 @@ fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch orig
 ## Alternative: Stable production mode (if dev crashes with out-of-memory):
 
 ```bash
-fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/fix-sidebar-and-add-platform-features && npm run preview
+fuser -k 3000/tcp 2>/dev/null; true && rm -f package-lock.json && git fetch origin && git reset --hard origin/copilot/add-live-trade-monitor && npm run preview
 ```
 
 ⏳ Takes **2–3 minutes** to build. Wait for:
