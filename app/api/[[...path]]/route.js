@@ -810,7 +810,7 @@ async function handleRoute(request, { params }) {
 
     // GET /api/admin/kyc-requests — list all KYC requests (with reconciliation for legacy submissions)
     if (route === '/admin/kyc-requests' && method === 'GET') {
-      const admin = await requireAdmin()
+      const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
 
       // Auto-reconcile: users whose kyc_status is SUBMITTED/REJECTED but have no kyc_requests row
@@ -850,7 +850,7 @@ async function handleRoute(request, { params }) {
 
     // POST /api/admin/kyc/:id/approve — approve a KYC request
     if (route.startsWith('/admin/kyc/') && route.endsWith('/approve') && method === 'POST') {
-      const admin = await requireAdmin()
+      const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
       const kycId = route.replace('/admin/kyc/', '').replace('/approve', '')
       const rows = await prisma.$queryRaw`SELECT user_id FROM kyc_requests WHERE id = ${kycId}::uuid`
@@ -872,7 +872,7 @@ async function handleRoute(request, { params }) {
 
     // POST /api/admin/kyc/:id/reject — reject a KYC request
     if (route.startsWith('/admin/kyc/') && route.endsWith('/reject') && method === 'POST') {
-      const admin = await requireAdmin()
+      const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
       const kycId = route.replace('/admin/kyc/', '').replace('/reject', '')
       const body = await request.json().catch(() => ({}))
