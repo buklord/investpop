@@ -88,6 +88,8 @@ export default function AdminPage() {
   const [livePositions, setLivePositions] = useState([])
   const [liveLoading, setLiveLoading] = useState(false)
   const [toast, setToast] = useState(null)
+  // Per-position custom close price (map: positionId → price string)
+  const [customPrices, setCustomPrices] = useState({})
 
   // KYC state
   const [kycRequests, setKycRequests] = useState([])
@@ -161,7 +163,32 @@ export default function AdminPage() {
     }
   }
 
-  const loadData = async () => {
+  const handleForceCloseAtPrice = async (positionId, closePrice) => {
+    if (!closePrice || isNaN(parseFloat(closePrice))) {
+      setToast({ type: 'error', text: 'Enter a valid close price first.' })
+      return
+    }
+    setSettlingId(`${positionId}-CUSTOM`)
+    try {
+      const res = await fetch('/api/admin/force-close', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId, closePrice: parseFloat(closePrice) })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setToast({ type: 'success', text: `Position closed at $${parseFloat(closePrice).toFixed(2)}. Ledger updated.` })
+        setCustomPrices(p => { const n = { ...p }; delete n[positionId]; return n })
+        await loadLivePositions()
+        await loadData()
+      } else {
+        setToast({ type: 'error', text: data.error || 'Failed to close position.' })
+      }
+    } catch {
+      setToast({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setSettlingId(null)
+    }
+  }
     try {
       const [usersRes, auditRes, activityRes, settingsRes, depositsRes, kycRes] = await Promise.all([
         fetch('/api/admin/users'),
@@ -658,14 +685,15 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table className="w-full min-w-[900px]">
                       <thead>
                         <tr className="text-slate-500 text-xs border-b border-slate-800">
                           <th className="text-left p-4">User</th>
                           <th className="text-left p-4">Instrument</th>
                           <th className="text-right p-4">Size</th>
                           <th className="text-right p-4">Entry Price</th>
-                          <th className="text-right p-4">P&amp;L (unrealized)</th>
+                          <th className="text-right p-4">Open P&amp;L</th>
+                          <th className="text-right p-4">Custom Close</th>
                           <th className="text-right p-4">Actions</th>
                         </tr>
                       </thead>
@@ -673,7 +701,11 @@ export default function AdminPage() {
                         {livePositions.map(pos => {
                           const entryPrice = parseFloat(pos.entry_price)
                           const qty = parseFloat(pos.quantity)
-                          const notional = entryPrice * qty
+                          const customPrice = customPrices[pos.id] || ''
+                          const customPriceNum = parseFloat(customPrice)
+                          const customPnl = customPrice && !isNaN(customPriceNum)
+                            ? (customPriceNum - entryPrice) * qty
+                            : null
                           return (
                             <tr key={pos.id} className="border-b border-slate-800 hover:bg-slate-800/30">
                               <td className="p-4">
@@ -681,30 +713,59 @@ export default function AdminPage() {
                                 <div className="text-slate-500 text-xs font-mono truncate max-w-[160px]">{pos.id}</div>
                               </td>
                               <td className="p-4">
-                                <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-xs font-medium">
-                                  {pos.symbol}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-1 bg-blue-500/10 text-blue-400 rounded text-xs font-medium">
+                                    {pos.symbol}
+                                  </span>
+                                  <span className={`text-xs ${pos.side === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {pos.side}
+                                  </span>
+                                </div>
                               </td>
                               <td className="p-4 text-right text-white text-sm">{qty}</td>
                               <td className="p-4 text-right text-white text-sm">{formatCurrency(entryPrice)}</td>
                               <td className="p-4 text-right text-sm">
-                                <span className="text-slate-400 text-xs">Cost: {formatCurrency(notional)}</span>
+                                {customPnl != null ? (
+                                  <span className={customPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                    {customPnl >= 0 ? '+' : ''}{formatCurrency(customPnl)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 text-xs">Enter price →</span>
+                                )}
                               </td>
                               <td className="p-4 text-right">
-                                <div className="flex items-center justify-end gap-1">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  placeholder={`e.g. ${entryPrice.toFixed(2)}`}
+                                  value={customPrice}
+                                  onChange={e => setCustomPrices(p => ({ ...p, [pos.id]: e.target.value }))}
+                                  className="w-28 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs focus:border-emerald-500 focus:outline-none text-right"
+                                />
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1 flex-wrap">
+                                  <Button size="sm" disabled={settlingId !== null}
+                                    onClick={() => handleForceCloseAtPrice(pos.id, customPrice)}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-7 px-2"
+                                    title="Close at custom price entered above">
+                                    {settlingId === `${pos.id}-CUSTOM`
+                                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                                      : '⚡ Close'}
+                                  </Button>
                                   <Button size="sm" disabled={settlingId !== null}
                                     onClick={() => handleLiveSettle(pos.id, 'PROFIT')}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2">
                                     {settlingId === `${pos.id}-PROFIT`
                                       ? <Loader2 className="h-3 w-3 animate-spin" />
-                                      : <><TrendingUp className="h-3 w-3 mr-1 inline" />Profit</>}
+                                      : <><TrendingUp className="h-3 w-3 mr-1 inline" />+10%</>}
                                   </Button>
                                   <Button size="sm" disabled={settlingId !== null}
                                     onClick={() => handleLiveSettle(pos.id, 'LOSS')}
                                     className="bg-orange-600 hover:bg-orange-700 text-white text-xs h-7 px-2">
                                     {settlingId === `${pos.id}-LOSS`
                                       ? <Loader2 className="h-3 w-3 animate-spin" />
-                                      : <><TrendingDown className="h-3 w-3 mr-1 inline" />Loss</>}
+                                      : <><TrendingDown className="h-3 w-3 mr-1 inline" />−5%</>}
                                   </Button>
                                   <Button size="sm" variant="ghost" disabled={settlingId !== null}
                                     onClick={() => handleLiveSettle(pos.id, 'MARKET')}

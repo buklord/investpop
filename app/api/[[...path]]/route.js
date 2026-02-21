@@ -1726,7 +1726,7 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      const { positionId } = body
+      const { positionId, closePrice: customClosePrice } = body
 
       if (!positionId) {
         return handleCORS(NextResponse.json({ error: 'positionId is required' }, { status: 400 }))
@@ -1746,21 +1746,26 @@ async function handleRoute(request, { params }) {
 
       const pos = positions[0]
 
-      // Get current price
-      let currentPrice = pos.entry_price
-      try {
-        const provider = getMarketDataProvider()
-        const quote = await provider.getQuote(pos.symbol, pos.type)
-        currentPrice = quote.price
-      } catch (_) {}
+      // Use custom close price if provided, otherwise fetch market price
+      let currentPrice = parseFloat(pos.entry_price)
+      if (customClosePrice && !isNaN(parseFloat(customClosePrice))) {
+        currentPrice = parseFloat(customClosePrice)
+      } else {
+        try {
+          const provider = getMarketDataProvider()
+          const quote = await provider.getQuote(pos.symbol, pos.type)
+          currentPrice = quote.price
+        } catch (_) {}
+      }
 
-      const realizedPnl = (currentPrice - pos.entry_price) * pos.quantity
-      const saleValue = currentPrice * pos.quantity
+      const realizedPnl = (currentPrice - parseFloat(pos.entry_price)) * parseFloat(pos.quantity)
+      const saleValue = currentPrice * parseFloat(pos.quantity)
 
       // Close position
       await prisma.$executeRaw`
         UPDATE trading_positions
-        SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl}
+        SET status = 'CLOSED', closed_at = NOW(), realized_pnl = ${realizedPnl},
+            exit_price = ${currentPrice}
         WHERE id = ${positionId}
       `
 
@@ -1780,12 +1785,15 @@ async function handleRoute(request, { params }) {
       `
       const newBalance = parseFloat(accounts[0]?.balance || 0)
 
-      // Create ledger entry (ADMIN_ADJUSTMENT)
+      // Create ledger entry
       const ledgerId = uuidv4()
+      const closeDesc = customClosePrice
+        ? `Admin closed position ${pos.symbol} at custom price $${currentPrice.toFixed(2)} — P&L: ${realizedPnl >= 0 ? '+' : ''}$${realizedPnl.toFixed(2)}`
+        : `Admin force-closed position: ${pos.symbol}`
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
         VALUES (${ledgerId}, ${pos.user_id}, 'ADMIN_ADJUSTMENT', ${saleValue},
-                ${newBalance}, ${'Admin force-closed position: ' + pos.symbol}, ${positionId}, NOW())
+                ${newBalance}, ${closeDesc}, ${positionId}, NOW())
       `
 
       // Create audit log entry
@@ -1793,11 +1801,12 @@ async function handleRoute(request, { params }) {
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
         VALUES (${auditId}, ${admin.user.userId}, 'FORCE_CLOSE_POSITION',
-                ${positionId}, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, realizedPnl })}::jsonb, NOW())
+                ${positionId}, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, closePrice: currentPrice, realizedPnl, customPrice: !!customClosePrice })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
-        message: `Position ${pos.symbol} force-closed successfully`,
+        message: `Position ${pos.symbol} closed at $${currentPrice.toFixed(2)}`,
+        closePrice: currentPrice,
         realizedPnl,
         saleValue
       }))

@@ -108,6 +108,11 @@ function MarketsPageContent() {
   const [stopLoss, setStopLoss] = useState('')
   const [tpEnabled, setTpEnabled] = useState(false)
   const [slEnabled, setSlEnabled] = useState(false)
+  // Multiple TP levels (TP2, TP3) — optional partial close targets
+  const [tp2Enabled, setTp2Enabled] = useState(false)
+  const [tp3Enabled, setTp3Enabled] = useState(false)
+  const [tp2Price, setTp2Price] = useState('')
+  const [tp3Price, setTp3Price] = useState('')
   const [trailingStop, setTrailingStop] = useState(false)
   const [trading, setTrading] = useState(false)
   const [tradeResult, setTradeResult] = useState(null)
@@ -358,6 +363,8 @@ function MarketsPageContent() {
       const body = { symbol: selectedAsset.symbol, type: selectedAsset.type, action: tradeAction, quantity: actualQty }
       if (tpEnabled && takeProfit) body.takeProfit = parseFloat(takeProfit)
       if (slEnabled && stopLoss) body.stopLoss = parseFloat(stopLoss)
+      if (tp2Enabled && tp2Price) body.takeProfit2 = parseFloat(tp2Price)
+      if (tp3Enabled && tp3Price) body.takeProfit3 = parseFloat(tp3Price)
       const res = await fetch('/api/trade', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
@@ -923,7 +930,54 @@ function MarketsPageContent() {
                     <input type="checkbox" checked={trailingStop} onChange={e => setTrailingStop(e.target.checked)} className="accent-blue-500" />
                     Trailing Stop
                   </label>
-                </div>
+
+                  {/* TP2 — second take-profit level */}
+                  {tpEnabled && (
+                    <div>
+                      <label className="flex items-center gap-2 text-emerald-400/60 cursor-pointer mb-1.5">
+                        <input type="checkbox" checked={tp2Enabled} onChange={e => setTp2Enabled(e.target.checked)} className="accent-emerald-500" />
+                        <span>TP2 <span className="text-slate-500">(optional 2nd target)</span></span>
+                      </label>
+                      {tp2Enabled && (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setTp2Price(v => ((parseFloat(v) || tradePrice) - pipSize).toFixed(pipSize < 0.01 ? 5 : 2))} className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold flex-shrink-0 text-base">−</button>
+                            <Input type="number" step="any" placeholder="TP2 Price" value={tp2Price} onChange={e => setTp2Price(e.target.value)} className="bg-slate-900 border-emerald-500/20 text-white h-8 text-xs text-center font-mono" />
+                            <button onClick={() => setTp2Price(v => ((parseFloat(v) || tradePrice) + pipSize).toFixed(pipSize < 0.01 ? 5 : 2))} className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold flex-shrink-0 text-base">+</button>
+                          </div>
+                          {tp2Price && tradePrice > 0 && lotsNum > 0 && (() => {
+                            const pnl = projectedPnl(selectedAsset, lotsNum, tradePrice, parseFloat(tp2Price))
+                            return pnl != null ? <div className="text-right mt-1 px-1"><span className={pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>{pnl >= 0 ? '+' : ''}{fmt$(pnl)}</span></div> : null
+                          })()}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TP3 — third take-profit level */}
+                  {tpEnabled && tp2Enabled && (
+                    <div>
+                      <label className="flex items-center gap-2 text-emerald-400/40 cursor-pointer mb-1.5">
+                        <input type="checkbox" checked={tp3Enabled} onChange={e => setTp3Enabled(e.target.checked)} className="accent-emerald-500" />
+                        <span>TP3 <span className="text-slate-500">(optional 3rd target)</span></span>
+                      </label>
+                      {tp3Enabled && (
+                        <>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setTp3Price(v => ((parseFloat(v) || tradePrice) - pipSize).toFixed(pipSize < 0.01 ? 5 : 2))} className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold flex-shrink-0 text-base">−</button>
+                            <Input type="number" step="any" placeholder="TP3 Price" value={tp3Price} onChange={e => setTp3Price(e.target.value)} className="bg-slate-900 border-emerald-500/10 text-white h-8 text-xs text-center font-mono" />
+                            <button onClick={() => setTp3Price(v => ((parseFloat(v) || tradePrice) + pipSize).toFixed(pipSize < 0.01 ? 5 : 2))} className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold flex-shrink-0 text-base">+</button>
+                          </div>
+                          {tp3Price && tradePrice > 0 && lotsNum > 0 && (() => {
+                            const pnl = projectedPnl(selectedAsset, lotsNum, tradePrice, parseFloat(tp3Price))
+                            return pnl != null ? <div className="text-right mt-1 px-1"><span className={pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>{pnl >= 0 ? '+' : ''}{fmt$(pnl)}</span></div> : null
+                          })()}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                </div>{/* end Risk Management */}
 
                 {/* Trade result */}
                 {tradeResult && (

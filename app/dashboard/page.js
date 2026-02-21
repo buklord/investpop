@@ -134,6 +134,21 @@ export default function DashboardPage() {
       const data = await res.json()
       setUser(data.user)
       if (data.broadcastMessage) setBroadcastMessage(data.broadcastMessage)
+      // Identify user in Tawk.to after login (Issue 4)
+      if (data.user?.email) {
+        let attempts = 0
+        const identifyTawk = () => {
+          if (typeof window !== 'undefined' && window.Tawk_API?.setAttributes) {
+            window.Tawk_API.setAttributes({
+              name: data.user.firstName ? `${data.user.firstName} ${data.user.lastName || ''}`.trim() : data.user.email,
+              email: data.user.email,
+            }, () => {})
+          } else if (++attempts < 10) {
+            setTimeout(identifyTawk, 400)
+          }
+        }
+        identifyTawk()
+      }
     } catch (err) {
       router.push('/')
     } finally {
@@ -250,6 +265,7 @@ export default function DashboardPage() {
         user={user}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
+        account={account}
       />
       
       {/* Main content */}
@@ -385,34 +401,39 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
+                {/* Balance = cash in account + cost of open positions (true account value excl. unrealised) */}
                 <Card className="bg-[#161b22] border-slate-800">
                   <CardContent className="p-3 sm:p-6">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
                         <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
                       </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Cash</span>
+                      <span className="text-slate-400 text-xs sm:text-sm">Balance</span>
                     </div>
                     <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency(account?.balance || 0)}
+                      {formatCurrency((account?.balance || 0) + (account?.positionsValue || 0))}
                     </div>
+                    <div className="text-xs text-slate-500 mt-1">Starting capital + realized P&L</div>
                   </CardContent>
                 </Card>
-                
+
+                {/* Available = cash not locked in open trades */}
                 <Card className="bg-[#161b22] border-slate-800">
                   <CardContent className="p-3 sm:p-6">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
                         <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                       </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
+                      <span className="text-slate-400 text-xs sm:text-sm">Available</span>
                     </div>
                     <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency(account?.equity || 0)}
+                      {formatCurrency(account?.balance || 0)}
                     </div>
+                    <div className="text-xs text-slate-500 mt-1">Free cash · not in open trades</div>
                   </CardContent>
                 </Card>
                 
+                {/* Open P&L = live unrealised gain/loss */}
                 <Card className="bg-[#161b22] border-slate-800">
                   <CardContent className="p-3 sm:p-6">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
@@ -423,25 +444,28 @@ export default function DashboardPage() {
                           <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
                         )}
                       </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Open P&L</span>
+                      <span className="text-slate-400 text-xs sm:text-sm">Open P&amp;L</span>
                     </div>
                     <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
                     </div>
+                    <div className="text-xs text-slate-500 mt-1">Unrealised on {account?.positionsCount || 0} open trade{account?.positionsCount !== 1 ? 's' : ''}</div>
                   </CardContent>
                 </Card>
                 
+                {/* Equity = Balance + Open P&L (live total account value) */}
                 <Card className="bg-[#161b22] border-slate-800">
                   <CardContent className="p-3 sm:p-6">
                     <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                        <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
+                        <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
                       </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Realized</span>
+                      <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
                     </div>
-                    <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl || 0)}
+                    <div className={`text-lg sm:text-2xl font-bold truncate ${((account?.balance || 0) + (account?.positionsValue || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {formatCurrency((account?.balance || 0) + (account?.positionsValue || 0) + (account?.openPnl || 0))}
                     </div>
+                    <div className="text-xs text-slate-500 mt-1">Balance + Open P&L (live)</div>
                   </CardContent>
                 </Card>
               </>
