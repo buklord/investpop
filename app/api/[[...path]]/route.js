@@ -354,9 +354,9 @@ function getSchemaInitPromise() {
 }
 
 // Route handler function
-async function handleRoute(request, { params }) {
-  const { path = [] } = params
-  const route = `/${path.join('/')}`
+async function handleRoute(request, context) {
+  const segments = context?.params?.path ?? []
+  const route = `/${segments.join('/')}`
   const method = request.method
 
   // Only register/login need to await schema init (to ensure users + virtual_accounts
@@ -2675,7 +2675,7 @@ async function handleAdminMarketControl(route, method, body, adminUserId) {
 
 // Patch handleRoute to include market routes
 const _origHandleRoute = handleRoute
-async function handleRouteWithMarket(request) {
+async function handleRouteWithMarket(request, context) {
   const { pathname } = new URL(request.url)
   const segments = pathname.split('/api')[1] || '/'
   const method = request.method.toUpperCase()
@@ -2698,7 +2698,7 @@ async function handleRouteWithMarket(request) {
     if (result) return result
   }
 
-  return _origHandleRoute(request)
+  return _origHandleRoute(request, context)
 }
 
 // Export all HTTP methods
