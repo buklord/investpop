@@ -29,6 +29,7 @@ export default function WalletPage() {
 
   const [account, setAccount] = useState(null)
   const [ledger, setLedger] = useState([])
+  const [ledgerMode, setLedgerMode] = useState('DEMO')
   const [refreshing, setRefreshing] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -56,6 +57,7 @@ export default function WalletPage() {
       const ledgerData = await ledgerRes.json()
       setAccount(accountData)
       setLedger(ledgerData.entries || [])
+      setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'DEMO')
     } catch (err) {
       console.error('Failed to load wallet data:', err)
     }
@@ -255,7 +257,12 @@ export default function WalletPage() {
           {/* Ledger History */}
           <Card className="bg-[#161b22] border-slate-800">
             <CardHeader>
-              <CardTitle className="text-white text-base">Transaction History</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white text-base">Transaction History</CardTitle>
+                <span className={`text-xs font-medium px-2 py-1 rounded-full ${ledgerMode === 'REAL' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
+                  {ledgerMode === 'REAL' ? '💼 Real Wallet' : '🎯 Practice Wallet'}
+                </span>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {ledger.length === 0 ? (

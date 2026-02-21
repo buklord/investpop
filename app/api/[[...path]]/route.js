@@ -175,6 +175,7 @@ async function ensureSchemaExtensions() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'ledger_entries table')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
+  await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'ledger_entries.account_type column')
   await run(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -1469,14 +1470,27 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
 
+      // Fetch user's active trading mode so we return the matching wallet's transactions
+      const accs = await prisma.$queryRaw`
+        SELECT trading_mode FROM virtual_accounts WHERE user_id = ${auth.user.userId} LIMIT 1
+      `.catch(() => [])
+      const tradingMode = accs[0]?.trading_mode || 'DEMO'
+
+      // Return entries for the active wallet type; fall back to all entries if account_type column is absent
       const entries = await prisma.$queryRaw`
+        SELECT * FROM ledger_entries
+        WHERE user_id = ${auth.user.userId}
+          AND account_type = ${tradingMode}
+        ORDER BY created_at DESC
+        LIMIT 100
+      `.catch(() => prisma.$queryRaw`
         SELECT * FROM ledger_entries
         WHERE user_id = ${auth.user.userId}
         ORDER BY created_at DESC
         LIMIT 100
-      `
+      `)
 
-      return handleCORS(NextResponse.json({ entries }))
+      return handleCORS(NextResponse.json({ entries, mode: tradingMode }))
     }
 
     // ============ WALLET ENDPOINTS ============
@@ -1508,8 +1522,8 @@ async function handleRoute(request, { params }) {
       // Create ledger entry — record active balance as snapshot
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
-        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
-        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', NOW())
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, account_type, created_at)
+        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', 'DEMO', NOW())
       `
 
       return handleCORS(NextResponse.json({
@@ -1930,7 +1944,7 @@ async function handleRoute(request, { params }) {
       const id = uuidv4()
       await prisma.$executeRawUnsafe(
         `INSERT INTO deposit_requests (id, user_id, amount, method, address, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW(), NOW())`,
+         VALUES ($1, $2, $3, $4, $5, 'PENDING'::"DepositStatus", NOW(), NOW())`,
         id, auth.user.userId, parseFloat(amount), chosenMethod, address
       )
       logActivity(auth.user.userId, 'DEPOSIT_REQUEST', { amount: parseFloat(amount), method: chosenMethod })
@@ -1974,7 +1988,7 @@ async function handleRoute(request, { params }) {
       if (auth.user.role !== 'ADMIN') return handleCORS(NextResponse.json({ count: 0 }))
 
       const result = await prisma.$queryRaw`
-        SELECT COUNT(*)::int AS count FROM deposit_requests WHERE status = 'PENDING'
+        SELECT COUNT(*)::int AS count FROM deposit_requests WHERE status = 'PENDING'::"DepositStatus"
       `
       return handleCORS(NextResponse.json({ count: result[0]?.count || 0 }))
     }
@@ -1992,7 +2006,7 @@ async function handleRoute(request, { params }) {
 
       const deposits = await prisma.$queryRawUnsafe(
         `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, created_at, updated_at
-         FROM deposit_requests WHERE id = $1 AND status = 'PENDING'`,
+         FROM deposit_requests WHERE id = $1 AND status = 'PENDING'::"DepositStatus"`,
         depositId
       )
       if (deposits.length === 0) {
@@ -2022,8 +2036,8 @@ async function handleRoute(request, { params }) {
           // Ledger entry — snapshot uses active balance
           const ledgerId = uuidv4()
           await prisma.$executeRawUnsafe(
-            `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, created_at)
-             VALUES ($1, $2, 'DEPOSIT', $3, $4, $5, $6, NOW())`,
+            `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type, created_at)
+             VALUES ($1, $2, 'DEPOSIT', $3, $4, $5, $6, 'REAL', NOW())`,
             ledgerId, depUserId, depAmount, activeBalance,
             `Deposit approved — Real Wallet funded via ${depMethod}`, depositId
           )
@@ -2033,7 +2047,7 @@ async function handleRoute(request, { params }) {
         // Update deposit status
         const newStatus = action === 'APPROVE' ? 'COMPLETED' : 'REJECTED'
         await prisma.$executeRawUnsafe(
-          `UPDATE deposit_requests SET status = $1, updated_at = NOW() WHERE id = $2`,
+          `UPDATE deposit_requests SET status = $1::"DepositStatus", updated_at = NOW() WHERE id = $2`,
           newStatus, depositId
         )
 
