@@ -178,8 +178,10 @@ async function ensureSchemaExtensions() {
     )`, 'ledger_entries table')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'ledger_entries.account_type column')
-  // Add margin_used to trading_positions for existing tables
+  // Add margin_used and account_type to trading_positions for existing tables
   await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS margin_used DOUBLE PRECISION NOT NULL DEFAULT 0`, 'trading_positions.margin_used column')
+  await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_positions.account_type column')
+  await run(`ALTER TABLE trades ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trades.account_type column')
   // Fix: old DEPOSIT ledger entries were inserted before account_type column existed and defaulted to 'DEMO'.
   // They must be tagged 'REAL' so the ledger SUM correctly reflects the real wallet balance.
   await run(`UPDATE ledger_entries SET account_type = 'REAL' WHERE type = 'DEPOSIT' AND account_type = 'DEMO'`, 'fix deposit account_type tags')
