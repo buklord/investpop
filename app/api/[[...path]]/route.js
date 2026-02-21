@@ -317,9 +317,10 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
-  // For auth routes, always ensure schema is ready BEFORE running any SQL.
-  // The promise resolves instantly on subsequent calls (already cached).
-  if (route.startsWith('/auth/')) {
+  // Only register/login need to await schema init (to ensure users + virtual_accounts
+  // tables exist before the first INSERT). /auth/me and all other routes must NOT
+  // await it — any hanging ALTER TABLE would block the spinner indefinitely.
+  if (route === '/auth/register' || route === '/auth/login') {
     await getSchemaInitPromise()
   } else {
     // For all other routes kick off (or reuse) the background init — non-blocking.
