@@ -10,7 +10,7 @@
     }
   },
   "postCreateCommand": "npm install",
-  "postStartCommand": "npm run build && npm start",
+  "postStartCommand": "npm install && npm run dev",
   "customizations": {
     "vscode": {
       "extensions": [
