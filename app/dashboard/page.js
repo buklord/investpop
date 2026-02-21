@@ -411,9 +411,9 @@ export default function DashboardPage() {
                       <span className="text-slate-400 text-xs sm:text-sm">Balance</span>
                     </div>
                     <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency((account?.balance || 0) + (account?.positionsValue || 0))}
+                      {formatCurrency(account?.balance || 0)}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">Starting capital + realized P&L</div>
+                    <div className="text-xs text-slate-500 mt-1">Cash after realized P&L</div>
                   </CardContent>
                 </Card>
 
@@ -427,9 +427,9 @@ export default function DashboardPage() {
                       <span className="text-slate-400 text-xs sm:text-sm">Available</span>
                     </div>
                     <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency(account?.balance || 0)}
+                      {formatCurrency(account?.available ?? account?.balance ?? 0)}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">Free cash · not in open trades</div>
+                    <div className="text-xs text-slate-500 mt-1">Balance − margin reserved</div>
                   </CardContent>
                 </Card>
                 
@@ -462,8 +462,8 @@ export default function DashboardPage() {
                       </div>
                       <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
                     </div>
-                    <div className={`text-lg sm:text-2xl font-bold truncate ${((account?.balance || 0) + (account?.positionsValue || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {formatCurrency((account?.balance || 0) + (account?.positionsValue || 0) + (account?.openPnl || 0))}
+                    <div className={`text-lg sm:text-2xl font-bold truncate ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {formatCurrency((account?.balance || 0) + (account?.openPnl || 0))}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">Balance + Open P&L (live)</div>
                   </CardContent>

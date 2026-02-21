@@ -120,6 +120,7 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS margin_reserved DOUBLE PRECISION NOT NULL DEFAULT 0`, 'margin_reserved column')
   // Ensure user_id UNIQUE index exists so ON CONFLICT (user_id) works
   await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
   // Migrate existing rows: treat old balance as demo balance
@@ -142,6 +143,7 @@ async function ensureSchemaExtensions() {
       status VARCHAR(10) NOT NULL DEFAULT 'OPEN',
       total_invested DOUBLE PRECISION NOT NULL DEFAULT 0,
       total_fees DOUBLE PRECISION NOT NULL DEFAULT 0,
+      margin_used DOUBLE PRECISION NOT NULL DEFAULT 0,
       realized_pnl DOUBLE PRECISION,
       opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       closed_at TIMESTAMPTZ
@@ -176,6 +178,8 @@ async function ensureSchemaExtensions() {
     )`, 'ledger_entries table')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'ledger_entries.account_type column')
+  // Add margin_used to trading_positions for existing tables
+  await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS margin_used DOUBLE PRECISION NOT NULL DEFAULT 0`, 'trading_positions.margin_used column')
   // Fix: old DEPOSIT ledger entries were inserted before account_type column existed and defaulted to 'DEMO'.
   // They must be tagged 'REAL' so the ledger SUM correctly reflects the real wallet balance.
   await run(`UPDATE ledger_entries SET account_type = 'REAL' WHERE type = 'DEPOSIT' AND account_type = 'DEMO'`, 'fix deposit account_type tags')
