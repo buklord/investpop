@@ -842,7 +842,7 @@ async function handleRoute(request, { params }) {
       }))
     }
 
-    // GET /api/account - Get account summary (Using Service Layer)
+    // GET /api/account - Get account summary
     if (route === '/account' && method === 'GET') {
       const auth = await requireAuth()
       if (auth.error) {
@@ -852,46 +852,46 @@ async function handleRoute(request, { params }) {
         ))
       }
 
-      const accountService = new AccountService(auth.user.userId)
-      const summary = await accountService.getAccountSummary()
-
-      // ── Compute balances from ledger (source of truth) ──────────────────
-      // This ensures the wallet cards show accurate totals even if the
-      // virtual_accounts cache columns were not updated correctly.
+      // ── Step 1: Read balances directly from virtual_accounts (fast, no Prisma client) ──
       let realBalance = 0
       let demoBalance = 0
       let tradingMode = 'DEMO'
+      let currency = 'USD'
+      let vaBalance = 0
+
       try {
-        // Read directly from virtual_accounts first — these are kept in sync by
-        // deposit approval and demo fund handlers. Use as the authoritative source.
         const vaRows = await prisma.$queryRawUnsafe(
-          `SELECT demo_balance, real_balance, trading_mode FROM virtual_accounts WHERE user_id = $1`,
+          `SELECT balance, demo_balance, real_balance, trading_mode, currency
+           FROM virtual_accounts WHERE user_id = $1`,
           auth.user.userId
         )
         const va = vaRows[0] || {}
-        demoBalance = parseFloat(va.demo_balance || 0)
-        realBalance = parseFloat(va.real_balance || 0)
+        vaBalance   = parseFloat(va.balance       || 0)
+        demoBalance = parseFloat(va.demo_balance  || 0)
+        realBalance = parseFloat(va.real_balance  || 0)
         tradingMode = va.trading_mode || 'DEMO'
+        currency    = va.currency     || 'USD'
+      } catch (err) {
+        console.warn('[account] virtual_accounts read failed:', err.message)
+      }
 
-        // Also SUM from ledger (source of truth for audit) and take GREATEST —
-        // ensures the wallet card shows the higher of the two so nothing is lost.
-        try {
-          const ledgerSums = await prisma.$queryRawUnsafe(
-            `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
-             FROM ledger_entries
-             WHERE user_id = $1
-             GROUP BY account_type`,
-            auth.user.userId
-          )
-          for (const row of ledgerSums) {
-            const total = parseFloat(row.total || 0)
-            if (row.account_type === 'REAL') realBalance = Math.max(realBalance, total)
-            else if (row.account_type === 'DEMO') demoBalance = Math.max(demoBalance, total)
-          }
-        } catch (_) { /* ledger column may not exist yet — use va values */ }
+      // ── Step 2: Cross-check with ledger SUM (take GREATEST so nothing is lost) ──
+      try {
+        const ledgerSums = await prisma.$queryRawUnsafe(
+          `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
+           FROM ledger_entries WHERE user_id = $1
+           GROUP BY account_type`,
+          auth.user.userId
+        )
+        for (const row of ledgerSums) {
+          const total = parseFloat(row.total || 0)
+          if (row.account_type === 'REAL')       realBalance = Math.max(realBalance, total)
+          else if (row.account_type === 'DEMO')  demoBalance = Math.max(demoBalance, total)
+        }
+      } catch (_) { /* ledger_entries.account_type may not exist yet — use va values */ }
 
-        // Self-heal: keep virtual_accounts columns in sync.
-        // Use GREATEST() so we never zero-out a correctly higher value.
+      // ── Step 3: Self-heal va columns (GREATEST — never lower a correct value) ──
+      try {
         await prisma.$executeRawUnsafe(
           `UPDATE virtual_accounts
            SET real_balance = GREATEST(real_balance, $1),
@@ -901,18 +901,26 @@ async function handleRoute(request, { params }) {
            WHERE user_id = $3`,
           realBalance, demoBalance, auth.user.userId
         )
-      } catch (err) {
-        // Last-resort fallback — use zeros, do not crash the account endpoint
-        console.warn('[account] balance computation failed:', err.message)
-      }
+      } catch (_) { /* non-critical — ignore */ }
+
+      const activeBalance = tradingMode === 'REAL' ? realBalance : demoBalance
+
+      // ── Step 4: Try to enrich with open positions via AccountService ──
+      // This is optional — if it fails the balance data is still returned correctly.
+      let enriched = {}
+      try {
+        const accountService = new AccountService(auth.user.userId)
+        const summary = await accountService.getAccountSummary()
+        enriched = summary
+      } catch (_) { /* market data or service layer unavailable — return balance only */ }
 
       return handleCORS(NextResponse.json({
-        ...summary,
-        // Override balance with mode-appropriate value from ledger
-        balance: tradingMode === 'REAL' ? realBalance : demoBalance,
+        ...enriched,
+        balance: activeBalance,
         demoBalance,
         realBalance,
         tradingMode,
+        currency,
       }))
     }
 
