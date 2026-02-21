@@ -987,14 +987,16 @@ async function handleRoute(request, context) {
         enriched = summary
       } catch (_) { /* market data or service layer unavailable — return balance only */ }
 
-      return handleCORS(NextResponse.json({
+      const accountResponse = NextResponse.json({
         ...enriched,
         balance: activeBalance,
         demoBalance,
         realBalance,
         tradingMode,
         currency,
-      }))
+      })
+      accountResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      return handleCORS(accountResponse)
     }
 
     // POST /api/account/switch-mode — switch between DEMO and REAL wallets

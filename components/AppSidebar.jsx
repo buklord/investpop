@@ -44,11 +44,33 @@ const navItems = [
   { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
 
-export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account }) {
+export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account: accountProp }) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [pendingDeposits, setPendingDeposits] = useState(0)
+  const [selfAccount, setSelfAccount] = useState(null)
+  const [accountLoading, setAccountLoading] = useState(false)
+
+  // If parent didn't pass account data (non-dashboard pages), fetch it ourselves
+  useEffect(() => {
+    if (accountProp != null) return  // parent already provided it — no need to fetch
+    let cancelled = false
+    const fetchAccount = async () => {
+      setAccountLoading(true)
+      try {
+        const res = await fetch('/api/account', { cache: 'no-store' })
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setSelfAccount(data)
+        }
+      } catch (_) {}
+      if (!cancelled) setAccountLoading(false)
+    }
+    fetchAccount()
+    // Re-fetch whenever pathname changes (user navigated to a new page)
+    return () => { cancelled = true }
+  }, [pathname, accountProp])
 
   // Poll for pending deposit count (admins only)
   useEffect(() => {
@@ -72,7 +94,10 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account 
     router.push('/')
   }
 
-  const tradingMode = account?.tradingMode || 'DEMO'
+  // Use prop if provided (dashboard passes it), otherwise use self-fetched data
+  const account = accountProp ?? selfAccount
+
+  const tradingMode = accountLoading ? null : (account?.tradingMode ?? account?.trading_mode ?? null)
   const available   = account?.available ?? account?.balance ?? null
   const equity      = account != null
     ? (account.balance || 0) + (account.openPnl || 0)
@@ -113,9 +138,13 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account 
             <div className="mt-3 bg-slate-800/60 rounded-lg p-2 text-xs space-y-1">
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Mode</span>
-                <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                  {tradingMode === 'REAL' ? '💼 Real' : '🎯 Demo'}
-                </span>
+                {accountLoading || tradingMode === null ? (
+                  <span className="text-slate-500 text-xs italic">Loading…</span>
+                ) : (
+                  <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                    {tradingMode === 'REAL' ? '💼 Real' : '🎯 Demo'}
+                  </span>
+                )}
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Available</span>
