@@ -112,7 +112,7 @@ async function ensureSchemaExtensions() {
       demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       real_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO',
-      base_currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+      currency VARCHAR(10) NOT NULL DEFAULT 'USD',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'virtual_accounts table')
