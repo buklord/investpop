@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { TradeService } from '@/lib/services/tradeService'
 import { AccountService } from '@/lib/services/accountService'
 import { TRADING_CONFIG } from '@/lib/services/tradingConfig'
+import * as MarketSim from '@/lib/marketSimulator'
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -292,6 +293,29 @@ async function ensureSchemaExtensions() {
       fees_paid DOUBLE PRECISION NOT NULL DEFAULT 0,
       UNIQUE (user_id, date)
     )`, 'daily_performance table')
+
+  // ── Market simulator tables ─────────────────────────────────────────────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS market_prices (
+      symbol VARCHAR(20) PRIMARY KEY,
+      bid DOUBLE PRECISION NOT NULL DEFAULT 0,
+      ask DOUBLE PRECISION NOT NULL DEFAULT 0,
+      mid DOUBLE PRECISION NOT NULL DEFAULT 0,
+      source VARCHAR(20) NOT NULL DEFAULT 'SIMULATED',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'market_prices table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS market_sim_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      volatility DOUBLE PRECISION NOT NULL DEFAULT 0.3,
+      trend_bias VARCHAR(10) NOT NULL DEFAULT 'NEUTRAL',
+      spread_pips DOUBLE PRECISION NOT NULL DEFAULT 2,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'market_sim_settings table')
+  await run(`
+    INSERT INTO market_sim_settings (id, volatility, trend_bias, spread_pips)
+    VALUES (1, 0.3, 'NEUTRAL', 2)
+    ON CONFLICT (id) DO NOTHING`, 'market_sim_settings seed')
 
   // ALTER TYPE cannot run inside a transaction — separate try/catch is critical
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
@@ -2537,9 +2561,149 @@ async function handleRoute(request, { params }) {
   }
 }
 
+// ── Market Simulator API ─────────────────────────────────────────────────────
+// These are thin wrappers so the client can poll without importing the sim lib.
+
+async function handleMarketRoute(route, method, body) {
+  // GET /api/market/prices — returns all current bid/ask/mid prices
+  if (route === '/market/prices' && method === 'GET') {
+    const prices = MarketSim.getAllPrices()
+    return handleCORS(NextResponse.json({ prices, settings: MarketSim.getSettings() }))
+  }
+
+  // POST /api/market/tick — advances prices by one tick (called every 2s by client)
+  if (route === '/market/tick' && method === 'POST') {
+    const updated = MarketSim.advanceTick()
+    // Persist to DB asynchronously (best-effort — doesn't block response)
+    persistPricesToDb(updated).catch(() => {})
+    return handleCORS(NextResponse.json({ prices: MarketSim.getAllPrices() }))
+  }
+
+  // GET /api/market/quote/:symbol — single symbol quote
+  if (route.startsWith('/market/quote/') && method === 'GET') {
+    const symbol = route.split('/market/quote/')[1]?.toUpperCase()
+    const quote = MarketSim.getQuote(symbol)
+    if (!quote) return handleCORS(NextResponse.json({ error: 'Symbol not found' }, { status: 404 }))
+    return handleCORS(NextResponse.json(quote))
+  }
+
+  return null
+}
+
+async function persistPricesToDb(prices) {
+  try {
+    const entries = Object.entries(prices)
+    if (!entries.length) return
+    const values = entries.map(([sym, p]) =>
+      `('${sym}', ${p.bid}, ${p.ask}, ${p.mid}, '${p.source}', NOW())`
+    ).join(',\n')
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO market_prices (symbol, bid, ask, mid, source, updated_at)
+      VALUES ${values}
+      ON CONFLICT (symbol) DO UPDATE
+        SET bid = EXCLUDED.bid, ask = EXCLUDED.ask, mid = EXCLUDED.mid,
+            source = EXCLUDED.source, updated_at = EXCLUDED.updated_at
+    `)
+  } catch (e) { /* best-effort */ }
+}
+
+// ── Admin Market Control ─────────────────────────────────────────────────────
+async function handleAdminMarketControl(route, method, body, adminUserId) {
+  // POST /api/admin/market-control/settings
+  if (route === '/admin/market-control/settings' && method === 'POST') {
+    const { volatility, trendBias, spreadPips } = body || {}
+    const settings = MarketSim.updateSettings({ volatility, trendBias, spreadPips })
+    // Persist to DB
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE market_sim_settings SET volatility=$1, trend_bias=$2, spread_pips=$3, updated_at=NOW() WHERE id=1`,
+        settings.volatility, settings.trendBias, settings.spreadPips
+      )
+    } catch (e) { /* best-effort */ }
+    // Audit log
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO audit_logs (id, admin_id, action, details, created_at) VALUES ($1,$2,'MARKET_SETTINGS_CHANGED',$3::jsonb,NOW())`,
+        uuidv4(), adminUserId, JSON.stringify(settings)
+      )
+    } catch (e) { /* best-effort */ }
+    return handleCORS(NextResponse.json({ message: 'Market settings updated', settings }))
+  }
+
+  // POST /api/admin/market-control/override — set a per-symbol price override
+  if (route === '/admin/market-control/override' && method === 'POST') {
+    const { symbol, price, durationMinutes = 10 } = body || {}
+    if (!symbol || !price) return handleCORS(NextResponse.json({ error: 'symbol and price required' }, { status: 400 }))
+    if (price <= 0) return handleCORS(NextResponse.json({ error: 'Price must be positive' }, { status: 400 }))
+    MarketSim.setOverride(symbol, price, durationMinutes * 60 * 1000)
+    // Audit log
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at) VALUES ($1,$2,'PRICE_OVERRIDE',$3,$4::jsonb,NOW())`,
+        uuidv4(), adminUserId, symbol.toUpperCase(), JSON.stringify({ price, durationMinutes })
+      )
+    } catch (e) { /* best-effort */ }
+    return handleCORS(NextResponse.json({ message: `Override set for ${symbol.toUpperCase()}`, price, durationMinutes }))
+  }
+
+  // DELETE /api/admin/market-control/override/:symbol
+  if (route.startsWith('/admin/market-control/override/') && method === 'DELETE') {
+    const symbol = route.split('/admin/market-control/override/')[1]?.toUpperCase()
+    MarketSim.clearOverride(symbol)
+    return handleCORS(NextResponse.json({ message: `Override cleared for ${symbol}` }))
+  }
+
+  // GET /api/admin/market-control/settings — get current settings
+  if (route === '/admin/market-control/settings' && method === 'GET') {
+    const settings = MarketSim.getSettings()
+    // Also load from DB for display
+    try {
+      const rows = await prisma.$queryRawUnsafe(`SELECT * FROM market_sim_settings WHERE id=1`)
+      if (rows[0]) {
+        MarketSim.updateSettings({
+          volatility: rows[0].volatility,
+          trendBias: rows[0].trend_bias,
+          spreadPips: rows[0].spread_pips,
+        })
+      }
+    } catch (e) { /* best-effort */ }
+    return handleCORS(NextResponse.json({ settings: MarketSim.getSettings() }))
+  }
+
+  return null
+}
+
+// Patch handleRoute to include market routes
+const _origHandleRoute = handleRoute
+async function handleRouteWithMarket(request) {
+  const { pathname } = new URL(request.url)
+  const segments = pathname.split('/api')[1] || '/'
+  const method = request.method.toUpperCase()
+
+  // Market routes (no auth needed for prices/tick)
+  if (segments.startsWith('/market/')) {
+    let body = {}
+    try { body = method !== 'GET' ? await request.json() : {} } catch {}
+    const result = await handleMarketRoute(segments, method, body)
+    if (result) return result
+  }
+
+  // Admin market control routes
+  if (segments.startsWith('/admin/market-control')) {
+    const auth = await requireAdminAuth()
+    if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+    let body = {}
+    try { body = method !== 'GET' ? await request.json() : {} } catch {}
+    const result = await handleAdminMarketControl(segments, method, body, auth.user.userId)
+    if (result) return result
+  }
+
+  return _origHandleRoute(request)
+}
+
 // Export all HTTP methods
-export const GET = handleRoute
-export const POST = handleRoute
-export const PUT = handleRoute
-export const DELETE = handleRoute
-export const PATCH = handleRoute
+export const GET = handleRouteWithMarket
+export const POST = handleRouteWithMarket
+export const PUT = handleRouteWithMarket
+export const DELETE = handleRouteWithMarket
+export const PATCH = handleRouteWithMarket

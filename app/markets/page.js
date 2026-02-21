@@ -122,16 +122,30 @@ function MarketsPageContent() {
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
 
-  // 2-second fast-refresh for selected asset quote (the "alive" price feed)
+  // 2-second fast-refresh: advance simulator tick + get updated bid/ask for selected asset
   useEffect(() => {
     if (!user || !selectedAsset) return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/quote?symbol=' + selectedAsset.symbol + '&type=' + selectedAsset.type)
-        if (res.ok) {
-          const data = await res.json()
-          setQuotes(prev => ({ ...prev, [selectedAsset.symbol]: data }))
-          if (data.simulated) setDataMode('simulated')
+        // Advance the price simulator (fire-and-forget, get updated prices back)
+        const tickRes = await fetch('/api/market/tick', { method: 'POST' })
+        if (tickRes.ok) {
+          const tickData = await tickRes.json()
+          const sym = selectedAsset.symbol.toUpperCase()
+          const p = tickData.prices?.[sym]
+          if (p) {
+            setQuotes(prev => ({
+              ...prev,
+              [selectedAsset.symbol]: {
+                ...prev[selectedAsset.symbol],
+                price: p.mid,
+                bid: p.bid,
+                ask: p.ask,
+                simulated: true,
+              }
+            }))
+            setDataMode('simulated')
+          }
         }
       } catch {}
     }, 2000)
@@ -405,7 +419,10 @@ function MarketsPageContent() {
   const lotsNum = parseFloat(lots) || 0
   const lotMult = getLotMultiplier(selectedAsset?.type)
   const qty = lotsNum * lotMult           // actual units for value/margin math
-  const tradePrice = selQuote?.price || 0
+  // MT-style: BUY executes at ask (higher), SELL executes at bid (lower)
+  const tradePrice = tradeAction === 'BUY'
+    ? (selQuote?.ask || selQuote?.price || 0)
+    : (selQuote?.bid || selQuote?.price || 0)
   const tradeValue = qty * tradePrice
   const reqMargin = tradeValue * MARGIN_RATE
   const fee = tradeValue * 0.001
@@ -706,7 +723,21 @@ function MarketsPageContent() {
                 <div className="text-right flex-shrink-0 ml-2">
                   {selQuote ? (
                     <>
-                      <div className="text-white font-mono font-bold text-sm">{fmt$(selQuote.price)}</div>
+                      {/* Show Bid/Ask when simulator has them, otherwise mid price */}
+                      {selQuote.bid && selQuote.ask ? (
+                        <div className="text-xs space-y-0.5">
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-slate-500">Bid</span>
+                            <span className="text-red-400 font-mono font-bold">{fmt$(selQuote.bid)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 justify-end">
+                            <span className="text-slate-500">Ask</span>
+                            <span className="text-emerald-400 font-mono font-bold">{fmt$(selQuote.ask)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-white font-mono font-bold text-sm">{fmt$(selQuote.price)}</div>
+                      )}
                       <div className={'text-xs ' + ((selQuote.changePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                         {fmtPct(selQuote.changePercent)}
                       </div>

@@ -96,6 +96,15 @@ export default function AdminPage() {
   const [kycActionId, setKycActionId] = useState(null)
   const [kycMsg, setKycMsg] = useState(null)
 
+  // Market Control state
+  const [mcSettings, setMcSettings] = useState({ volatility: 0.3, trendBias: 'NEUTRAL', spreadPips: 2 })
+  const [mcOverrideSymbol, setMcOverrideSymbol] = useState('')
+  const [mcOverridePrice, setMcOverridePrice] = useState('')
+  const [mcOverrideDuration, setMcOverrideDuration] = useState('10')
+  const [mcLoading, setMcLoading] = useState(false)
+  const [mcMsg, setMcMsg] = useState(null)
+  const [mcPrices, setMcPrices] = useState({})
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
@@ -112,6 +121,14 @@ export default function AdminPage() {
     return () => clearInterval(interval)
   }, [user])
 
+  // Load market settings when market-control tab is opened
+  useEffect(() => {
+    if (activeTab === 'market-control') {
+      loadMarketSettings()
+      loadMarketPrices()
+    }
+  }, [activeTab])
+
   // Auto-dismiss toast after 4 seconds
   useEffect(() => {
     if (!toast) return
@@ -127,6 +144,71 @@ export default function AdminPage() {
       setUser(data.user)
     } catch { router.push('/') }
     finally { setLoading(false) }
+  }
+
+  const loadMarketSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/market-control/settings')
+      if (res.ok) {
+        const data = await res.json()
+        setMcSettings(data.settings || mcSettings)
+      }
+    } catch (e) { console.warn('loadMarketSettings', e) }
+  }
+
+  const loadMarketPrices = async () => {
+    try {
+      const res = await fetch('/api/market/prices')
+      if (res.ok) {
+        const data = await res.json()
+        setMcPrices(data.prices || {})
+      }
+    } catch (e) { console.warn('loadMarketPrices', e) }
+  }
+
+  const handleSaveMarketSettings = async () => {
+    setMcLoading(true); setMcMsg(null)
+    try {
+      const res = await fetch('/api/admin/market-control/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mcSettings)
+      })
+      const data = await res.json()
+      if (res.ok) setMcMsg({ type: 'success', text: 'Market settings saved!' })
+      else setMcMsg({ type: 'error', text: data.error || 'Failed' })
+    } catch (e) { setMcMsg({ type: 'error', text: e.message }) }
+    finally { setMcLoading(false) }
+  }
+
+  const handlePriceOverride = async () => {
+    if (!mcOverrideSymbol || !mcOverridePrice) return
+    setMcLoading(true); setMcMsg(null)
+    try {
+      const res = await fetch('/api/admin/market-control/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: mcOverrideSymbol.toUpperCase(),
+          price: parseFloat(mcOverridePrice),
+          durationMinutes: parseInt(mcOverrideDuration) || 10
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMcMsg({ type: 'success', text: `Override set: ${mcOverrideSymbol.toUpperCase()} = $${mcOverridePrice}` })
+        setMcOverrideSymbol(''); setMcOverridePrice('')
+        loadMarketPrices()
+      } else setMcMsg({ type: 'error', text: data.error || 'Failed' })
+    } catch (e) { setMcMsg({ type: 'error', text: e.message }) }
+    finally { setMcLoading(false) }
+  }
+
+  const handleTickMarket = async () => {
+    try {
+      const res = await fetch('/api/market/tick', { method: 'POST' })
+      if (res.ok) { loadMarketPrices(); setMcMsg({ type: 'success', text: 'Market tick advanced!' }) }
+    } catch (e) { }
   }
 
   const loadLivePositions = async () => {
@@ -651,6 +733,7 @@ export default function AdminPage() {
               { id: 'users', label: `Users (${users.length})` },
               { id: 'deposits', label: 'Deposits', badge: deposits.filter(d => d.status === 'PENDING').length },
               { id: 'kyc', label: 'KYC Requests', badge: kycRequests.filter(k => k.status === 'SUBMITTED').length },
+              { id: 'market-control', label: '🎛️ Market Control' },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
               { id: 'audit', label: `Audit Log (${auditLog.length})` },
             ].map(tab => (
@@ -1133,6 +1216,155 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* ── Market Control Tab ─────────────────────────────────────────── */}
+          {activeTab === 'market-control' && (
+            <div className="space-y-4">
+              {mcMsg && (
+                <div className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg ${mcMsg.type === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                  {mcMsg.type === 'success' ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+                  {mcMsg.text}
+                </div>
+              )}
+
+              {/* Simulator settings */}
+              <Card className="bg-[#161b22] border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-white text-base flex items-center gap-2">
+                    🎛️ Simulator Settings
+                    <span className="text-xs text-slate-500 font-normal">controls random-walk price engine</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Volatility */}
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Volatility (0 = calm, 1 = chaotic)</label>
+                      <input type="range" min="0" max="1" step="0.05"
+                        value={mcSettings.volatility}
+                        onChange={e => setMcSettings(s => ({ ...s, volatility: parseFloat(e.target.value) }))}
+                        className="w-full accent-emerald-500" />
+                      <span className="text-white text-sm font-mono">{mcSettings.volatility}</span>
+                    </div>
+                    {/* Trend Bias */}
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Trend Bias</label>
+                      <div className="flex gap-2">
+                        {['BULL', 'NEUTRAL', 'BEAR'].map(b => (
+                          <button key={b} onClick={() => setMcSettings(s => ({ ...s, trendBias: b }))}
+                            className={`flex-1 py-1.5 rounded text-xs font-bold transition-colors ${
+                              mcSettings.trendBias === b
+                                ? b === 'BULL' ? 'bg-emerald-600 text-white' : b === 'BEAR' ? 'bg-red-600 text-white' : 'bg-slate-600 text-white'
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}>
+                            {b === 'BULL' ? '📈 BULL' : b === 'BEAR' ? '📉 BEAR' : '↔ NEUTRAL'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Spread */}
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Default Spread (pips)</label>
+                      <Input type="number" min="0.1" step="0.5"
+                        value={mcSettings.spreadPips}
+                        onChange={e => setMcSettings(s => ({ ...s, spreadPips: parseFloat(e.target.value) }))}
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={handleSaveMarketSettings} disabled={mcLoading}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm h-8">
+                      {mcLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                      💾 Save Settings
+                    </Button>
+                    <Button onClick={handleTickMarket} variant="outline"
+                      className="border-blue-600 text-blue-400 hover:bg-blue-900/30 text-sm h-8">
+                      ⚡ Advance One Tick
+                    </Button>
+                    <Button onClick={loadMarketPrices} variant="outline"
+                      className="border-slate-700 text-slate-400 hover:bg-slate-800 text-sm h-8">
+                      🔄 Refresh Prices
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Per-symbol price override */}
+              <Card className="bg-[#161b22] border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-white text-base">🎯 Per-Symbol Price Override</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2 items-end">
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Symbol</label>
+                      <Input placeholder="e.g. EURUSD" value={mcOverrideSymbol}
+                        onChange={e => setMcOverrideSymbol(e.target.value.toUpperCase())}
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm w-32 uppercase" />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Override Price</label>
+                      <Input type="number" step="any" placeholder="e.g. 1.1000" value={mcOverridePrice}
+                        onChange={e => setMcOverridePrice(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm w-36" />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 text-xs mb-1 block">Duration (min)</label>
+                      <Input type="number" min="1" step="1" value={mcOverrideDuration}
+                        onChange={e => setMcOverrideDuration(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm w-20" />
+                    </div>
+                    <Button onClick={handlePriceOverride} disabled={mcLoading || !mcOverrideSymbol || !mcOverridePrice}
+                      className="bg-orange-600 hover:bg-orange-700 text-white h-8 text-sm">
+                      🔧 Set Override
+                    </Button>
+                  </div>
+                  <p className="text-slate-600 text-xs mt-2">Override expires automatically after the duration. Use for demo price manipulation. All overrides are audit-logged.</p>
+                </CardContent>
+              </Card>
+
+              {/* Live price table */}
+              <Card className="bg-[#161b22] border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-white text-base">📊 Current Simulated Prices</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {Object.keys(mcPrices).length === 0 ? (
+                    <p className="text-slate-500 text-sm text-center py-8">Click "Refresh Prices" to load</p>
+                  ) : (
+                    <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                      <table className="w-full min-w-[500px] text-sm">
+                        <thead className="sticky top-0 bg-[#161b22]">
+                          <tr className="text-slate-500 text-xs border-b border-slate-800">
+                            <th className="text-left p-3">Symbol</th>
+                            <th className="text-right p-3">Bid</th>
+                            <th className="text-right p-3">Ask</th>
+                            <th className="text-right p-3">Mid</th>
+                            <th className="text-right p-3">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(mcPrices).sort(([a],[b]) => a.localeCompare(b)).map(([sym, p]) => (
+                            <tr key={sym} className="border-b border-slate-800/50 hover:bg-slate-800/20 font-mono">
+                              <td className="p-3 text-white font-bold text-xs">{sym}</td>
+                              <td className="p-3 text-right text-red-400 text-xs">{p.bid?.toFixed(5)}</td>
+                              <td className="p-3 text-right text-emerald-400 text-xs">{p.ask?.toFixed(5)}</td>
+                              <td className="p-3 text-right text-slate-300 text-xs">{p.mid?.toFixed(5)}</td>
+                              <td className="p-3 text-right text-xs">
+                                {p.source === 'OVERRIDE'
+                                  ? <span className="bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded text-xs">OVERRIDE</span>
+                                  : <span className="text-slate-600 text-xs">sim</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       </div>
