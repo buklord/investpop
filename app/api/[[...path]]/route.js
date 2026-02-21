@@ -1764,9 +1764,13 @@ async function handleRoute(request, { params }) {
         WHERE id = ${positionId}
       `
 
-      // Return sale value to user's balance
+      // Return sale value to user's balance (update both legacy + mode-aware columns)
       await prisma.$executeRaw`
-        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        UPDATE virtual_accounts
+        SET balance      = balance      + ${saleValue},
+            real_balance = CASE WHEN trading_mode = 'REAL' THEN real_balance + ${saleValue} ELSE real_balance END,
+            demo_balance = CASE WHEN trading_mode = 'DEMO' THEN demo_balance + ${saleValue} ELSE demo_balance END,
+            updated_at   = NOW()
         WHERE user_id = ${pos.user_id}
       `
 
@@ -2186,9 +2190,13 @@ async function handleRoute(request, { params }) {
         WHERE id = ${positionId}
       `
 
-      // Credit sale value back to user's account
+      // Credit sale value back to user's account (update both legacy + mode-aware columns)
       await prisma.$executeRaw`
-        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        UPDATE virtual_accounts
+        SET balance      = balance      + ${saleValue},
+            real_balance = CASE WHEN trading_mode = 'REAL' THEN real_balance + ${saleValue} ELSE real_balance END,
+            demo_balance = CASE WHEN trading_mode = 'DEMO' THEN demo_balance + ${saleValue} ELSE demo_balance END,
+            updated_at   = NOW()
         WHERE user_id = ${pos.user_id}
       `
 
@@ -2299,7 +2307,11 @@ async function handleRoute(request, { params }) {
       `
 
       await prisma.$executeRaw`
-        UPDATE virtual_accounts SET balance = balance + ${saleValue}
+        UPDATE virtual_accounts
+        SET balance      = balance      + ${saleValue},
+            real_balance = CASE WHEN trading_mode = 'REAL' THEN real_balance + ${saleValue} ELSE real_balance END,
+            demo_balance = CASE WHEN trading_mode = 'DEMO' THEN demo_balance + ${saleValue} ELSE demo_balance END,
+            updated_at   = NOW()
         WHERE user_id = ${pos.user_id}
       `
 
