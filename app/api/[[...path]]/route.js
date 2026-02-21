@@ -369,6 +369,31 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // GET /api/debug/mode — shows active account mode and balances for the authenticated user
+    if (route === '/debug/mode' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      try {
+        const rows = await prisma.$queryRawUnsafe(
+          `SELECT trading_mode, real_balance, demo_balance, balance, margin_reserved
+           FROM virtual_accounts WHERE user_id = $1 LIMIT 1`,
+          auth.user.userId
+        )
+        const va = rows?.[0]
+        return handleCORS(NextResponse.json({
+          userId: auth.user.userId,
+          trading_mode: va?.trading_mode ?? null,
+          real_balance: Number(va?.real_balance ?? 0),
+          demo_balance: Number(va?.demo_balance ?? 0),
+          balance: Number(va?.balance ?? 0),
+          margin_reserved: Number(va?.margin_reserved ?? 0),
+          source: 'virtual_accounts'
+        }))
+      } catch (e) {
+        return handleCORS(NextResponse.json({ error: e.message }, { status: 500 }))
+      }
+    }
+
     // ============ ROOT ENDPOINT ============
     if ((route === '/' || route === '/root') && method === 'GET') {
       return handleCORS(NextResponse.json({ 
@@ -783,7 +808,25 @@ async function handleRoute(request, { params }) {
       }
 
       const body = await request.json()
-      const { symbol, type, action, quantity, takeProfit, stopLoss, leverage } = body
+      const { symbol, type, action, quantity, takeProfit, stopLoss, leverage, accountType: clientAccountType } = body
+
+      // Server-side mode validation: if client sends accountType, verify it matches DB
+      if (clientAccountType) {
+        try {
+          const modeRows = await prisma.$queryRawUnsafe(
+            `SELECT trading_mode FROM virtual_accounts WHERE user_id = $1 LIMIT 1`,
+            auth.user.userId
+          )
+          const serverMode = modeRows?.[0]?.trading_mode
+          if (serverMode && clientAccountType !== serverMode) {
+            console.warn(`[trade] Mode mismatch: client=${clientAccountType} server=${serverMode} user=${auth.user.userId}`)
+            return handleCORS(NextResponse.json(
+              { error: `Account mode mismatch. Switch to ${serverMode} mode first.` },
+              { status: 400 }
+            ))
+          }
+        } catch (_) {} // non-critical check — let executeTrade handle mode reading
+      }
 
       // Validate inputs
       if (!symbol || !type || !action || !quantity) {
