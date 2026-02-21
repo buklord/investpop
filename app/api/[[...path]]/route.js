@@ -2574,8 +2574,12 @@ async function handleMarketRoute(route, method, body) {
   // POST /api/market/tick — advances prices by one tick (called every 2s by client)
   if (route === '/market/tick' && method === 'POST') {
     const updated = MarketSim.advanceTick()
-    // Persist to DB asynchronously (best-effort — doesn't block response)
-    persistPricesToDb(updated).catch(() => {})
+    // Persist to DB at most once per 60s (throttled — avoids Supabase write flood)
+    const now = Date.now()
+    if (!handleMarketRoutes._lastPersist || now - handleMarketRoutes._lastPersist > 60000) {
+      handleMarketRoutes._lastPersist = now
+      persistPricesToDb(updated).catch(() => {})
+    }
     return handleCORS(NextResponse.json({ prices: MarketSim.getAllPrices() }))
   }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   BarChart3,
@@ -15,7 +15,6 @@ import {
   Shield,
   LogOut,
   ChevronLeft,
-  TrendingUp,
   MessageCircle,
   Briefcase,
 } from 'lucide-react'
@@ -39,15 +38,15 @@ function openTawk() {
 const navItems = [
   { href: '/dashboard',  label: 'Dashboard',  icon: Home },
   { href: '/markets',    label: 'Markets',     icon: Activity },
-  { href: '/markets',    label: 'Trade',       icon: TrendingUp },
   { href: '/portfolio',  label: 'Positions',   icon: Briefcase },
   { href: '/history',    label: 'History',     icon: History },
   { href: '/wallet',     label: 'Wallet',      icon: Wallet },
   { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
 
-export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarOpen, account }) {
+export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [pendingDeposits, setPendingDeposits] = useState(0)
 
@@ -74,9 +73,9 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
   }
 
   const tradingMode = account?.tradingMode || 'DEMO'
-  const available   = account?.balance ?? null
+  const available   = account?.available ?? account?.balance ?? null
   const equity      = account != null
-    ? (account.balance || 0) + (account.positionsValue || 0) + (account.openPnl || 0)
+    ? (account.balance || 0) + (account.openPnl || 0)
     : null
 
   const fmt = (v) => v != null
@@ -138,7 +137,7 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
               href={href}
               title={collapsed ? label : undefined}
               className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors ${
-                currentPage === href
+                pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
                   ? 'bg-emerald-600/20 text-emerald-400'
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
@@ -163,7 +162,7 @@ export default function AppSidebar({ currentPage, user, sidebarOpen, setSidebarO
               href="/admin"
               title={collapsed ? 'Admin' : undefined}
               className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors relative ${
-                currentPage === '/admin'
+                pathname.startsWith('/admin')
                   ? 'bg-amber-600/20 text-amber-400'
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
