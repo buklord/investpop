@@ -176,6 +176,18 @@ async function ensureSchemaExtensions() {
     )`, 'ledger_entries table')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'ledger_entries.balance column')
   await run(`ALTER TABLE ledger_entries ADD COLUMN IF NOT EXISTS account_type VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'ledger_entries.account_type column')
+  // Fix: old DEPOSIT ledger entries were inserted before account_type column existed and defaulted to 'DEMO'.
+  // They must be tagged 'REAL' so the ledger SUM correctly reflects the real wallet balance.
+  await run(`UPDATE ledger_entries SET account_type = 'REAL' WHERE type = 'DEPOSIT' AND account_type = 'DEMO'`, 'fix deposit account_type tags')
+  // Sync: if real_balance is 0 but REAL deposit ledger entries exist, recompute it now.
+  await run(`
+    UPDATE virtual_accounts va
+    SET real_balance = COALESCE((
+      SELECT SUM(l.amount) FROM ledger_entries l
+      WHERE l.user_id = va.user_id AND l.type = 'DEPOSIT' AND l.account_type = 'REAL'
+    ), 0)
+    WHERE real_balance = 0
+  `, 'sync real_balance from DEPOSIT ledger')
   await run(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -850,47 +862,48 @@ async function handleRoute(request, { params }) {
       let demoBalance = 0
       let tradingMode = 'DEMO'
       try {
-        const ledgerSums = await prisma.$queryRawUnsafe(
-          `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
-           FROM ledger_entries
-           WHERE user_id = $1
-           GROUP BY account_type`,
-          auth.user.userId
-        )
-        for (const row of ledgerSums) {
-          const total = parseFloat(row.total || 0)
-          if (row.account_type === 'REAL') realBalance = total
-          else demoBalance = total
-        }
-
-        // Fetch trading_mode from virtual_accounts
+        // Read directly from virtual_accounts first — these are kept in sync by
+        // deposit approval and demo fund handlers. Use as the authoritative source.
         const vaRows = await prisma.$queryRawUnsafe(
-          `SELECT trading_mode FROM virtual_accounts WHERE user_id = $1`,
+          `SELECT demo_balance, real_balance, trading_mode FROM virtual_accounts WHERE user_id = $1`,
           auth.user.userId
         )
-        tradingMode = vaRows[0]?.trading_mode || 'DEMO'
+        const va = vaRows[0] || {}
+        demoBalance = parseFloat(va.demo_balance || 0)
+        realBalance = parseFloat(va.real_balance || 0)
+        tradingMode = va.trading_mode || 'DEMO'
 
-        // Self-heal: keep virtual_accounts columns in sync with ledger sums
+        // Also SUM from ledger (source of truth for audit) and take GREATEST —
+        // ensures the wallet card shows the higher of the two so nothing is lost.
+        try {
+          const ledgerSums = await prisma.$queryRawUnsafe(
+            `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
+             FROM ledger_entries
+             WHERE user_id = $1
+             GROUP BY account_type`,
+            auth.user.userId
+          )
+          for (const row of ledgerSums) {
+            const total = parseFloat(row.total || 0)
+            if (row.account_type === 'REAL') realBalance = Math.max(realBalance, total)
+            else if (row.account_type === 'DEMO') demoBalance = Math.max(demoBalance, total)
+          }
+        } catch (_) { /* ledger column may not exist yet — use va values */ }
+
+        // Self-heal: keep virtual_accounts columns in sync.
+        // Use GREATEST() so we never zero-out a correctly higher value.
         await prisma.$executeRawUnsafe(
           `UPDATE virtual_accounts
-           SET real_balance = $1, demo_balance = $2,
-               balance = CASE WHEN trading_mode = 'REAL' THEN $1 ELSE $2 END
+           SET real_balance = GREATEST(real_balance, $1),
+               demo_balance = GREATEST(demo_balance, $2),
+               balance = CASE WHEN trading_mode = 'REAL' THEN GREATEST(real_balance, $1)
+                              ELSE GREATEST(demo_balance, $2) END
            WHERE user_id = $3`,
           realBalance, demoBalance, auth.user.userId
         )
       } catch (err) {
-        // Fallback to virtual_accounts columns if ledger query fails
-        console.warn('[account] ledger sum failed, falling back to va columns:', err.message)
-        try {
-          const vaRows = await prisma.$queryRawUnsafe(
-            `SELECT demo_balance, real_balance, trading_mode FROM virtual_accounts WHERE user_id = $1`,
-            auth.user.userId
-          )
-          const wa = vaRows[0] || {}
-          demoBalance = parseFloat(wa.demo_balance || 0)
-          realBalance = parseFloat(wa.real_balance || 0)
-          tradingMode = wa.trading_mode || 'DEMO'
-        } catch (_) { /* use zeros */ }
+        // Last-resort fallback — use zeros, do not crash the account endpoint
+        console.warn('[account] balance computation failed:', err.message)
       }
 
       return handleCORS(NextResponse.json({
