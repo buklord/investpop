@@ -9,7 +9,6 @@ import {
   X,
   Home,
   Activity,
-  PieChart,
   Wallet,
   History,
   Settings,
@@ -17,7 +16,6 @@ import {
   LogOut,
   ChevronLeft,
   TrendingUp,
-  BarChart2,
   MessageCircle,
   Briefcase,
 } from 'lucide-react'
@@ -43,9 +41,7 @@ const navItems = [
   { href: '/markets',    label: 'Markets',     icon: Activity },
   { href: '/markets',    label: 'Trade',       icon: TrendingUp },
   { href: '/portfolio',  label: 'Positions',   icon: Briefcase },
-  { href: '/portfolio',  label: 'Portfolio',   icon: PieChart },
   { href: '/history',    label: 'History',     icon: History },
-  { href: '/history',    label: 'Analytics',   icon: BarChart2 },
   { href: '/wallet',     label: 'Wallet',      icon: Wallet },
   { href: '/settings',   label: 'Settings',    icon: Settings },
 ]

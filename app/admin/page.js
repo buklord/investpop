@@ -189,6 +189,8 @@ export default function AdminPage() {
       setSettlingId(null)
     }
   }
+
+  const loadData = async () => {
     try {
       const [usersRes, auditRes, activityRes, settingsRes, depositsRes, kycRes] = await Promise.all([
         fetch('/api/admin/users'),
