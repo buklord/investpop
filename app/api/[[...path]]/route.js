@@ -843,18 +843,63 @@ async function handleRoute(request, { params }) {
       const accountService = new AccountService(auth.user.userId)
       const summary = await accountService.getAccountSummary()
 
-      // Fetch dual-wallet data
-      const walletRows = await prisma.$queryRaw`
-        SELECT demo_balance, real_balance, trading_mode
-        FROM virtual_accounts WHERE user_id = ${auth.user.userId}
-      `
-      const wallet = walletRows[0] || {}
+      // ── Compute balances from ledger (source of truth) ──────────────────
+      // This ensures the wallet cards show accurate totals even if the
+      // virtual_accounts cache columns were not updated correctly.
+      let realBalance = 0
+      let demoBalance = 0
+      let tradingMode = 'DEMO'
+      try {
+        const ledgerSums = await prisma.$queryRawUnsafe(
+          `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
+           FROM ledger_entries
+           WHERE user_id = $1
+           GROUP BY account_type`,
+          auth.user.userId
+        )
+        for (const row of ledgerSums) {
+          const total = parseFloat(row.total || 0)
+          if (row.account_type === 'REAL') realBalance = total
+          else demoBalance = total
+        }
+
+        // Fetch trading_mode from virtual_accounts
+        const vaRows = await prisma.$queryRawUnsafe(
+          `SELECT trading_mode FROM virtual_accounts WHERE user_id = $1`,
+          auth.user.userId
+        )
+        tradingMode = vaRows[0]?.trading_mode || 'DEMO'
+
+        // Self-heal: keep virtual_accounts columns in sync with ledger sums
+        await prisma.$executeRawUnsafe(
+          `UPDATE virtual_accounts
+           SET real_balance = $1, demo_balance = $2,
+               balance = CASE WHEN trading_mode = 'REAL' THEN $1 ELSE $2 END
+           WHERE user_id = $3`,
+          realBalance, demoBalance, auth.user.userId
+        )
+      } catch (err) {
+        // Fallback to virtual_accounts columns if ledger query fails
+        console.warn('[account] ledger sum failed, falling back to va columns:', err.message)
+        try {
+          const vaRows = await prisma.$queryRawUnsafe(
+            `SELECT demo_balance, real_balance, trading_mode FROM virtual_accounts WHERE user_id = $1`,
+            auth.user.userId
+          )
+          const wa = vaRows[0] || {}
+          demoBalance = parseFloat(wa.demo_balance || 0)
+          realBalance = parseFloat(wa.real_balance || 0)
+          tradingMode = wa.trading_mode || 'DEMO'
+        } catch (_) { /* use zeros */ }
+      }
 
       return handleCORS(NextResponse.json({
         ...summary,
-        demoBalance: parseFloat(wallet.demo_balance || 0),
-        realBalance: parseFloat(wallet.real_balance || 0),
-        tradingMode: wallet.trading_mode || 'DEMO',
+        // Override balance with mode-appropriate value from ledger
+        balance: tradingMode === 'REAL' ? realBalance : demoBalance,
+        demoBalance,
+        realBalance,
+        tradingMode,
       }))
     }
 
