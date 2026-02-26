@@ -402,72 +402,64 @@ export default function DashboardPage() {
             ) : (
               <>
                 {/* Balance = cash in account + cost of open positions (true account value excl. unrealised) */}
-                <Card className="bg-[#161b22] border-slate-800">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                        <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-                      </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Balance</span>
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl p-4 sm:p-6 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 group">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500/20 rounded-lg flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
+                      <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" />
                     </div>
-                    <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency(account?.balance || 0)}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">Cash after realized P&L</div>
-                  </CardContent>
-                </Card>
+                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Balance</span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white truncate mb-2">
+                    {formatCurrency(account?.balance || 0)}
+                  </div>
+                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-700/50">Cash after realized P&L</div>
+                </div>
 
                 {/* Available = cash not locked in open trades */}
-                <Card className="bg-[#161b22] border-slate-800">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                        <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
-                      </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Available</span>
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl p-4 sm:p-6 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 group">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-500/20 rounded-lg flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
+                      <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-purple-400" />
                     </div>
-                    <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                      {formatCurrency(account?.available ?? account?.balance ?? 0)}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">Balance − margin reserved</div>
-                  </CardContent>
-                </Card>
+                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Available</span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white truncate mb-2">
+                    {formatCurrency(account?.available ?? account?.balance ?? 0)}
+                  </div>
+                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-700/50">Balance − margin reserved</div>
+                </div>
                 
                 {/* Open P&L = live unrealised gain/loss */}
-                <Card className="bg-[#161b22] border-slate-800">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                        {(account?.openPnl || 0) >= 0 ? (
-                          <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
-                        ) : (
-                          <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-                        )}
-                      </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Open P&amp;L</span>
+                <div className={`bg-gradient-to-br ${(account?.openPnl || 0) >= 0 ? 'from-emerald-900/40 to-emerald-950/20' : 'from-red-900/40 to-red-950/20'} border ${(account?.openPnl || 0) >= 0 ? 'border-emerald-700/50' : 'border-red-700/50'} rounded-xl p-4 sm:p-6 hover:shadow-lg ${(account?.openPnl || 0) >= 0 ? 'hover:shadow-emerald-500/10 hover:border-emerald-500/50' : 'hover:shadow-red-500/10 hover:border-red-500/50'} transition-all duration-300 group`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/20 group-hover:bg-emerald-500/30' : 'bg-red-500/20 group-hover:bg-red-500/30'} rounded-lg flex items-center justify-center transition-colors`}>
+                      {(account?.openPnl || 0) >= 0 ? (
+                        <ArrowUpRight className={`h-5 w-5 sm:h-6 sm:w-6 text-emerald-400`} />
+                      ) : (
+                        <ArrowDownRight className={`h-5 w-5 sm:h-6 sm:w-6 text-red-400`} />
+                      )}
                     </div>
-                    <div className={`text-lg sm:text-2xl font-bold truncate ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">Unrealised on {account?.positionsCount || 0} open trade{account?.positionsCount !== 1 ? 's' : ''}</div>
-                  </CardContent>
-                </Card>
+                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Open P&amp;L</span>
+                  </div>
+                  <div className={`text-2xl sm:text-3xl font-bold truncate mb-2 ${(account?.openPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
+                  </div>
+                  <div className={`text-xs pt-3 border-t ${(account?.openPnl || 0) >= 0 ? 'border-emerald-700/50 text-emerald-600/70' : 'border-red-700/50 text-red-600/70'}`}>Unrealised on {account?.positionsCount || 0} open trade{account?.positionsCount !== 1 ? 's' : ''}</div>
+                </div>
                 
                 {/* Equity = Balance + Open P&L (live total account value) */}
-                <Card className="bg-[#161b22] border-slate-800">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                        <TrendingUp className={`h-4 w-4 sm:h-5 sm:w-5 ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
-                      </div>
-                      <span className="text-slate-400 text-xs sm:text-sm">Equity</span>
+                <div className={`bg-gradient-to-br ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'from-emerald-900/40 to-emerald-950/20' : 'from-red-900/40 to-red-950/20'} border ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'border-emerald-700/50' : 'border-red-700/50'} rounded-xl p-4 sm:p-6 hover:shadow-lg ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'hover:shadow-emerald-500/10 hover:border-emerald-500/50' : 'hover:shadow-red-500/10 hover:border-red-500/50'} transition-all duration-300 group`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'bg-emerald-500/20 group-hover:bg-emerald-500/30' : 'bg-red-500/20 group-hover:bg-red-500/30'} rounded-lg flex items-center justify-center transition-colors`}>
+                      <TrendingUp className={`h-5 w-5 sm:h-6 sm:w-6 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
                     </div>
-                    <div className={`text-lg sm:text-2xl font-bold truncate ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {formatCurrency((account?.balance || 0) + (account?.openPnl || 0))}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">Balance + Open P&L (live)</div>
-                  </CardContent>
-                </Card>
+                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Equity</span>
+                  </div>
+                  <div className={`text-2xl sm:text-3xl font-bold truncate mb-2 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {formatCurrency((account?.balance || 0) + (account?.openPnl || 0))}
+                  </div>
+                  <div className={`text-xs pt-3 border-t ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'border-emerald-700/50 text-emerald-600/70' : 'border-red-700/50 text-red-600/70'}`}>Balance + Open P&L (live)</div>
+                </div>
               </>
             )}
           </div>
@@ -475,34 +467,34 @@ export default function DashboardPage() {
           {/* Positions and Watchlist */}
           <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Open Positions */}
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardHeader className="py-3 sm:py-4">
+            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700 rounded-xl overflow-hidden">
+              <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-slate-700/50">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white text-base sm:text-lg">Open Positions</CardTitle>
+                  <h2 className="text-white font-semibold text-base sm:text-lg">Open Positions</h2>
                   <Link href="/portfolio">
-                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white text-xs sm:text-sm">
-                      View All
+                    <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 text-xs sm:text-sm h-auto p-0">
+                      View All →
                     </Button>
                   </Link>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
+              </div>
+              <div className="py-4 sm:py-5 px-4 sm:px-6">
                 {dataLoading ? (
                   <div className="space-y-2 sm:space-y-3">
                     <SkeletonRow /><SkeletonRow />
                   </div>
                 ) : positions.length === 0 ? (
-                  <div className="text-center py-6 sm:py-8">
-                    <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-slate-500 text-sm">No open positions</p>
+                  <div className="text-center py-8 sm:py-10">
+                    <Activity className="h-12 w-12 sm:h-14 sm:w-14 text-slate-600 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm font-medium">No open positions</p>
                     <Link href="/markets">
-                      <Button variant="link" className="text-emerald-500 mt-1 sm:mt-2 text-sm">
+                      <Button variant="link" className="text-blue-400 hover:text-blue-300 mt-2 text-sm h-auto p-0">
                         Start Trading →
                       </Button>
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-2">
                     {positions.slice(0, 5).map(pos => {
                       const quote = quotes[pos.symbol]
                       const currentPrice = quote?.price || pos.entry_price
@@ -513,24 +505,24 @@ export default function DashboardPage() {
                         <Link
                           key={pos.id}
                           href={`/asset/${pos.symbol}?type=${pos.type}`}
-                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/30 hover:border-slate-600 rounded-lg transition-all duration-200"
                         >
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              pos.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
+                            <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              pos.type === 'crypto' ? 'bg-orange-500/15 text-orange-400' : 'bg-blue-500/15 text-blue-400'
                             }`}>
                               {pos.type === 'crypto' ? '₿' : pos.symbol.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-white text-sm sm:text-base">{pos.symbol}</div>
-                              <div className="text-xs sm:text-sm text-slate-500 truncate">{pos.quantity} @ {formatCurrency(pos.entry_price)}</div>
+                              <div className="font-semibold text-white text-sm sm:text-base">{pos.symbol}</div>
+                              <div className="text-xs sm:text-sm text-slate-400 truncate">{pos.quantity} @ {formatCurrency(pos.entry_price)}</div>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-2">
-                            <div className={`font-medium text-sm sm:text-base ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            <div className={`font-semibold text-sm sm:text-base ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                               {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                             </div>
-                            <div className={`text-xs sm:text-sm ${pnlPercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            <div className={`text-xs sm:text-sm font-medium ${pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                               {formatPercent(pnlPercent)}
                             </div>
                           </div>
@@ -539,39 +531,39 @@ export default function DashboardPage() {
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Watchlist */}
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardHeader className="py-3 sm:py-4">
+            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700 rounded-xl overflow-hidden">
+              <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-slate-700/50">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white text-base sm:text-lg">Watchlist</CardTitle>
+                  <h2 className="text-white font-semibold text-base sm:text-lg">Watchlist</h2>
                   <Link href="/markets">
-                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white text-xs sm:text-sm">
-                      <Plus className="h-4 w-4 mr-1" />
+                    <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 text-xs sm:text-sm h-auto p-0 flex items-center gap-1">
+                      <Plus className="h-4 w-4" />
                       Add
                     </Button>
                   </Link>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
+              </div>
+              <div className="py-4 sm:py-5 px-4 sm:px-6">
                 {dataLoading ? (
                   <div className="space-y-2 sm:space-y-3">
                     <SkeletonRow /><SkeletonRow />
                   </div>
                 ) : watchlist.length === 0 ? (
-                  <div className="text-center py-6 sm:py-8">
-                    <Eye className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-slate-500 text-sm">No assets in watchlist</p>
+                  <div className="text-center py-8 sm:py-10">
+                    <Eye className="h-12 w-12 sm:h-14 sm:w-14 text-slate-600 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm font-medium">No assets in watchlist</p>
                     <Link href="/markets">
-                      <Button variant="link" className="text-emerald-500 mt-1 sm:mt-2 text-sm">
+                      <Button variant="link" className="text-blue-400 hover:text-blue-300 mt-2 text-sm h-auto p-0">
                         Browse Markets →
                       </Button>
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-2">
                     {watchlist.slice(0, 5).map(item => {
                       const quote = quotes[item.symbol]
                       
@@ -579,25 +571,25 @@ export default function DashboardPage() {
                         <Link
                           key={item.id}
                           href={`/asset/${item.symbol}?type=${item.type}`}
-                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="flex items-center justify-between p-3 sm:p-4 bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/30 hover:border-slate-600 rounded-lg transition-all duration-200"
                         >
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              item.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
+                            <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              item.type === 'crypto' ? 'bg-orange-500/15 text-orange-400' : 'bg-blue-500/15 text-blue-400'
                             }`}>
                               {item.type === 'crypto' ? '₿' : item.symbol.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-white text-sm sm:text-base">{item.symbol}</div>
-                              <div className="text-xs sm:text-sm text-slate-500 truncate">{item.name}</div>
+                              <div className="font-semibold text-white text-sm sm:text-base">{item.symbol}</div>
+                              <div className="text-xs sm:text-sm text-slate-400 truncate">{item.name}</div>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-2">
-                            <div className="font-medium text-white text-sm sm:text-base">
+                            <div className="font-semibold text-white text-sm sm:text-base">
                               {quote ? formatCurrency(quote.price) : '—'}
                             </div>
-                            <div className={`text-xs sm:text-sm flex items-center justify-end gap-0.5 ${
-                              (quote?.changePercent || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'
+                            <div className={`text-xs sm:text-sm font-medium flex items-center justify-end gap-1 ${
+                              (quote?.changePercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
                             }`}>
                               {(quote?.changePercent || 0) >= 0 ? (
                                 <TrendingUp className="h-3 w-3" />
@@ -612,16 +604,16 @@ export default function DashboardPage() {
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Recent Trades */}
-          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
-            <CardHeader className="py-3 sm:py-4">
-              <CardTitle className="text-white text-base sm:text-lg">Recent Trades</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700 rounded-xl overflow-hidden mt-4 sm:mt-6">
+            <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-slate-700/50">
+              <h2 className="text-white font-semibold text-base sm:text-lg">Recent Trades</h2>
+            </div>
+            <div className="py-4 sm:py-5 px-4 sm:px-6">
               {dataLoading ? (
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => (
@@ -632,42 +624,42 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : trades.length === 0 ? (
-                <div className="text-center py-6 sm:py-8">
-                  <Activity className="h-10 w-10 sm:h-12 sm:w-12 text-slate-700 mx-auto mb-2 sm:mb-3" />
-                  <p className="text-slate-500 text-sm">No trades yet</p>
+                <div className="text-center py-8 sm:py-10">
+                  <Activity className="h-12 w-12 sm:h-14 sm:w-14 text-slate-600 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm font-medium">No trades yet</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
                   <table className="w-full min-w-[500px]">
                     <thead>
-                      <tr className="text-slate-500 text-xs sm:text-sm">
-                        <th className="text-left pb-2 sm:pb-3 pl-4 sm:pl-0">Asset</th>
-                        <th className="text-left pb-2 sm:pb-3">Side</th>
-                        <th className="text-right pb-2 sm:pb-3">Qty</th>
-                        <th className="text-right pb-2 sm:pb-3">Price</th>
-                        <th className="text-right pb-2 sm:pb-3">Fee</th>
-                        <th className="text-right pb-2 sm:pb-3 pr-4 sm:pr-0">Time</th>
+                      <tr className="text-slate-500 text-xs sm:text-sm border-b border-slate-700/50">
+                        <th className="text-left pb-2 sm:pb-3 pl-4 sm:pl-0 font-medium">Asset</th>
+                        <th className="text-left pb-2 sm:pb-3 font-medium">Side</th>
+                        <th className="text-right pb-2 sm:pb-3 font-medium">Qty</th>
+                        <th className="text-right pb-2 sm:pb-3 font-medium">Price</th>
+                        <th className="text-right pb-2 sm:pb-3 font-medium">Fee</th>
+                        <th className="text-right pb-2 sm:pb-3 pr-4 sm:pr-0 font-medium">Time</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {trades.slice(0, 10).map(trade => (
-                        <tr key={trade.id} className="border-t border-slate-800">
-                          <td className="py-2 sm:py-3 pl-4 sm:pl-0">
+                      {trades.slice(0, 10).map((trade, idx) => (
+                        <tr key={trade.id} className={`${idx !== trades.slice(0, 10).length - 1 ? 'border-b border-slate-700/30' : ''}`}>
+                          <td className="py-2.5 sm:py-3 pl-4 sm:pl-0">
                             <div className="font-medium text-white text-sm">{trade.symbol}</div>
                           </td>
-                          <td className="py-2 sm:py-3">
-                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-medium ${
+                          <td className="py-2.5 sm:py-3">
+                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-semibold ${
                               trade.side === 'BUY' 
-                                ? 'bg-emerald-500/10 text-emerald-500' 
-                                : 'bg-red-500/10 text-red-500'
+                                ? 'bg-emerald-500/15 text-emerald-400' 
+                                : 'bg-red-500/15 text-red-400'
                             }`}>
                               {trade.side}
                             </span>
                           </td>
-                          <td className="py-2 sm:py-3 text-right text-slate-300 text-sm">{trade.quantity}</td>
-                          <td className="py-2 sm:py-3 text-right text-slate-300 text-sm">{formatCurrency(trade.price)}</td>
-                          <td className="py-2 sm:py-3 text-right text-slate-500 text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
-                          <td className="py-2 sm:py-3 text-right text-slate-500 text-xs pr-4 sm:pr-0">
+                          <td className="py-2.5 sm:py-3 text-right text-slate-300 text-sm">{trade.quantity}</td>
+                          <td className="py-2.5 sm:py-3 text-right text-slate-300 text-sm">{formatCurrency(trade.price)}</td>
+                          <td className="py-2.5 sm:py-3 text-right text-slate-500 text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
+                          <td className="py-2.5 sm:py-3 text-right text-slate-500 text-xs pr-4 sm:pr-0">
                             {new Date(trade.executed_at).toLocaleDateString()}
                           </td>
                         </tr>
@@ -676,31 +668,31 @@ export default function DashboardPage() {
                   </table>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Hot Sectors Heatmap */}
-          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
-            <CardHeader className="py-3 sm:py-4">
-              <CardTitle className="text-white text-base sm:text-lg flex items-center gap-2">
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700 rounded-xl overflow-hidden mt-4 sm:mt-6">
+            <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-slate-700/50">
+              <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2">
                 <Activity className="h-5 w-5 text-amber-400" />
                 Hot Sectors
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+              </h2>
+            </div>
+            <div className="py-4 sm:py-5 px-4 sm:px-6">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { name: 'AI / Technology', change: +3.24, assets: ['NVDA', 'MSFT', 'AAPL'], color: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400', barColor: 'bg-emerald-500' },
-                  { name: 'Cryptocurrency', change: +1.87, assets: ['BTCUSD', 'ETHUSD', 'SOLUSD'], color: 'bg-orange-500/20 border-orange-500/30 text-orange-400', barColor: 'bg-orange-500' },
-                  { name: 'Energy', change: -1.12, assets: ['XOM', 'CVX'], color: 'bg-red-500/20 border-red-500/30 text-red-400', barColor: 'bg-red-500' },
-                  { name: 'Finance', change: +0.54, assets: ['JPM', 'GS', 'BAC'], color: 'bg-blue-500/20 border-blue-500/30 text-blue-400', barColor: 'bg-blue-500' },
+                  { name: 'AI / Technology', change: +3.24, assets: ['NVDA', 'MSFT', 'AAPL'], color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', barColor: 'bg-emerald-500' },
+                  { name: 'Cryptocurrency', change: +1.87, assets: ['BTCUSD', 'ETHUSD', 'SOLUSD'], color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', barColor: 'bg-orange-500' },
+                  { name: 'Energy', change: -1.12, assets: ['XOM', 'CVX'], color: 'bg-red-500/15 border-red-500/30 text-red-400', barColor: 'bg-red-500' },
+                  { name: 'Finance', change: +0.54, assets: ['JPM', 'GS', 'BAC'], color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', barColor: 'bg-blue-500' },
                 ].map((sector) => (
                   <div key={sector.name} className={`p-3 rounded-lg border ${sector.color}`}>
                     <div className="text-xs font-semibold mb-1">{sector.name}</div>
-                    <div className="text-xl font-bold mb-1">
+                    <div className="text-xl font-bold mb-1.5">
                       {sector.change >= 0 ? '+' : ''}{sector.change.toFixed(2)}%
                     </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mb-2">
+                    <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden mb-2">
                       <div className={`h-full ${sector.barColor} transition-all duration-700`}
                         style={{ width: `${Math.min(100, Math.abs(sector.change) * 20 + 40)}%` }} />
                     </div>
@@ -708,18 +700,18 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* News Feed */}
-          <Card className="bg-[#161b22] border-slate-800 mt-4 sm:mt-6">
-            <CardHeader className="py-3 sm:py-4">
-              <CardTitle className="text-white text-base sm:text-lg flex items-center gap-2">
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 border border-slate-700 rounded-xl overflow-hidden mt-4 sm:mt-6">
+            <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-slate-700/50">
+              <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2">
                 <Newspaper className="h-5 w-5 text-blue-400" />
                 Market News
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+              </h2>
+            </div>
+            <div className="py-4 sm:py-5 px-4 sm:px-6">
               <div className="space-y-3">
                 {[
                   {
@@ -751,7 +743,7 @@ export default function DashboardPage() {
                     summary: 'Oil prices dipped and energy equities fell after OPEC signaled potential increases in production output for Q2.'
                   }
                 ].map((item, i) => (
-                  <div key={i} className="p-3 sm:p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors">
+                  <div key={i} className="p-3 sm:p-4 bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700/30 hover:border-slate-600 rounded-lg transition-all duration-200">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -761,15 +753,15 @@ export default function DashboardPage() {
                           }`} />
                           <span className="text-xs text-slate-500">{item.source} · {item.time}</span>
                         </div>
-                        <div className="font-medium text-white text-sm mb-1">{item.title}</div>
+                        <div className="font-semibold text-white text-sm mb-1">{item.title}</div>
                         <div className="text-xs text-slate-400 leading-relaxed">{item.summary}</div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
       
