@@ -122,14 +122,23 @@ export default function HomePage() {
   }, [])
 
   const checkAuth = async () => {
+    // Hard 8-second timeout — if the DB is slow to respond we still show the
+    // landing page rather than hanging forever on "Loading..."
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
     try {
-      const res = await fetch('/api/auth/me')
+      const res = await fetch('/api/auth/me', { signal: controller.signal })
+      clearTimeout(timeoutId)
       if (res.ok) {
         const data = await res.json()
         setUser(data.user)
       }
     } catch (err) {
-      console.error('Auth check failed:', err)
+      clearTimeout(timeoutId)
+      // AbortError = timeout — just show the page unauthenticated, not an error
+      if (err?.name !== 'AbortError') {
+        console.error('Auth check failed:', err)
+      }
     } finally {
       setLoading(false)
     }
@@ -146,10 +155,10 @@ export default function HomePage() {
 
     setSubmitting(true)
 
-    // 60-second timeout — gives schema init time to complete on first request
-    // after a server restart or Supabase restore (schema migrations run once per process)
+    // 90-second timeout — accommodates up to 3 automatic DB retry attempts
+    // (3s + 8s + 15s delays) that fire when the database is cold-starting.
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    const timeoutId = setTimeout(() => controller.abort(), 90000)
 
     try {
       const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
@@ -192,7 +201,7 @@ export default function HomePage() {
     } catch (err) {
       clearTimeout(timeoutId)
       if (err?.name === 'AbortError') {
-        setError('Request timed out. Your Supabase database may be paused — visit app.supabase.com, restore your project, wait 30 seconds, then try again.')
+        setError('The server is taking longer than expected. The database may be waking up — please wait a moment and try again.')
       } else {
         setError('Network error. Please check your connection and try again.')
       }

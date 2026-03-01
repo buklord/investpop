@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma, { DatabaseConfigError } from '@/lib/db'
+import prisma, { DatabaseConfigError, withRetry, isConnectionError } from '@/lib/db'
 import { hashPassword, verifyPassword, createSession, getSessionFromCookies, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
 import { getMarketDataProvider, getProviderStatus, setMarketTrend } from '@/lib/providers/marketDataProvider'
 import { rateLimit, getClientIp } from '@/lib/rateLimit'
@@ -84,7 +84,10 @@ async function ensureSchemaExtensions() {
       return
     }
   } catch (_) {
-    // DB unreachable? Let the rest of the function fail gracefully.
+    // Can't check schema state (lock timeout, connection issue, etc.) —
+    // bail out rather than fall through to ALTER TABLE which would grab
+    // ACCESS EXCLUSIVE locks and block all active queries.
+    return
   }
 
   const isFatalDbAuthError = (err) => {
@@ -261,7 +264,9 @@ async function ensureSchemaExtensions() {
     INSERT INTO system_settings (key, value) VALUES
       ('broadcast_message', ''),
       ('spread_multiplier', '1.0'),
-      ('market_trend', 'NEUTRAL')
+      ('market_trend', 'NEUTRAL'),
+      ('market_is_open', 'true'),
+      ('market_session_message', '')
     ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
 
   // ── Deposit, notifications, KYC ───────────────────────────────────────────
@@ -588,11 +593,20 @@ async function handleRoute(request, context) {
       const { email, password } = validation.data
 
       // Find user — query core columns + role so we can embed role in JWT.
-      // is_suspended is fetched separately with a fallback so a missing column
-      // never blocks a valid login.
-      const users = await prisma.$queryRaw`
-        SELECT id, email, password_hash, role FROM users WHERE email = ${email}
-      `
+      // Wrapped in withRetry so a Supabase cold-start automatically retries
+      // up to 3 times (3 s → 8 s → 15 s) before returning an error.
+      let users
+      try {
+        users = await withRetry(() =>
+          prisma.$queryRaw`SELECT id, email, password_hash, role FROM users WHERE email = ${email}`
+        )
+      } catch (dbErr) {
+        console.error('[login] DB error after retries:', dbErr.message)
+        const friendlyMsg = isConnectionError(dbErr)
+          ? 'Database is waking up — please wait 10 seconds and try again.'
+          : `Login failed: ${dbErr.message}`
+        return handleCORS(NextResponse.json({ error: friendlyMsg }, { status: 503 }))
+      }
       
       if (users.length === 0) {
         return handleCORS(NextResponse.json(
@@ -1267,6 +1281,56 @@ async function handleRoute(request, context) {
       const positions = await tradeService.getPositions(status, symbol)
 
       return handleCORS(NextResponse.json({ positions }))
+    }
+
+    // PATCH /api/positions/:id - Update position protections (TP/SL)
+    if (route.startsWith('/positions/') && method === 'PATCH') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const positionId = route.replace('/positions/', '')
+      if (!positionId) {
+        return handleCORS(NextResponse.json({ error: 'Position id is required' }, { status: 400 }))
+      }
+
+      const body = await request.json().catch(() => ({}))
+      const nextTp = body.takeProfit
+      const nextSl = body.stopLoss
+
+      const tpVal = nextTp === null || nextTp === undefined || nextTp === '' ? null : Number(nextTp)
+      const slVal = nextSl === null || nextSl === undefined || nextSl === '' ? null : Number(nextSl)
+
+      if ((tpVal !== null && !Number.isFinite(tpVal)) || (slVal !== null && !Number.isFinite(slVal))) {
+        return handleCORS(NextResponse.json({ error: 'takeProfit and stopLoss must be numbers or null' }, { status: 400 }))
+      }
+
+      // Only allow editing user's OPEN positions
+      const rows = await prisma.$queryRaw`
+        SELECT id, user_id, status FROM trading_positions WHERE id = ${positionId}
+      `
+      if (!rows || rows.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Position not found' }, { status: 404 }))
+      }
+      const row = rows[0]
+      if (String(row.user_id) !== String(auth.user.userId)) {
+        return handleCORS(NextResponse.json({ error: 'Forbidden' }, { status: 403 }))
+      }
+      if (String(row.status) !== 'OPEN') {
+        return handleCORS(NextResponse.json({ error: 'Only OPEN positions can be modified' }, { status: 400 }))
+      }
+
+      await prisma.$executeRaw`
+        UPDATE trading_positions
+        SET take_profit = ${tpVal}, stop_loss = ${slVal}, updated_at = NOW()
+        WHERE id = ${positionId}
+      `
+
+      return handleCORS(NextResponse.json({ success: true }))
     }
 
     // GET /api/trades - Get trade history (Using Service Layer)
@@ -2748,33 +2812,26 @@ async function handleRoute(request, context) {
   } catch (error) {
     console.error('API Error:', error)
     // Surface DB configuration errors with a clear, safe message.
-    // Use name check (not instanceof) to avoid false negatives caused by
-    // Next.js HMR module re-evaluation creating separate class instances.
     if (error?.name === 'DatabaseConfigError') {
       return handleCORS(NextResponse.json(
         { error: error.message },
         { status: 503 }
       ))
     }
-    // Detect Prisma DB connection / initialisation errors — most common cause
-    // is a paused Supabase free-tier project or a missing DATABASE_URL.
-    const isPrismaConnectionError =
-      error?.name === 'PrismaClientInitializationError' ||
-      error?.name === 'PrismaClientKnownRequestError' ||
-      (error?.message && (
-        error.message.includes("Can't reach database") ||
-        error.message.includes('connect ECONNREFUSED') ||
-        error.message.includes('Connection refused') ||
-        error.message.includes('ENOTFOUND') ||
-        error.message.includes('timeout')
-      ))
-    if (isPrismaConnectionError) {
+    // Use shared isConnectionError helper for consistent detection
+    if (isConnectionError(error) || error?.name === 'PrismaClientInitializationError') {
       return handleCORS(NextResponse.json(
-        { error: 'Unable to reach the database. If you are using Supabase free tier, your project may be paused — visit app.supabase.com, open your project, and click "Restore project". Then try again in 30 seconds.' },
+        { error: 'Database is temporarily unavailable. Please wait a few seconds and try again.' },
         { status: 503 }
       ))
     }
-    // Always include the real error message so it can be diagnosed from the UI.
+    // 57014 = statement_timeout (PostgREST / Supabase misconfiguration)
+    if (error?.message?.includes('57014') || error?.message?.includes('canceling statement due to statement timeout')) {
+      return handleCORS(NextResponse.json(
+        { error: 'Database statement timed out. Please try again.' },
+        { status: 503 }
+      ))
+    }
     const detail = ` — ${error?.message || String(error)}`
     return handleCORS(NextResponse.json(
       { error: `Internal server error${detail}` },
@@ -2786,11 +2843,31 @@ async function handleRoute(request, context) {
 // ── Market Simulator API ─────────────────────────────────────────────────────
 // These are thin wrappers so the client can poll without importing the sim lib.
 
-async function handleMarketRoute(route, method, body) {
+async function handleMarketRoute(route, method, body, requestUrl = '') {
   // GET /api/market/prices — returns all current bid/ask/mid prices
   if (route === '/market/prices' && method === 'GET') {
     const prices = MarketSim.getAllPrices()
     return handleCORS(NextResponse.json({ prices, settings: MarketSim.getSettings() }))
+  }
+
+  // GET /api/market/session — returns whether trading is currently open
+  if (route === '/market/session' && method === 'GET') {
+    let isOpen = true
+    let sessionMessage = ''
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT key, value FROM system_settings
+        WHERE key IN ('market_is_open', 'market_session_message')
+      `
+      for (const r of rows) {
+        if (r.key === 'market_is_open') isOpen = String(r.value).toLowerCase() === 'true'
+        if (r.key === 'market_session_message') sessionMessage = String(r.value || '')
+      }
+    } catch (_) {}
+    if (!isOpen && !sessionMessage) {
+      sessionMessage = 'The market is closed. Only pending orders are accepted.'
+    }
+    return handleCORS(NextResponse.json({ isOpen, sessionMessage }))
   }
 
   // POST /api/market/tick — advances prices by one tick (called every 2s by client)
@@ -2798,8 +2875,8 @@ async function handleMarketRoute(route, method, body) {
     const updated = MarketSim.advanceTick()
     // Persist to DB at most once per 60s (throttled — avoids Supabase write flood)
     const now = Date.now()
-    if (!handleMarketRoutes._lastPersist || now - handleMarketRoutes._lastPersist > 60000) {
-      handleMarketRoutes._lastPersist = now
+    if (!handleMarketRoute._lastPersist || now - handleMarketRoute._lastPersist > 60000) {
+      handleMarketRoute._lastPersist = now
       persistPricesToDb(updated).catch(() => {})
     }
     return handleCORS(NextResponse.json({ prices: MarketSim.getAllPrices() }))
@@ -2811,6 +2888,15 @@ async function handleMarketRoute(route, method, body) {
     const quote = MarketSim.getQuote(symbol)
     if (!quote) return handleCORS(NextResponse.json({ error: 'Symbol not found' }, { status: 404 }))
     return handleCORS(NextResponse.json(quote))
+  }
+
+  // GET /api/market/history/:symbol?limit=240 — simulator tick history for charts/sparklines
+  if (route.startsWith('/market/history/') && method === 'GET') {
+    const symbol = route.split('/market/history/')[1]?.toUpperCase()
+    const { searchParams } = new URL(requestUrl || 'http://local')
+    const limit = searchParams.get('limit')
+    const history = MarketSim.getHistory(symbol, limit ? Number(limit) : undefined)
+    return handleCORS(NextResponse.json({ symbol, history }))
   }
 
   return null
@@ -2910,7 +2996,7 @@ async function handleRouteWithMarket(request, context) {
   if (segments.startsWith('/market/')) {
     let body = {}
     try { body = method !== 'GET' ? await request.json() : {} } catch {}
-    const result = await handleMarketRoute(segments, method, body)
+    const result = await handleMarketRoute(segments, method, body, request.url)
     if (result) return result
   }
 
