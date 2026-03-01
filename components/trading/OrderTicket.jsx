@@ -24,6 +24,8 @@ function clampNumber(value, { min = -Infinity, max = Infinity } = {}) {
 
 function reducer(state, action) {
   switch (action.type) {
+    case 'setSide':
+      return { ...state, side: action.value }
     case 'setOrderType':
       return { ...state, orderType: action.value }
     case 'setSize':
@@ -367,14 +369,28 @@ export default function OrderTicket({
           {/* Quote block */}
           <div className="rounded-lg bg-card border border-border p-3">
             <div className="flex items-center justify-between">
-              <div className={"flex-1 mr-2 rounded-md border px-3 py-2 " + (state.side === 'SELL' ? 'border-orange-500/50' : 'border-border')}>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'setSide', value: 'SELL' })}
+                className={
+                  "flex-1 mr-2 rounded-md border px-3 py-2 text-left transition-colors hover:bg-orange-500/5 " +
+                  (state.side === 'SELL' ? 'border-orange-500/50' : 'border-border')
+                }
+              >
                 <div className="text-xs text-muted-foreground">SELL</div>
                 <div className="text-lg font-mono">{formatPrice(derived.bid, pipSize)}</div>
-              </div>
-              <div className={"flex-1 ml-2 rounded-md border px-3 py-2 " + (state.side === 'BUY' ? 'border-emerald-500/50' : 'border-border')}>
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'setSide', value: 'BUY' })}
+                className={
+                  "flex-1 ml-2 rounded-md border px-3 py-2 text-left transition-colors hover:bg-emerald-500/5 " +
+                  (state.side === 'BUY' ? 'border-emerald-500/50' : 'border-border')
+                }
+              >
                 <div className="text-xs text-muted-foreground">BUY</div>
                 <div className="text-lg font-mono">{formatPrice(derived.ask, pipSize)}</div>
-              </div>
+              </button>
             </div>
             <div className="mt-2 text-xs text-muted-foreground flex items-center justify-between">
               <div>H: <span className="font-mono text-foreground">{formatPrice(quote?.high, pipSize)}</span></div>

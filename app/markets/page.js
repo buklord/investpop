@@ -34,14 +34,14 @@ function PriceBtn({ label, price, pipSize, onClick, variant }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center justify-center gap-2 rounded-full border px-3 py-1 sm:px-4 sm:py-1.5 transition-colors w-full
+      className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-full border px-2.5 py-1 sm:px-4 sm:py-1.5 transition-colors w-full
         ${isSell
           ? 'border-slate-600 hover:border-orange-400 hover:bg-orange-500/10 text-white'
           : 'border-slate-600 hover:border-emerald-400 hover:bg-emerald-500/10 text-white'
         }`}
     >
-      <span className="font-mono text-xs sm:text-sm tabular-nums">{display}</span>
-      <span className={`text-xs font-bold uppercase tracking-wider
+      <span className="font-mono text-[11px] sm:text-sm tabular-nums leading-none">{display}</span>
+      <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider leading-none
         ${isSell ? 'text-orange-400' : 'text-emerald-400'}`}>
         {label}
       </span>
@@ -238,7 +238,7 @@ export default function MarketsPage() {
         <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ height: '55%' }}>
 
           {/* Column headers */}
-          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
+          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_64px_minmax(0,1fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
                           px-4 py-2 bg-[#0d1020] border-b border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <span>Instrument</span>
             <span className="text-center">Change</span>
@@ -273,7 +273,7 @@ export default function MarketsPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(a) }}
                   className={[
-                    'grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
+                    'grid grid-cols-[minmax(0,2fr)_64px_minmax(0,1fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
                     'px-4 py-2.5 border-b border-slate-800/50 cursor-pointer transition-colors',
                     active
                       ? 'bg-[#1a2035] border-l-2 border-l-blue-500'
@@ -286,7 +286,7 @@ export default function MarketsPage() {
                       <span className="text-[9px] font-bold text-slate-300 leading-none">{a.symbol.slice(0,3)}</span>
                     </div>
                     <div className="min-w-0">
-                      <div className={`font-semibold text-sm truncate ${active ? 'text-blue-400' : 'text-white'}`}>
+                      <div className={`font-semibold text-sm whitespace-normal break-words sm:whitespace-nowrap sm:truncate leading-tight ${active ? 'text-blue-400' : 'text-white'}`}>
                         {a.name || a.symbol}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">{a.symbol}</div>
