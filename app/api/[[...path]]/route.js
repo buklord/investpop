@@ -65,9 +65,24 @@ const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 // prevent the others from running (e.g. ALTER TYPE failing inside a
 // transaction must not block deposit_requests table creation).
 async function ensureSchemaExtensions() {
+  const isFatalDbAuthError = (err) => {
+    const msg = (err?.message || '').toLowerCase()
+    return (
+      msg.includes('too many authentication errors') ||
+      msg.includes('circuit breaker open') ||
+      msg.includes('password authentication failed') ||
+      msg.includes('authentication failed')
+    )
+  }
+
+  let abort = false
   const run = async (sql, label) => {
+    if (abort) return
     try { await prisma.$executeRawUnsafe(sql) }
-    catch (err) { console.warn(`[schema] ${label}:`, err.message) }
+    catch (err) {
+      console.warn(`[schema] ${label}:`, err.message)
+      if (isFatalDbAuthError(err)) abort = true
+    }
   }
 
   // ── IMPORTANT: All id/user_id columns use TEXT to match Prisma's String @id
@@ -241,6 +256,20 @@ async function ensureSchemaExtensions() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`, 'deposit_requests table')
   await run(`
+    CREATE TABLE IF NOT EXISTS withdrawal_requests (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      amount DOUBLE PRECISION NOT NULL,
+      method VARCHAR(20) NOT NULL DEFAULT 'BTC',
+      address TEXT NOT NULL DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+      notes TEXT,
+      reviewed_by TEXT,
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'withdrawal_requests table')
+  await run(`
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       user_id TEXT NOT NULL,
@@ -364,6 +393,9 @@ async function handleRoute(request, context) {
   // await it — any hanging ALTER TABLE would block the spinner indefinitely.
   if (route === '/auth/register' || route === '/auth/login') {
     await getSchemaInitPromise()
+  } else if (route === '/auth/me' || route === '/health') {
+    // These endpoints should not kick off schema work. When DB credentials are
+    // wrong, schema init can trigger many failed auth attempts and degrade UX.
   } else {
     // For all other routes kick off (or reuse) the background init — non-blocking.
     getSchemaInitPromise()
@@ -620,35 +652,14 @@ async function handleRoute(request, context) {
         ))
       }
 
-      // Fetch role and suspension status from DB (defensive: is_suspended/kyc_status may not exist yet)
-      let role = 'USER', isSuspended = false, kycStatus = 'PENDING'
-      try {
-        const users = await prisma.$queryRaw`
-          SELECT role, is_suspended, kyc_status FROM users WHERE id = ${auth.user.userId}
-        `
-        role = users[0]?.role || 'USER'
-        isSuspended = users[0]?.is_suspended || false
-        kycStatus = users[0]?.kyc_status || 'PENDING'
-      } catch (_e1) {
-        // Fallback: is_suspended or kyc_status column may not exist yet — fetch only role
-        try {
-          const users2 = await run('SELECT role FROM users WHERE id = $1', [auth.user.userId])
-          role = users2[0]?.role || 'USER'
-        } catch (_e2) {}
-      }
-
-      // Fetch broadcast message and spread multiplier from system_settings
-      let broadcastMessage = ''
-      let spreadMultiplier = 1.0
-      try {
-        const settings = await prisma.$queryRaw`
-          SELECT key, value FROM system_settings WHERE key IN ('broadcast_message', 'spread_multiplier')
-        `
-        settings.forEach(s => {
-          if (s.key === 'broadcast_message') broadcastMessage = s.value
-          if (s.key === 'spread_multiplier') spreadMultiplier = parseFloat(s.value) || 1.0
-        })
-      } catch (_) {}
+      // IMPORTANT: /auth/me must be fast and must not hang the UI if the DB is
+      // unavailable (e.g. Supabase circuit breaker). The JWT cookie already
+      // contains `role`, so we can respond without any DB round-trip.
+      const role = auth.user.role || 'USER'
+      const isSuspended = false
+      const kycStatus = 'PENDING'
+      const broadcastMessage = ''
+      const spreadMultiplier = 1.0
 
       return handleCORS(NextResponse.json({
         user: { id: auth.user.userId, email: auth.user.email, role, isSuspended, kycStatus },
@@ -948,7 +959,10 @@ async function handleRoute(request, context) {
         console.warn('[account] virtual_accounts read failed:', err.message)
       }
 
-      // ── Step 2: Cross-check with ledger SUM (take GREATEST so nothing is lost) ──
+      // ── Step 2: Cross-check with ledger SUM (fallback only) ──
+      // Ledger SUM is only used if the virtual_accounts columns look uninitialized.
+      // This allows balances to decrease (e.g. withdrawals) while still supporting
+      // older DBs that only had ledger entries.
       try {
         const ledgerSums = await prisma.$queryRawUnsafe(
           `SELECT account_type, COALESCE(SUM(amount), 0)::float8 AS total
@@ -958,19 +972,21 @@ async function handleRoute(request, context) {
         )
         for (const row of ledgerSums) {
           const total = parseFloat(row.total || 0)
-          if (row.account_type === 'REAL')       realBalance = Math.max(realBalance, total)
-          else if (row.account_type === 'DEMO')  demoBalance = Math.max(demoBalance, total)
+          if (row.account_type === 'REAL') {
+            if (!Number.isFinite(realBalance) || realBalance === 0) realBalance = total
+          } else if (row.account_type === 'DEMO') {
+            if (!Number.isFinite(demoBalance) || demoBalance === 0) demoBalance = total
+          }
         }
       } catch (_) { /* ledger_entries.account_type may not exist yet — use va values */ }
 
-      // ── Step 3: Self-heal va columns (GREATEST — never lower a correct value) ──
+      // ── Step 3: Self-heal va columns (align active balance to the selected mode) ──
       try {
         await prisma.$executeRawUnsafe(
           `UPDATE virtual_accounts
-           SET real_balance = GREATEST(real_balance, $1),
-               demo_balance = GREATEST(demo_balance, $2),
-               balance = CASE WHEN trading_mode = 'REAL' THEN GREATEST(real_balance, $1)
-                              ELSE GREATEST(demo_balance, $2) END
+           SET real_balance = $1,
+               demo_balance = $2,
+               balance = CASE WHEN trading_mode = 'REAL' THEN $1 ELSE $2 END
            WHERE user_id = $3`,
           realBalance, demoBalance, auth.user.userId
         )
@@ -2222,6 +2238,194 @@ async function handleRoute(request, context) {
         }))
       } catch (approveErr) {
         console.error('Deposit approval error:', approveErr)
+        return handleCORS(NextResponse.json({ error: `Approval failed: ${approveErr.message}` }, { status: 500 }))
+      }
+    }
+
+    // ============ WITHDRAWAL REQUEST ENDPOINTS ============
+
+    // POST /api/wallet/withdraw-request — user submits a withdrawal request
+    if (route === '/wallet/withdraw-request' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const body = await request.json()
+      const { amount, method: payMethod, address } = body
+
+      const numAmount = parseFloat(amount)
+      if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
+        return handleCORS(NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 }))
+      }
+      const validMethods = ['BTC', 'USDT']
+      const chosenMethod = validMethods.includes(payMethod) ? payMethod : 'BTC'
+      const addr = String(address || '').trim()
+      if (!addr) {
+        return handleCORS(NextResponse.json({ error: 'Withdrawal address is required.' }, { status: 400 }))
+      }
+
+      // Prevent requests that exceed current real wallet balance.
+      // (Approval also enforces this, but failing fast improves UX and reduces admin noise.)
+      const balRows = await prisma.$queryRawUnsafe(
+        `SELECT real_balance::float8 AS real_balance FROM virtual_accounts WHERE user_id = $1`,
+        auth.user.userId
+      )
+      const available = Number(balRows?.[0]?.real_balance ?? 0)
+      if (numAmount > available) {
+        return handleCORS(NextResponse.json({ error: 'Insufficient Real Wallet balance for this withdrawal amount.' }, { status: 400 }))
+      }
+
+      const id = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO withdrawal_requests (id, user_id, amount, method, address, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW(), NOW())`,
+        id, auth.user.userId, numAmount, chosenMethod, addr
+      )
+      logActivity(auth.user.userId, 'WITHDRAWAL_REQUEST', { amount: numAmount, method: chosenMethod })
+      return handleCORS(NextResponse.json({ message: 'Withdrawal request submitted. Awaiting admin approval.', id, amount: numAmount, method: chosenMethod, address: addr, status: 'PENDING' }))
+    }
+
+    // GET /api/wallet/withdrawals — user views their own withdrawal requests
+    if (route === '/wallet/withdrawals' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const withdrawals = await prisma.$queryRawUnsafe(
+        `SELECT id::text, user_id::text, amount::float8, method, address, status, notes, reviewed_by, reviewed_at, created_at, updated_at
+         FROM withdrawal_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+        auth.user.userId
+      )
+      return handleCORS(NextResponse.json({ withdrawals }))
+    }
+
+    // GET /api/admin/withdrawals — admin views all withdrawal requests
+    if (route === '/admin/withdrawals' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const withdrawals = await prisma.$queryRaw`
+        SELECT wr.*, u.email
+        FROM withdrawal_requests wr
+        JOIN users u ON u.id = wr.user_id
+        ORDER BY wr.created_at DESC
+        LIMIT 100
+      `
+      return handleCORS(NextResponse.json({ withdrawals }))
+    }
+
+    // POST /api/admin/withdrawals/action — set processing/approve/reject
+    if (route === '/admin/withdrawals/action' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const body = await request.json()
+      const { withdrawalId, action } = body // action: 'PROCESSING' | 'APPROVE' | 'REJECT'
+      if (!withdrawalId || !['PROCESSING', 'APPROVE', 'REJECT'].includes(action)) {
+        return handleCORS(NextResponse.json({ error: 'withdrawalId and action (PROCESSING|APPROVE|REJECT) required' }, { status: 400 }))
+      }
+
+      // PROCESSING: status-only update
+      if (action === 'PROCESSING') {
+        const updated = await prisma.$executeRawUnsafe(
+          `UPDATE withdrawal_requests
+           SET status = 'PROCESSING', updated_at = NOW()
+           WHERE id = $1 AND status = 'PENDING'`,
+          withdrawalId
+        )
+        if (!updated) return handleCORS(NextResponse.json({ error: 'Pending withdrawal request not found' }, { status: 404 }))
+
+        const auditId = uuidv4()
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, NOW())`,
+          auditId, admin.user.userId, 'WITHDRAWAL_PROCESSING', null, JSON.stringify({ withdrawalId })
+        )
+        return handleCORS(NextResponse.json({ message: 'Withdrawal marked as processing.', status: 'PROCESSING' }))
+      }
+
+      // REJECT: status-only update
+      if (action === 'REJECT') {
+        const updated = await prisma.$executeRawUnsafe(
+          `UPDATE withdrawal_requests
+           SET status = 'REJECTED', reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND status IN ('PENDING', 'PROCESSING')`,
+          withdrawalId, admin.user.userId
+        )
+        if (!updated) return handleCORS(NextResponse.json({ error: 'Withdrawal request not found' }, { status: 404 }))
+
+        const auditId = uuidv4()
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, NOW())`,
+          auditId, admin.user.userId, 'WITHDRAWAL_REJECT', null, JSON.stringify({ withdrawalId })
+        )
+        return handleCORS(NextResponse.json({ message: 'Withdrawal rejected.', status: 'REJECTED' }))
+      }
+
+      // APPROVE: atomic deduct + ledger insert + status update (single SQL statement)
+      const ledgerId = uuidv4()
+      const auditId = uuidv4()
+      try {
+        const rows = await prisma.$queryRawUnsafe(
+           `WITH req AS (
+             SELECT id::text AS id, user_id::text AS user_id, amount::float8 AS amount, method, address
+             FROM withdrawal_requests
+             WHERE id = $1 AND status IN ('PENDING', 'PROCESSING')
+             FOR UPDATE
+           ),
+           deduct AS (
+             UPDATE virtual_accounts va
+             SET real_balance = va.real_balance - req.amount,
+                 balance = CASE WHEN va.trading_mode = 'REAL' THEN va.balance - req.amount ELSE va.balance END,
+                 updated_at = NOW()
+             FROM req
+             WHERE va.user_id = req.user_id
+               AND va.real_balance >= req.amount
+             RETURNING va.user_id::text AS user_id,
+                       va.real_balance::float8 AS real_balance_after
+           ),
+           upd AS (
+             UPDATE withdrawal_requests wr
+             SET status = 'APPROVED', reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
+             WHERE wr.id = $1 AND EXISTS (SELECT 1 FROM deduct)
+             RETURNING wr.user_id::text AS user_id
+           ),
+           led AS (
+             INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type, created_at)
+             SELECT $3, req.user_id, 'WITHDRAWAL', (0 - req.amount), d.real_balance_after,
+                    ('Withdrawal approved — ' || req.method || ' to ' || LEFT(req.address, 10) || '…'),
+                    req.id, 'REAL', NOW()
+             FROM req
+             JOIN deduct d ON d.user_id = req.user_id
+             RETURNING id
+           )
+           SELECT req.user_id, req.amount, req.method, req.address,
+                  (SELECT real_balance_after FROM deduct) AS real_balance_after,
+                  (SELECT id FROM led) AS ledger_id,
+                  (SELECT user_id FROM upd) AS approved_user_id
+           FROM req`,
+          withdrawalId, admin.user.userId, ledgerId
+        )
+
+        const r = rows?.[0]
+        if (!r || !r.approved_user_id || !r.ledger_id) {
+          return handleCORS(NextResponse.json({ error: 'Unable to approve. Check status and available real balance.' }, { status: 400 }))
+        }
+
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, NOW())`,
+          auditId, admin.user.userId, 'WITHDRAWAL_APPROVE', String(r.user_id),
+          JSON.stringify({ withdrawalId, amount: Number(r.amount), method: String(r.method || ''), ledgerId })
+        )
+        logActivity(String(r.user_id), 'WITHDRAWAL_APPROVED', { amount: Number(r.amount), method: String(r.method || '') })
+
+        return handleCORS(NextResponse.json({
+          message: `Withdrawal approved — $${Number(r.amount).toFixed(2)} deducted from Real Wallet.`,
+          status: 'APPROVED',
+          realBalanceAfter: Number(r.real_balance_after || 0),
+        }))
+      } catch (approveErr) {
+        console.error('Withdrawal approval error:', approveErr)
         return handleCORS(NextResponse.json({ error: `Approval failed: ${approveErr.message}` }, { status: 500 }))
       }
     }

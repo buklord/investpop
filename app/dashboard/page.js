@@ -14,10 +14,6 @@ import {
   RefreshCw,
   Menu,
   Activity,
-  DollarSign,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight,
   Loader2,
   Newspaper,
   AlertTriangle,
@@ -250,6 +246,12 @@ export default function DashboardPage() {
     return `${prefix}${value.toFixed(2)}%`
   }
 
+  const cashBalance = account?.balance ?? 0
+  const availableCash = account?.available ?? cashBalance
+  const openPnl = account?.openPnl ?? 0
+  const equity = cashBalance + openPnl
+  const marginUsed = Math.max(0, cashBalance - availableCash)
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
@@ -394,73 +396,68 @@ export default function DashboardPage() {
           </div>
 
           {/* Account Stats - Skeleton while loading */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-8">
+          <div className="mb-4 sm:mb-8">
             {dataLoading ? (
-              <>
-                <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
-              </>
+              <Card className="bg-[#161b22] border-slate-800">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 bg-slate-700 rounded-lg animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="h-3 w-24 bg-slate-700 rounded animate-pulse" />
+                        <div className="h-8 w-40 bg-slate-700 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-28 bg-slate-700 rounded-full animate-pulse" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />
+                    <div className="h-16 bg-slate-800/50 rounded-lg animate-pulse" />
+                    <div className="h-16 bg-slate-800/50 rounded-lg animate-pulse hidden sm:block" />
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
-              <>
-                {/* Balance = cash in account + cost of open positions (true account value excl. unrealised) */}
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl p-4 sm:p-6 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 group">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-500/20 rounded-lg flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
-                      <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" />
+              <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/40 border border-slate-700 rounded-xl">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${equity >= 0 ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
+                        <TrendingUp className={`h-5 w-5 ${equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-wide">Total equity</div>
+                        <div className="text-3xl sm:text-4xl font-bold text-white truncate">{formatCurrency(equity)}</div>
+                        <div className="text-xs text-slate-500 mt-1">Live account value (cash + open P&amp;L)</div>
+                      </div>
                     </div>
-                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Balance</span>
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-bold text-white truncate mb-2">
-                    {formatCurrency(account?.balance || 0)}
-                  </div>
-                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-700/50">Cash after realized P&L</div>
-                </div>
 
-                {/* Available = cash not locked in open trades */}
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl p-4 sm:p-6 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 group">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-500/20 rounded-lg flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
-                      <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-purple-400" />
+                    <div className={`self-start px-3 py-1 rounded-full text-xs font-semibold border ${openPnl >= 0 ? 'text-emerald-300 border-emerald-700/50 bg-emerald-500/10' : 'text-red-300 border-red-700/50 bg-red-500/10'}`}>
+                      {(openPnl >= 0 ? '+' : '')}{formatCurrency(openPnl)} open P&amp;L
                     </div>
-                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Available</span>
                   </div>
-                  <div className="text-2xl sm:text-3xl font-bold text-white truncate mb-2">
-                    {formatCurrency(account?.available ?? account?.balance ?? 0)}
-                  </div>
-                  <div className="text-xs text-slate-500 pt-3 border-t border-slate-700/50">Balance − margin reserved</div>
-                </div>
-                
-                {/* Open P&L = live unrealised gain/loss */}
-                <div className={`bg-gradient-to-br ${(account?.openPnl || 0) >= 0 ? 'from-emerald-900/40 to-emerald-950/20' : 'from-red-900/40 to-red-950/20'} border ${(account?.openPnl || 0) >= 0 ? 'border-emerald-700/50' : 'border-red-700/50'} rounded-xl p-4 sm:p-6 hover:shadow-lg ${(account?.openPnl || 0) >= 0 ? 'hover:shadow-emerald-500/10 hover:border-emerald-500/50' : 'hover:shadow-red-500/10 hover:border-red-500/50'} transition-all duration-300 group`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/20 group-hover:bg-emerald-500/30' : 'bg-red-500/20 group-hover:bg-red-500/30'} rounded-lg flex items-center justify-center transition-colors`}>
-                      {(account?.openPnl || 0) >= 0 ? (
-                        <ArrowUpRight className={`h-5 w-5 sm:h-6 sm:w-6 text-emerald-400`} />
-                      ) : (
-                        <ArrowDownRight className={`h-5 w-5 sm:h-6 sm:w-6 text-red-400`} />
-                      )}
+
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3">
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Cash</div>
+                      <div className="text-base sm:text-lg font-semibold text-white truncate">{formatCurrency(cashBalance)}</div>
+                      <div className="text-xs text-slate-500 mt-1">After realized P&amp;L</div>
                     </div>
-                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Open P&amp;L</span>
-                  </div>
-                  <div className={`text-2xl sm:text-3xl font-bold truncate mb-2 ${(account?.openPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl || 0)}
-                  </div>
-                  <div className={`text-xs pt-3 border-t ${(account?.openPnl || 0) >= 0 ? 'border-emerald-700/50 text-emerald-600/70' : 'border-red-700/50 text-red-600/70'}`}>Unrealised on {account?.positionsCount || 0} open trade{account?.positionsCount !== 1 ? 's' : ''}</div>
-                </div>
-                
-                {/* Equity = Balance + Open P&L (live total account value) */}
-                <div className={`bg-gradient-to-br ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'from-emerald-900/40 to-emerald-950/20' : 'from-red-900/40 to-red-950/20'} border ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'border-emerald-700/50' : 'border-red-700/50'} rounded-xl p-4 sm:p-6 hover:shadow-lg ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'hover:shadow-emerald-500/10 hover:border-emerald-500/50' : 'hover:shadow-red-500/10 hover:border-red-500/50'} transition-all duration-300 group`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'bg-emerald-500/20 group-hover:bg-emerald-500/30' : 'bg-red-500/20 group-hover:bg-red-500/30'} rounded-lg flex items-center justify-center transition-colors`}>
-                      <TrendingUp className={`h-5 w-5 sm:h-6 sm:w-6 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+
+                    <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3">
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Available</div>
+                      <div className="text-base sm:text-lg font-semibold text-white truncate">{formatCurrency(availableCash)}</div>
+                      <div className="text-xs text-slate-500 mt-1">Ready to trade</div>
                     </div>
-                    <span className="text-slate-400 text-xs sm:text-sm font-semibold uppercase letter-spacing tracking-wide">Equity</span>
+
+                    <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3 hidden sm:block">
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Margin used</div>
+                      <div className="text-base sm:text-lg font-semibold text-white truncate">{formatCurrency(marginUsed)}</div>
+                      <div className="text-xs text-slate-500 mt-1">Cash reserved</div>
+                    </div>
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-bold truncate mb-2 ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {formatCurrency((account?.balance || 0) + (account?.openPnl || 0))}
-                  </div>
-                  <div className={`text-xs pt-3 border-t ${((account?.balance || 0) + (account?.openPnl || 0)) >= 0 ? 'border-emerald-700/50 text-emerald-600/70' : 'border-red-700/50 text-red-600/70'}`}>Balance + Open P&L (live)</div>
-                </div>
-              </>
+                </CardContent>
+              </Card>
             )}
           </div>
 

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   BarChart3,
   Menu,
@@ -23,6 +24,7 @@ import AppSidebar from '@/components/AppSidebar'
 
 export default function WalletPage() {
   const router = useRouter()
+  const withdrawSectionRef = useRef(null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -33,6 +35,13 @@ export default function WalletPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+
+  const [withdrawMethod, setWithdrawMethod] = useState('BTC')
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawAddress, setWithdrawAddress] = useState('')
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false)
+  const [withdrawMsg, setWithdrawMsg] = useState(null)
+  const [withdrawals, setWithdrawals] = useState([])
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
@@ -49,15 +58,21 @@ export default function WalletPage() {
 
   const loadData = async () => {
     try {
-      const [accountRes, ledgerRes] = await Promise.all([
+      const [accountRes, ledgerRes, withdrawalsRes] = await Promise.all([
         fetch('/api/account'),
-        fetch('/api/ledger')
+        fetch('/api/ledger'),
+        fetch('/api/wallet/withdrawals')
       ])
       const accountData = await accountRes.json()
       const ledgerData = await ledgerRes.json()
       setAccount(accountData)
       setLedger(ledgerData.entries || [])
       setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'DEMO')
+
+      if (withdrawalsRes.ok) {
+        const w = await withdrawalsRes.json()
+        setWithdrawals(w.withdrawals || [])
+      }
     } catch (err) {
       console.error('Failed to load wallet data:', err)
     }
@@ -82,6 +97,58 @@ export default function WalletPage() {
 
   const formatCurrency = (value) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value || 0)
+
+  const scrollToWithdraw = () => {
+    withdrawSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const submitWithdrawal = async (e) => {
+    e.preventDefault()
+    setWithdrawMsg(null)
+
+    const numAmount = parseFloat(withdrawAmount)
+    if (!withdrawAmount || isNaN(numAmount) || numAmount <= 0) {
+      setWithdrawMsg({ type: 'error', text: 'Enter a valid withdrawal amount.' })
+      return
+    }
+    if (numAmount > (account?.realBalance ?? 0)) {
+      setWithdrawMsg({ type: 'error', text: 'Amount exceeds your Real Wallet balance.' })
+      return
+    }
+    if (!withdrawAddress.trim()) {
+      setWithdrawMsg({ type: 'error', text: 'Enter a withdrawal address.' })
+      return
+    }
+
+    setWithdrawSubmitting(true)
+    try {
+      const res = await fetch('/api/wallet/withdraw-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: numAmount, method: withdrawMethod, address: withdrawAddress.trim() })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setWithdrawMsg({ type: 'success', text: data.message || 'Withdrawal request submitted.' })
+        setWithdrawAmount('')
+        setWithdrawAddress('')
+        await loadData()
+      } else {
+        setWithdrawMsg({ type: 'error', text: data.error || 'Failed to submit withdrawal request.' })
+      }
+    } catch {
+      setWithdrawMsg({ type: 'error', text: 'Network error. Please try again.' })
+    } finally {
+      setWithdrawSubmitting(false)
+    }
+  }
+
+  const statusPill = (s) => {
+    if (s === 'APPROVED') return 'text-emerald-400 bg-emerald-500/10'
+    if (s === 'REJECTED') return 'text-red-400 bg-red-500/10'
+    if (s === 'PROCESSING') return 'text-blue-400 bg-blue-500/10'
+    return 'text-amber-400 bg-amber-500/10'
+  }
 
   const entryTypeColor = (type) => {
     switch (type) {
@@ -169,14 +236,25 @@ export default function WalletPage() {
                   </div>
                 </div>
                 <div className="text-3xl font-bold text-white mb-4">{formatCurrency(realBalance)}</div>
-                <Button
-                  onClick={() => router.push('/wallet/deposit')}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
-                  size="sm"
-                >
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  Deposit Funds
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => router.push('/wallet/deposit')}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                    size="sm"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    Deposit
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={scrollToWithdraw}
+                    size="sm"
+                    className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30"
+                  >
+                    <ArrowDownRight className="h-4 w-4" />
+                    Withdraw
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -216,6 +294,100 @@ export default function WalletPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Withdraw Funds */}
+          <Card ref={withdrawSectionRef} className="bg-[#161b22] border-slate-800 mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-white text-base">Withdraw Funds</CardTitle>
+              <p className="text-slate-400 text-sm">Requests are reviewed by an admin. Your Real Wallet balance is deducted only after approval.</p>
+            </CardHeader>
+            <CardContent>
+              {withdrawMsg && (
+                <div className={`mb-4 text-sm px-3 py-2.5 rounded-lg ${withdrawMsg.type === 'error' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                  {withdrawMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={submitWithdrawal} className="space-y-3">
+                <div className="flex gap-2">
+                  {['BTC', 'USDT'].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setWithdrawMethod(m)}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${withdrawMethod === m ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Input
+                    value={withdrawAmount}
+                    onChange={e => setWithdrawAmount(e.target.value)}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={realBalance}
+                    placeholder="Amount (USD)"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                  <Input
+                    value={withdrawAddress}
+                    onChange={e => setWithdrawAddress(e.target.value)}
+                    placeholder={withdrawMethod === 'BTC' ? 'BTC address' : 'USDT address'}
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="text-slate-500 text-xs">Available to withdraw: <span className="text-slate-300 font-medium">{formatCurrency(realBalance)}</span></div>
+
+                <Button
+                  type="submit"
+                  disabled={withdrawSubmitting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {withdrawSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Submit Withdrawal Request
+                </Button>
+              </form>
+
+              <div className="mt-6">
+                <div className="text-slate-400 text-xs mb-2">Recent withdrawal requests</div>
+                {withdrawals.length === 0 ? (
+                  <div className="text-slate-500 text-sm">No withdrawal requests yet.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[650px]">
+                      <thead>
+                        <tr className="text-slate-500 text-xs border-b border-slate-800">
+                          <th className="text-left p-3">Method</th>
+                          <th className="text-right p-3">Amount</th>
+                          <th className="text-left p-3">Address</th>
+                          <th className="text-center p-3">Status</th>
+                          <th className="text-right p-3">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withdrawals.map(w => (
+                          <tr key={w.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                            <td className="p-3 text-white text-sm font-medium">{w.method}</td>
+                            <td className="p-3 text-right text-white text-sm">{formatCurrency(w.amount)}</td>
+                            <td className="p-3 text-slate-400 text-xs font-mono truncate max-w-[320px]">{w.address}</td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${statusPill(w.status)}`}>{w.status}</span>
+                            </td>
+                            <td className="p-3 text-right text-slate-500 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-3 mb-6">

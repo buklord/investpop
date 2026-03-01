@@ -72,7 +72,7 @@ export default function HistoryPage() {
   const [snapshots, setSnapshots] = useState([])
   const [quotes, setQuotes] = useState({})
   const [refreshing, setRefreshing] = useState(false)
-  const [activeTab, setActiveTab] = useState('active')
+  const [activeTab, setActiveTab] = useState('history')
   const [closingId, setClosingId] = useState(null)
   const [expandedAI, setExpandedAI] = useState(null)
   const intervalRef = useRef(null)

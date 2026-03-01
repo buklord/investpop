@@ -43,6 +43,7 @@ export default function AdminPage() {
   const [activityFeed, setActivityFeed] = useState([])
   const [systemSettings, setSystemSettings] = useState({ broadcast_message: '', spread_multiplier: '1.0', market_trend: 'NEUTRAL' })
   const [deposits, setDeposits] = useState([])
+  const [withdrawals, setWithdrawals] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
 
@@ -79,6 +80,10 @@ export default function AdminPage() {
   // Deposit state
   const [depositMsg, setDepositMsg] = useState(null)
   const [depositActionId, setDepositActionId] = useState(null)
+
+  // Withdrawal state
+  const [withdrawalMsg, setWithdrawalMsg] = useState(null)
+  const [withdrawalActionId, setWithdrawalActionId] = useState(null)
 
   // Force settle state
   const [settleMsg, setSettleMsg] = useState(null)
@@ -274,18 +279,20 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const [usersRes, auditRes, activityRes, settingsRes, depositsRes, kycRes] = await Promise.all([
+      const [usersRes, auditRes, activityRes, settingsRes, depositsRes, withdrawalsRes, kycRes] = await Promise.all([
         fetch('/api/admin/users'),
         fetch('/api/admin/audit-log'),
         fetch('/api/admin/activity-feed'),
         fetch('/api/admin/settings'),
         fetch('/api/admin/deposits'),
+        fetch('/api/admin/withdrawals'),
         fetch('/api/admin/kyc-requests'),
       ])
       if (usersRes.ok) setUsers((await usersRes.json()).users || [])
       if (auditRes.ok) setAuditLog((await auditRes.json()).log || [])
       if (activityRes.ok) setActivityFeed((await activityRes.json()).feed || [])
       if (depositsRes.ok) setDeposits((await depositsRes.json()).deposits || [])
+      if (withdrawalsRes.ok) setWithdrawals((await withdrawalsRes.json()).withdrawals || [])
       if (kycRes.ok) setKycRequests((await kycRes.json()).requests || [])
       if (settingsRes.ok) {
         const s = (await settingsRes.json()).settings || {}
@@ -416,6 +423,20 @@ export default function AdminPage() {
       else setDepositMsg({ type: 'error', text: data.error || 'Failed.' })
     } catch { setDepositMsg({ type: 'error', text: 'An error occurred.' }) }
     finally { setDepositActionId(null) }
+  }
+
+  const handleWithdrawalAction = async (withdrawalId, action) => {
+    setWithdrawalMsg(null); setWithdrawalActionId(`${withdrawalId}-${action}`)
+    try {
+      const res = await fetch('/api/admin/withdrawals/action', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ withdrawalId, action })
+      })
+      const data = await res.json()
+      if (res.ok) { setWithdrawalMsg({ type: 'success', text: data.message }); loadData() }
+      else setWithdrawalMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setWithdrawalMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setWithdrawalActionId(null) }
   }
 
   const handleForceSettle = async (positionId, outcome) => {
@@ -732,6 +753,7 @@ export default function AdminPage() {
               { id: 'live-positions', label: `Live Positions (${livePositions.length})`, highlight: livePositions.length > 0 },
               { id: 'users', label: `Users (${users.length})` },
               { id: 'deposits', label: 'Deposits', badge: deposits.filter(d => d.status === 'PENDING').length },
+              { id: 'withdrawals', label: 'Withdrawals', badge: withdrawals.filter(w => w.status === 'PENDING').length },
               { id: 'kyc', label: 'KYC Requests', badge: kycRequests.filter(k => k.status === 'SUBMITTED').length },
               { id: 'market-control', label: '🎛️ Market Control' },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
@@ -1040,6 +1062,118 @@ export default function AdminPage() {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Withdrawals Tab */}
+          {activeTab === 'withdrawals' && (
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-amber-400" />
+                  Withdrawal Requests
+                  {withdrawals.filter(w => w.status === 'PENDING').length > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      {withdrawals.filter(w => w.status === 'PENDING').length} pending
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              {withdrawalMsg && <div className="px-6 pb-2"><Msg msg={withdrawalMsg} /></div>}
+              <CardContent className="p-0">
+                {withdrawals.length === 0 ? (
+                  <div className="text-center py-10">
+                    <TrendingDown className="h-12 w-12 text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">No withdrawal requests yet</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[850px]">
+                      <thead>
+                        <tr className="text-slate-500 text-xs border-b border-slate-800">
+                          <th className="text-left p-4">User</th>
+                          <th className="text-right p-4">Amount</th>
+                          <th className="text-center p-4">Method</th>
+                          <th className="text-left p-4">Address</th>
+                          <th className="text-center p-4">Status</th>
+                          <th className="text-right p-4">Date</th>
+                          <th className="text-right p-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withdrawals.map(wr => {
+                          const isPending = wr.status === 'PENDING'
+                          const isProcessing = wr.status === 'PROCESSING'
+                          const actingApprove = withdrawalActionId === `${wr.id}-APPROVE`
+                          const actingReject = withdrawalActionId === `${wr.id}-REJECT`
+                          const actingProcessing = withdrawalActionId === `${wr.id}-PROCESSING`
+
+                          return (
+                            <tr key={wr.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                              <td className="p-4">
+                                <div className="text-white text-sm">{wr.email}</div>
+                                <div className="text-slate-500 text-xs font-mono truncate max-w-[150px]">{wr.user_id}</div>
+                              </td>
+                              <td className="p-4 text-right text-white font-semibold text-sm">
+                                ${parseFloat(wr.amount).toLocaleString()}
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  wr.method === 'BTC' ? 'bg-orange-500/10 text-orange-400' : 'bg-green-500/10 text-green-400'
+                                }`}>
+                                  {wr.method}
+                                </span>
+                              </td>
+                              <td className="p-4 text-slate-400 text-xs font-mono truncate max-w-[320px]">{wr.address || '—'}</td>
+                              <td className="p-4 text-center">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  wr.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400' :
+                                  wr.status === 'REJECTED' ? 'bg-red-500/10 text-red-400' :
+                                  wr.status === 'PROCESSING' ? 'bg-blue-500/10 text-blue-400' :
+                                  'bg-amber-500/10 text-amber-400'
+                                }`}>
+                                  {wr.status}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right text-slate-500 text-xs">
+                                {new Date(wr.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-4 text-right">
+                                {(isPending || isProcessing) ? (
+                                  <div className="flex items-center justify-end gap-2">
+                                    {isPending && (
+                                      <Button size="sm" variant="ghost" disabled={actingProcessing}
+                                        onClick={() => handleWithdrawalAction(wr.id, 'PROCESSING')}
+                                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs h-7 px-2">
+                                        {actingProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Processing'}
+                                      </Button>
+                                    )}
+                                    <Button size="sm" disabled={actingApprove}
+                                      onClick={() => handleWithdrawalAction(wr.id, 'APPROVE')}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2">
+                                      {actingApprove
+                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                        : <><CheckCircle className="h-3 w-3 mr-1 inline" />Approve</>
+                                      }
+                                    </Button>
+                                    <Button size="sm" variant="ghost" disabled={actingReject}
+                                      onClick={() => handleWithdrawalAction(wr.id, 'REJECT')}
+                                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-7 px-2">
+                                      <X className="h-3 w-3 mr-1 inline" />{actingReject ? '…' : 'Reject'}
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-600 text-xs">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

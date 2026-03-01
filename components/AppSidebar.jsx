@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Separator } from '@/components/ui/separator'
 import {
   BarChart3,
   X,
@@ -15,6 +18,7 @@ import {
   Shield,
   LogOut,
   ChevronLeft,
+  ChevronDown,
   MessageCircle,
   Briefcase,
 } from 'lucide-react'
@@ -35,19 +39,34 @@ function openTawk() {
   tryOpen()
 }
 
-const navItems = [
-  { href: '/dashboard',  label: 'Dashboard',  icon: Home },
-  { href: '/markets',    label: 'Markets',     icon: Activity },
-  { href: '/portfolio',  label: 'Positions',   icon: Briefcase },
-  { href: '/history',    label: 'History',     icon: History },
-  { href: '/wallet',     label: 'Wallet',      icon: Wallet },
-  { href: '/settings',   label: 'Settings',    icon: Settings },
+const navGroups = [
+  {
+    id: 'trade',
+    label: 'Trade',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: Home },
+      { href: '/markets', label: 'Markets', icon: Activity },
+      { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
+      { href: '/history', label: 'Analytics', icon: History },
+    ],
+  },
+  {
+    id: 'funds',
+    label: 'Funds',
+    items: [{ href: '/wallet', label: 'Wallet', icon: Wallet }],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    items: [{ href: '/settings', label: 'Preferences', icon: Settings }],
+  },
 ]
 
 export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account: accountProp }) {
   const router = useRouter()
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [openGroups, setOpenGroups] = useState({ trade: true, funds: true, settings: false, help: false })
   const [pendingDeposits, setPendingDeposits] = useState(0)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
@@ -107,10 +126,33 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : '—'
 
+  const email = user?.email || ''
+  const displayName = email
+    ? email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    : 'Account'
+
+  const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+
+  const NavLink = ({ href, label, icon: Icon }) => (
+    <Link
+      href={href}
+      title={collapsed ? label : undefined}
+      className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg transition-colors ${
+        isActive(href)
+          ? 'bg-emerald-600/20 text-emerald-400'
+          : 'text-slate-300 hover:bg-slate-800'
+      }`}
+      onClick={() => setSidebarOpen(false)}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      {!collapsed && <span className="text-sm">{label}</span>}
+    </Link>
+  )
+
   return (
     <div className={`fixed lg:static inset-y-0 left-0 z-50 ${collapsed ? 'lg:w-16' : 'lg:w-64'} w-64 bg-[#161b22] border-r border-slate-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-all duration-200 flex-shrink-0`}>
       <div className="flex flex-col h-full">
-        {/* Logo */}
+        {/* Header */}
         <div className="p-4 border-b border-slate-800">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 min-w-0">
@@ -119,11 +161,9 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               </div>
               {!collapsed && <span className="text-xl font-bold text-white truncate">InvestPop</span>}
             </Link>
-            {/* Mobile close */}
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 ml-auto">
               <X className="h-5 w-5" />
             </button>
-            {/* Desktop collapse toggle */}
             <button
               onClick={() => setCollapsed(c => !c)}
               className="hidden lg:block text-slate-500 hover:text-slate-300 ml-auto transition-colors"
@@ -133,89 +173,148 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
             </button>
           </div>
 
-          {/* Compact account summary */}
           {!collapsed && (
-            <div className="mt-3 bg-slate-800/60 rounded-lg p-2 text-xs space-y-1">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Mode</span>
-                {accountLoading || tradingMode === null ? (
-                  <span className="text-slate-500 text-xs italic">Loading…</span>
-                ) : (
-                  <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                    {tradingMode === 'REAL' ? '💼 Real' : '🎯 Demo'}
-                  </span>
-                )}
+            <div className="mt-4">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-slate-800 text-slate-200 text-sm">
+                    {(email || 'A').slice(0, 1).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="text-white font-semibold truncate">{displayName}</div>
+                  <div className="text-xs text-slate-400 truncate">{email || '—'}</div>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Available</span>
-                <span className="text-white font-mono">{fmt(available)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Equity</span>
-                <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
+
+              <div className="mt-3 bg-slate-800/60 rounded-lg p-2 text-xs space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Mode</span>
+                  {accountLoading || tradingMode === null ? (
+                    <span className="text-slate-500 text-xs italic">Loading…</span>
+                  ) : (
+                    <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                      {tradingMode === 'REAL' ? 'Real' : 'Demo'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Available</span>
+                  <span className="text-white font-mono">{fmt(available)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Equity</span>
+                  <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
+                </div>
               </div>
             </div>
           )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={label}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors ${
-                pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-                  ? 'bg-emerald-600/20 text-emerald-400'
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Icon className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span className="text-sm">{label}</span>}
-            </Link>
-          ))}
-
-          {/* Support button — opens Tawk.to chat */}
-          <button
-            onClick={openTawk}
-            title={collapsed ? 'Live Support' : undefined}
-            className={`w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-800`}
-          >
-            <MessageCircle className="h-4 w-4 flex-shrink-0" />
-            {!collapsed && <span className="text-sm">Support</span>}
-          </button>
-
-          {user?.role === 'ADMIN' && (
-            <Link
-              href="/admin"
-              title={collapsed ? 'Admin' : undefined}
-              className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-2.5 rounded-lg transition-colors relative ${
-                pathname.startsWith('/admin')
-                  ? 'bg-amber-600/20 text-amber-400'
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Shield className="h-4 w-4 flex-shrink-0" />
-              {!collapsed && <span className="text-sm">Admin</span>}
-              {pendingDeposits > 0 && (
-                <span className={`bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ${collapsed ? 'absolute -top-1 -right-1' : 'ml-auto'}`}>
-                  {pendingDeposits > 9 ? '9+' : pendingDeposits}
-                </span>
+        <nav className="flex-1 p-2 overflow-y-auto">
+          {collapsed ? (
+            <div className="space-y-0.5">
+              {navGroups.flatMap(g => g.items).map((item) => (
+                <NavLink key={item.href} {...item} />
+              ))}
+              <button
+                onClick={openTawk}
+                title="Live Support"
+                className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-800"
+              >
+                <MessageCircle className="h-4 w-4 flex-shrink-0" />
+              </button>
+              {user?.role === 'ADMIN' && (
+                <Link
+                  href="/admin"
+                  title="Admin"
+                  className={`flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors relative ${
+                    pathname.startsWith('/admin')
+                      ? 'bg-amber-600/20 text-amber-400'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Shield className="h-4 w-4 flex-shrink-0" />
+                  {pendingDeposits > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                      {pendingDeposits > 9 ? '9+' : pendingDeposits}
+                    </span>
+                  )}
+                </Link>
               )}
-            </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {navGroups.map((group) => (
+                <Collapsible
+                  key={group.id}
+                  open={!!openGroups[group.id]}
+                  onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, [group.id]: open }))}
+                >
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200 transition-colors">
+                      <span>{group.label}</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <NavLink key={item.href} {...item} />
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+
+              <Separator className="my-2 bg-slate-800" />
+
+              <Collapsible
+                open={!!openGroups.help}
+                onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, help: open }))}
+              >
+                <CollapsibleTrigger className="w-full">
+                  <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200 transition-colors">
+                    <span>Help</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${openGroups.help ? 'rotate-180' : ''}`} />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-0.5">
+                  <button
+                    onClick={openTawk}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-800"
+                  >
+                    <MessageCircle className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm">Live Support</span>
+                  </button>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {user?.role === 'ADMIN' && (
+                <Link
+                  href="/admin"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
+                    pathname.startsWith('/admin')
+                      ? 'bg-amber-600/20 text-amber-400'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Shield className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm">Admin</span>
+                  {pendingDeposits > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                      {pendingDeposits > 9 ? '9+' : pendingDeposits}
+                    </span>
+                  )}
+                </Link>
+              )}
+            </div>
           )}
         </nav>
 
         {/* Footer */}
         <div className="p-3 border-t border-slate-800">
-          {!collapsed && (
-            <>
-              <div className="text-xs text-slate-400 mb-1 truncate px-1">{user?.email}</div>
-              {user?.role === 'ADMIN' && (
-                <div className="text-xs text-amber-400 mb-2 px-1">● ADMIN</div>
-              )}
-            </>
+          {!collapsed && user?.role === 'ADMIN' && (
+            <div className="text-xs text-amber-400 mb-2 px-1">● ADMIN</div>
           )}
           <Button
             variant="ghost"
