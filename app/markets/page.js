@@ -238,7 +238,7 @@ export default function MarketsPage() {
         <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ height: '55%' }}>
 
           {/* Column headers */}
-          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_64px_minmax(0,1fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
+          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
                           px-4 py-2 bg-[#0d1020] border-b border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <span>Instrument</span>
             <span className="text-center">Change</span>
@@ -273,7 +273,7 @@ export default function MarketsPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(a) }}
                   className={[
-                    'grid grid-cols-[minmax(0,2fr)_64px_minmax(0,1fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
+                    'grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
                     'px-4 py-2.5 border-b border-slate-800/50 cursor-pointer transition-colors',
                     active
                       ? 'bg-[#1a2035] border-l-2 border-l-blue-500'
@@ -294,7 +294,7 @@ export default function MarketsPage() {
                   </div>
 
                   {/* Change % */}
-                  <div className="flex justify-center">
+                  <div className="flex justify-start pl-1">
                     <ChangeBadge pct={pct} />
                   </div>
 
