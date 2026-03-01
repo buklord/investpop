@@ -29,16 +29,18 @@ function ChangeBadge({ pct }) {
 // ── price button ───────────────────────────────────────────────────────────
 function PriceBtn({ label, price, pipSize, onClick, variant }) {
   const isSell = variant === 'sell'
+  const p = Number(price)
+  const display = Number.isFinite(p) ? formatPrice(p, pipSize) : '—'
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-full border px-4 py-1.5 transition-colors
+      className={`flex items-center justify-center gap-2 rounded-full border px-3 py-1 sm:px-4 sm:py-1.5 transition-colors w-full
         ${isSell
           ? 'border-slate-600 hover:border-orange-400 hover:bg-orange-500/10 text-white'
           : 'border-slate-600 hover:border-emerald-400 hover:bg-emerald-500/10 text-white'
         }`}
     >
-      <span className="font-mono text-sm tabular-nums">{formatPrice(price, pipSize)}</span>
+      <span className="font-mono text-xs sm:text-sm tabular-nums">{display}</span>
       <span className={`text-xs font-bold uppercase tracking-wider
         ${isSell ? 'text-orange-400' : 'text-emerald-400'}`}>
         {label}
@@ -236,7 +238,7 @@ export default function MarketsPage() {
         <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ height: '55%' }}>
 
           {/* Column headers */}
-          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
+          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
                           px-4 py-2 bg-[#0d1020] border-b border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <span>Instrument</span>
             <span className="text-center">Change</span>
@@ -271,7 +273,7 @@ export default function MarketsPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(a) }}
                   className={[
-                    'grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
+                    'grid grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
                     'px-4 py-2.5 border-b border-slate-800/50 cursor-pointer transition-colors',
                     active
                       ? 'bg-[#1a2035] border-l-2 border-l-blue-500'

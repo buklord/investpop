@@ -16,7 +16,9 @@ const TIMEFRAMES = [
 export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const [tfIdx, setTfIdx] = useState(1) // default 5m
   const [chartReady, setChartReady] = useState(false)
+  const [chartInitDone, setChartInitDone] = useState(false)
   const [candles, setCandles] = useState([])
+  const [limit, setLimit] = useState(300)
 
   const containerRef  = useRef(null)
   const chartApiRef   = useRef(null)
@@ -24,7 +26,16 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const bidLineRef    = useRef(null)
   const roRef         = useRef(null)
 
+  const didInitialFitRef = useRef(false)
+  const candlesRef       = useRef([])
+  const limitRef         = useRef(limit)
+  const fetchingRef      = useRef(false)
+  const lastLoadMoreAtRef = useRef(0)
+
   const tf = TIMEFRAMES[tfIdx]
+
+  useEffect(() => { candlesRef.current = candles }, [candles])
+  useEffect(() => { limitRef.current = limit }, [limit])
 
   const pipSize = useMemo(
     () => getPipSize({ symbolId: instrument?.symbol, type: instrument?.type }),
@@ -34,19 +45,30 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   // ── Fetch candles (cached server-side) ──────────────────────────────────
   useEffect(() => {
     if (!instrument?.symbol) return
+    didInitialFitRef.current = false
+    setCandles([])
+    setLimit(300)
+  }, [instrument?.symbol, tf.secs])
+
+  useEffect(() => {
+    if (!instrument?.symbol) return
     let alive = true
     const controller = new AbortController()
 
     async function load() {
       try {
-        const url = `/api/market/candles/${encodeURIComponent(instrument.symbol)}?tf=${tf.secs}&limit=200`
-        const res = await fetch(url, { signal: controller.signal })
+        fetchingRef.current = true
+        const url = `/api/market/candles/${encodeURIComponent(instrument.symbol)}?tf=${tf.secs}&limit=${limit}`
+        const res = await fetch(url, { signal: controller.signal, cache: 'no-store' })
         if (!res.ok) return
         const data = await res.json().catch(() => null)
         if (!alive || !data) return
         const next = Array.isArray(data.candles) ? data.candles : []
         setCandles(next)
-      } catch {}
+      } catch {
+      } finally {
+        fetchingRef.current = false
+      }
     }
 
     load()
@@ -56,7 +78,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
       clearInterval(id)
       try { controller.abort() } catch {}
     }
-  }, [instrument?.symbol, tf.secs])
+  }, [instrument?.symbol, tf.secs, limit])
 
   // ── Ref callback – fires when the container DIV is first added to the DOM ──
   const setContainer = useCallback((el) => {
@@ -100,6 +122,9 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
           textColor:    '#94a3b8',
           timeVisible:  true,
           secondsVisible: false,
+          rightOffset:  6,
+          barSpacing:   8,
+          minBarSpacing: 2,
         },
         crosshair: { mode: CrosshairMode.Normal },
         handleScroll:  true,
@@ -129,6 +154,8 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
       seriesRef.current   = series
       bidLineRef.current  = bidLine
 
+      setChartInitDone(true)
+
       const ro = new ResizeObserver(() => {
         if (!chartApiRef.current || !el.parentElement) return
         chart.applyOptions({ width: el.clientWidth, height: el.clientHeight })
@@ -147,8 +174,44 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
       chartApiRef.current = null
       seriesRef.current   = null
       bidLineRef.current  = null
+      setChartInitDone(false)
     }
   }, [chartReady])
+
+  // ── Auto-load more history when user pans near the left edge ─────────────
+  useEffect(() => {
+    const chart = chartApiRef.current
+    if (!chartInitDone || !chart) return
+
+    const timeScale = chart.timeScale()
+    const handler = (range) => {
+      if (!range) return
+      const currentCandles = candlesRef.current
+      if (!currentCandles || currentCandles.length < 30) return
+
+      const firstTime = Number(currentCandles[0]?.time)
+      if (!Number.isFinite(firstTime)) return
+
+      // If the visible range is approaching the earliest candle, request more.
+      const nearLeftEdge = Number(range.from) <= (firstTime + tf.secs * 10)
+      if (!nearLeftEdge) return
+
+      const currentLimit = limitRef.current
+      if (currentLimit >= 500) return
+      if (fetchingRef.current) return
+
+      const now = Date.now()
+      if (now - lastLoadMoreAtRef.current < 1500) return
+      lastLoadMoreAtRef.current = now
+
+      setLimit((prev) => Math.min(500, prev + 200))
+    }
+
+    try { timeScale.subscribeVisibleTimeRangeChange(handler) } catch { return }
+    return () => {
+      try { timeScale.unsubscribeVisibleTimeRangeChange(handler) } catch {}
+    }
+  }, [chartInitDone, tf.secs])
 
   // ── Push candle data whenever it changes ──────────────────────────────────
   useEffect(() => {
@@ -157,8 +220,15 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
     if (!series || !chart) return
     if (candles.length === 0) return
     try {
+      const ts = chart.timeScale()
+      const existingRange = didInitialFitRef.current ? ts.getVisibleRange() : null
       series.setData(candles)
-      chart.timeScale().fitContent()
+      if (!didInitialFitRef.current) {
+        ts.fitContent()
+        didInitialFitRef.current = true
+      } else if (existingRange) {
+        ts.setVisibleRange(existingRange)
+      }
     } catch {}
   }, [candles])
 

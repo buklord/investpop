@@ -14,25 +14,23 @@ function getBasePrice(symbol) {
   return Number(BASE_PRICES[sym]) || 1
 }
 
-// Deterministic-ish seed per symbol so candles look stable across requests
-function seededRng(seedStr) {
+// Stable pseudo-random in [0, 1) for a string key.
+// This is intentionally stateless so adding more history doesn't change newer candles.
+function unitRand(key) {
   let h = 2166136261
-  for (let i = 0; i < seedStr.length; i++) {
-    h ^= seedStr.charCodeAt(i)
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
     h = Math.imul(h, 16777619)
   }
-  return () => {
-    // xorshift32
-    h ^= h << 13
-    h ^= h >>> 17
-    h ^= h << 5
-    return ((h >>> 0) / 4294967296)
-  }
+  // xorshift32 mix
+  h ^= h << 13
+  h ^= h >>> 17
+  h ^= h << 5
+  return ((h >>> 0) / 4294967296)
 }
 
 function generateCandles({ symbol, tfSecs, limit }) {
   const sym = String(symbol || '').toUpperCase()
-  const rng = seededRng(`${sym}:${tfSecs}`)
 
   const nowSec = Math.floor(Date.now() / 1000)
   const end = Math.floor(nowSec / tfSecs) * tfSecs
@@ -44,24 +42,31 @@ function generateCandles({ symbol, tfSecs, limit }) {
   const isFx = sym.length === 6 && /[A-Z]{6}/.test(sym)
   const isIndex = /\d/.test(sym)
   const vol = isFx ? 0.0008 : isIndex ? 0.002 : 0.004
-
-  let lastClose = base
   const candles = []
 
+  function priceAt(t) {
+    const k = `${sym}:${tfSecs}:${t}`
+    const n1 = unitRand(`${k}:n1`) - 0.5
+    const n2 = unitRand(`${k}:n2`) - 0.5
+
+    // Slow oscillation + noise; keep it subtle so it doesn't look ridiculous.
+    const wave = Math.sin(t / (tfSecs * 22)) * 0.6 + Math.sin(t / (tfSecs * 67)) * 0.4
+    const pct = (wave * vol * 18) + (n1 * vol * 10) + (n2 * vol * 4)
+
+    return Math.max(0.000001, base * (1 + pct))
+  }
+
   for (let t = start; t < end; t += tfSecs) {
-    const open = lastClose
+    const open = priceAt(t)
+    const close = priceAt(t + Math.floor(tfSecs * 0.85))
 
-    // Random walk
-    const drift = (rng() - 0.5) * vol * open
-    const close = Math.max(0.000001, open + drift)
-
-    // Wick range
-    const wick = Math.abs((rng() - 0.5) * vol * open) * 2.5
+    const wickBase = Math.max(open, close)
+    const w = Math.abs(unitRand(`${sym}:${tfSecs}:${t}:w`) - 0.5)
+    const wick = w * vol * wickBase * 6
     const high = Math.max(open, close) + wick
     const low = Math.max(0.000001, Math.min(open, close) - wick)
 
     candles.push({ time: t, open, high, low, close })
-    lastClose = close
   }
 
   return candles
