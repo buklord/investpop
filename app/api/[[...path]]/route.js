@@ -388,20 +388,10 @@ async function handleRoute(request, context) {
   const route = `/${segments.join('/')}`
   const method = request.method
 
-  // Only register/login need to await schema init (to ensure users + virtual_accounts
-  // tables exist before the first INSERT). /auth/me and all other routes must NOT
-  // await it — any hanging ALTER TABLE would block the spinner indefinitely.
-  // A 30-second timeout prevents indefinite blocking when Supabase is waking up.
-  if (route === '/auth/register' || route === '/auth/login') {
-    await Promise.race([
-      getSchemaInitPromise(),
-      new Promise(resolve => setTimeout(resolve, 30000))
-    ])
-  } else if (route === '/auth/me' || route === '/health') {
-    // These endpoints should not kick off schema work. When DB credentials are
-    // wrong, schema init can trigger many failed auth attempts and degrade UX.
-  } else {
-    // For all other routes kick off (or reuse) the background init — non-blocking.
+  // Schema init runs once per process in the background — never block any route on it.
+  // Tables already exist in production; blocking login on ~50 sequential DDL statements
+  // causes timeouts when Supabase is waking up after a restore.
+  if (route !== '/auth/me' && route !== '/health') {
     getSchemaInitPromise()
   }
 
