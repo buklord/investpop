@@ -65,9 +65,27 @@ const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 // prevent the others from running (e.g. ALTER TYPE failing inside a
 // transaction must not block deposit_requests table creation).
 async function ensureSchemaExtensions() {
-  // Delay start so any in-flight login/register queries complete before
-  // ALTER TABLE statements grab ACCESS EXCLUSIVE locks on the users table.
-  await new Promise(resolve => setTimeout(resolve, 5000))
+  // Fast-path: if the schema is already fully migrated (kyc_status column exists
+  // on users and market_prices table exists), skip ALL DDL — no locks, no delay.
+  // This is the normal path for every request on an established production DB.
+  try {
+    const [colCheck, tableCheck] = await Promise.all([
+      prisma.$queryRawUnsafe(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_name='users' AND column_name='kyc_status' LIMIT 1`
+      ),
+      prisma.$queryRawUnsafe(
+        `SELECT 1 FROM information_schema.tables
+         WHERE table_name='market_prices' LIMIT 1`
+      )
+    ])
+    if (colCheck.length > 0 && tableCheck.length > 0) {
+      // Schema is current — nothing to do
+      return
+    }
+  } catch (_) {
+    // DB unreachable? Let the rest of the function fail gracefully.
+  }
 
   const isFatalDbAuthError = (err) => {
     const msg = (err?.message || '').toLowerCase()
@@ -88,10 +106,6 @@ async function ensureSchemaExtensions() {
       if (isFatalDbAuthError(err)) abort = true
     }
   }
-
-  // Set a short lock_timeout so ALTER TABLE never blocks active queries.
-  // If a lock can't be acquired within 2s the statement fails and continues.
-  await run(`SET lock_timeout = '2000'`, 'set lock_timeout')
 
   // ── IMPORTANT: All id/user_id columns use TEXT to match Prisma's String @id
   // mapping.  Prisma stores UUIDs as plain text strings; using the postgres UUID
