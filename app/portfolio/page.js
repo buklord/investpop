@@ -7,21 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { 
-  BarChart3, 
   TrendingUp, 
-  TrendingDown, 
   Menu,
-  X,
-  Home,
   Activity,
   PieChart,
-  LogOut,
   RefreshCw,
-  DollarSign,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight
+  Loader2
 } from 'lucide-react'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function PortfolioPage() {
   const router = useRouter()
@@ -109,11 +102,6 @@ export default function PortfolioPage() {
     setRefreshing(false)
   }
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/')
-  }
-
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -121,6 +109,13 @@ export default function PortfolioPage() {
       minimumFractionDigits: 2
     }).format(value || 0)
   }
+
+  const cashBalance = account?.balance ?? 0
+  const availableCash = account?.available ?? cashBalance
+  const openPnl = account?.openPnl ?? 0
+  const realizedPnl = account?.realizedPnl ?? 0
+  const totalPnl = openPnl + realizedPnl
+  const equity = account?.equity ?? (cashBalance + openPnl)
 
   // Calculate allocation
   const stocksValue = openPositions
@@ -142,75 +137,21 @@ export default function PortfolioPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <div className="animate-pulse text-white text-xl">Loading...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
   }
 
-  const Sidebar = () => (
-    <div className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-[#161b22] border-r border-slate-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-200`}>
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-slate-800">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">PaperTrade</span>
-            </Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="mt-2 px-2 py-1 bg-emerald-500/10 rounded text-emerald-400 text-xs text-center">
-            Paper Trading (Simulation)
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-1">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <Home className="h-5 w-5" />
-            Dashboard
-          </Link>
-          <Link
-            href="/markets"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <Activity className="h-5 w-5" />
-            Markets
-          </Link>
-          <Link
-            href="/portfolio"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-emerald-600/20 text-emerald-400"
-          >
-            <PieChart className="h-5 w-5" />
-            Portfolio
-          </Link>
-        </nav>
-        
-        <div className="p-4 border-t border-slate-800">
-          <div className="text-sm text-slate-400 mb-2 truncate">{user?.email}</div>
-          <Button
-            variant="ghost"
-            onClick={handleLogout}
-            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
-      <Sidebar />
+      <AppSidebar
+        currentPage="/portfolio"
+        user={user}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
       
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {/* Mobile header */}
         <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-4 flex items-center justify-between">
           <button onClick={() => setSidebarOpen(true)} className="text-white">
@@ -247,63 +188,48 @@ export default function PortfolioPage() {
           </div>
 
           {/* Account Summary */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-5 w-5 text-blue-500" />
+          <div className="mb-8">
+            <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/40 border border-slate-700 rounded-xl">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${equity >= 0 ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
+                      <TrendingUp className={`h-5 w-5 ${equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-wide">Total equity</div>
+                      <div className="text-3xl sm:text-4xl font-bold text-white truncate">{formatCurrency(equity)}</div>
+                      <div className="text-xs text-slate-500 mt-1">Cash + open P&amp;L</div>
+                    </div>
                   </div>
-                  <span className="text-slate-400 text-sm">Cash Balance</span>
-                </div>
-                <div className="text-2xl font-bold text-white">
-                  {formatCurrency(account?.balance)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <Wallet className="h-5 w-5 text-purple-500" />
+
+                  <div className={`self-start px-3 py-1 rounded-full text-xs font-semibold border ${totalPnl >= 0 ? 'text-emerald-300 border-emerald-700/50 bg-emerald-500/10' : 'text-red-300 border-red-700/50 bg-red-500/10'}`}>
+                    {(totalPnl >= 0 ? '+' : '')}{formatCurrency(totalPnl)} P&amp;L
                   </div>
-                  <span className="text-slate-400 text-sm">Total Equity</span>
                 </div>
-                <div className="text-2xl font-bold text-white">
-                  {formatCurrency(account?.equity)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-10 h-10 ${(account?.openPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                    {(account?.openPnl || 0) >= 0 ? (
-                      <ArrowUpRight className="h-5 w-5 text-emerald-500" />
-                    ) : (
-                      <ArrowDownRight className="h-5 w-5 text-red-500" />
-                    )}
+
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3">
+                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Cash</div>
+                    <div className="text-base sm:text-lg font-semibold text-white truncate">{formatCurrency(cashBalance)}</div>
+                    <div className="text-xs text-slate-500 mt-1">After realized P&amp;L</div>
                   </div>
-                  <span className="text-slate-400 text-sm">Open P&L</span>
-                </div>
-                <div className={`text-2xl font-bold ${(account?.openPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl)}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-[#161b22] border-slate-800">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-10 h-10 ${(account?.realizedPnl || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'} rounded-lg flex items-center justify-center`}>
-                    <TrendingUp className={`h-5 w-5 ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+
+                  <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3">
+                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Available</div>
+                    <div className="text-base sm:text-lg font-semibold text-white truncate">{formatCurrency(availableCash)}</div>
+                    <div className="text-xs text-slate-500 mt-1">Ready to trade</div>
                   </div>
-                  <span className="text-slate-400 text-sm">Realized P&L</span>
-                </div>
-                <div className={`text-2xl font-bold ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl)}
+
+                  <div className="rounded-lg bg-slate-900/30 border border-slate-700/40 p-3 hidden sm:block">
+                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Breakdown</div>
+                    <div className="text-sm font-semibold text-white truncate">
+                      {(openPnl >= 0 ? '+' : '')}{formatCurrency(openPnl)} open
+                    </div>
+                    <div className="text-sm font-semibold text-white truncate">
+                      {(realizedPnl >= 0 ? '+' : '')}{formatCurrency(realizedPnl)} realized
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -423,7 +349,7 @@ export default function PortfolioPage() {
                                   </div>
                                 </td>
                                 <td className="p-4 text-center">
-                                  <Link href={`/asset/${pos.symbol}?type=${pos.type}`}>
+                                  <Link href={`/markets?select=${pos.symbol}&type=${pos.type}`}>
                                     <Button size="sm" variant="outline" className="border-slate-700 text-white hover:bg-slate-700">
                                       Trade
                                     </Button>

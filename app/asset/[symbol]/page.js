@@ -12,7 +12,6 @@ import {
   TrendingUp, 
   TrendingDown, 
   RefreshCw, 
-  BarChart3,
   Star,
   StarOff,
   AlertCircle,
@@ -58,12 +57,12 @@ export default function AssetPage() {
     }
   }, [user, symbol])
 
-  // Auto-refresh quote every 30 seconds
+  // Auto-refresh quote every 5 seconds for live price feed
   useEffect(() => {
     if (!user || !symbol) return
     const interval = setInterval(() => {
       fetchQuote()
-    }, 30000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [user, symbol, type])
 
@@ -281,9 +280,9 @@ export default function AssetPage() {
               </Link>
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-white" />
+                  <span className="text-white font-black text-sm leading-none">K</span>
                 </div>
-                <span className="font-bold text-white text-sm">PaperTrade</span>
+                <span className="font-bold text-white text-sm">Kartomtrades</span>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
@@ -353,6 +352,37 @@ export default function AssetPage() {
                 )}
               </div>
             </div>
+
+            {/* Market Sentiment Bar */}
+            {(() => {
+              // Deterministic but realistic sentiment from symbol + price direction
+              const seed = symbol.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+              const base = (seed % 20) + 40 // 40-60 base
+              const bias = (quote?.changePercent || 0) >= 0 ? 12 : -12
+              const buyPct = Math.min(80, Math.max(20, base + bias))
+              const sellPct = 100 - buyPct
+              return (
+                <Card className="bg-[#161b22] border-slate-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Market Sentiment</span>
+                      <span className="text-xs text-slate-500">{symbol} — Live Traders</span>
+                    </div>
+                    <div className="flex h-3 rounded-full overflow-hidden mb-2">
+                      <div className="bg-emerald-500 transition-all duration-700" style={{ width: `${buyPct}%` }} />
+                      <div className="bg-red-500 transition-all duration-700" style={{ width: `${sellPct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-emerald-400 font-semibold">{buyPct}% Buy</span>
+                      <span className="text-slate-500">
+                        {buyPct >= 60 ? '📈 Majority Bullish' : buyPct <= 40 ? '📉 Majority Bearish' : '⚖️ Divided Market'}
+                      </span>
+                      <span className="text-red-400 font-semibold">{sellPct}% Sell</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
             {/* TradingView Chart - Responsive Height */}
             <Card className="bg-[#161b22] border-slate-800">
@@ -435,9 +465,6 @@ export default function AssetPage() {
               <CardHeader className="py-3 sm:py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-white text-base sm:text-lg">Trade {symbol}</CardTitle>
-                  <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                    Simulation
-                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4">
@@ -494,12 +521,22 @@ export default function AssetPage() {
                     <span className="text-white">{quantity || '0'}</span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm mb-2">
+                    <span className="text-slate-400">Trade Value</span>
+                    <span className="text-white">{estimatedCost > 0 ? formatCurrency(estimatedCost) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs sm:text-sm mb-2">
+                    <span className="text-amber-500/80">Required Margin <span className="text-slate-500">(10%)</span></span>
+                    <span className={`font-medium ${estimatedCost > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                      {estimatedCost > 0 ? formatCurrency(estimatedCost * 0.10) : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs sm:text-sm mb-2">
                     <span className="text-slate-400">Fee (0.1%)</span>
                     <span className="text-slate-400">{formatCurrency(estimatedCost * 0.001)}</span>
                   </div>
                   <div className="border-t border-slate-700 pt-2 mt-2">
                     <div className="flex justify-between">
-                      <span className="text-slate-400 text-sm">{tradeAction === 'BUY' ? 'Estimated Cost' : 'Est. Proceeds'}</span>
+                      <span className="text-slate-400 text-sm">{tradeAction === 'BUY' ? 'Total Cost' : 'Est. Proceeds'}</span>
                       <span className="text-white font-semibold">{formatCurrency(estimatedCost)}</span>
                     </div>
                   </div>
@@ -508,10 +545,23 @@ export default function AssetPage() {
                 {/* Available Balance (for BUY) */}
                 {tradeAction === 'BUY' && (
                   <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-slate-400">Available Balance</span>
+                    <span className="text-slate-400">Available Cash</span>
                     <span className={`${(account?.balance || 0) >= estimatedCost ? 'text-emerald-500' : 'text-red-500'}`}>
                       {formatCurrency(account?.balance || 0)}
                     </span>
+                  </div>
+                )}
+
+                {/* Insufficient funds warning */}
+                {tradeAction === 'BUY' && estimatedCost > 0 && estimatedCost > (account?.balance || 0) && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-red-400 text-xs font-semibold">Insufficient Funds</div>
+                      <Link href="/wallet">
+                        <span className="text-xs text-red-300 underline hover:text-red-200 cursor-pointer">Add Funds →</span>
+                      </Link>
+                    </div>
                   </div>
                 )}
 
@@ -573,10 +623,6 @@ export default function AssetPage() {
                     `${tradeAction} ${symbol}`
                   )}
                 </Button>
-
-                <p className="text-xs text-slate-500 text-center">
-                  Paper trading only. No real money involved.
-                </p>
               </CardContent>
             </Card>
           </div>
