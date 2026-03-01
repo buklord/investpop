@@ -65,6 +65,10 @@ const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 // prevent the others from running (e.g. ALTER TYPE failing inside a
 // transaction must not block deposit_requests table creation).
 async function ensureSchemaExtensions() {
+  // Delay start so any in-flight login/register queries complete before
+  // ALTER TABLE statements grab ACCESS EXCLUSIVE locks on the users table.
+  await new Promise(resolve => setTimeout(resolve, 5000))
+
   const isFatalDbAuthError = (err) => {
     const msg = (err?.message || '').toLowerCase()
     return (
@@ -84,6 +88,10 @@ async function ensureSchemaExtensions() {
       if (isFatalDbAuthError(err)) abort = true
     }
   }
+
+  // Set a short lock_timeout so ALTER TABLE never blocks active queries.
+  // If a lock can't be acquired within 2s the statement fails and continues.
+  await run(`SET lock_timeout = '2000'`, 'set lock_timeout')
 
   // ── IMPORTANT: All id/user_id columns use TEXT to match Prisma's String @id
   // mapping.  Prisma stores UUIDs as plain text strings; using the postgres UUID
