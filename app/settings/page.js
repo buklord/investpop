@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  BarChart3,
   Menu,
   Settings,
   Shield,
@@ -109,9 +108,9 @@ export default function SettingsPage() {
           </button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-4 w-4 text-white" />
+              <span className="text-white font-black text-sm leading-none">K</span>
             </div>
-            <span className="font-bold text-white text-sm">InvestPop</span>
+            <span className="font-bold text-white text-sm">Kartomtrades</span>
           </div>
           <div className="w-8" />
         </div>
@@ -240,12 +239,12 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                About InvestPop
+                About Kartomtrades
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-slate-400 text-sm leading-relaxed">
-                InvestPop is a professional trading platform for stocks and crypto.
+                Kartomtrades is a professional trading platform for stocks and crypto.
                 Trading fees and slippage are applied to closely mirror real market conditions.
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">

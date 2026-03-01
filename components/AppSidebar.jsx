@@ -8,7 +8,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Separator } from '@/components/ui/separator'
 import {
-  BarChart3,
   X,
   Home,
   Activity,
@@ -157,9 +156,9 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <BarChart3 className="h-5 w-5 text-white" />
+                <span className="text-white font-black text-lg leading-none">K</span>
               </div>
-              {!collapsed && <span className="text-xl font-bold text-white truncate">InvestPop</span>}
+              {!collapsed && <span className="text-xl font-bold text-white truncate">Kartomtrades</span>}
             </Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 ml-auto">
               <X className="h-5 w-5" />

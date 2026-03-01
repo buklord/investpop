@@ -2,7 +2,7 @@ import './globals.css'
 import Script from 'next/script'
 
 export const metadata = {
-  title: 'InvestPop - Live Trading Platform',
+  title: 'Kartomtrades - Live Trading Platform',
   description: 'A professional trading platform for stocks and crypto',
 }
 

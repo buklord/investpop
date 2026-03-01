@@ -457,9 +457,9 @@ function MarketsPageContent() {
       <div className="hidden lg:flex bg-[#0d1117] border-b border-slate-800 px-4 h-11 items-center gap-6 flex-shrink-0 z-40">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="h-3 w-3 text-white" />
+            <span className="text-white font-black text-[10px] leading-none">K</span>
           </div>
-          <span className="text-sm font-bold text-white">InvestPop</span>
+          <span className="text-sm font-bold text-white">Kartomtrades</span>
         </div>
         <div className="h-4 w-px bg-slate-700" />
         <div className="flex items-center gap-6 text-xs">

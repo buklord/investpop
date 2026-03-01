@@ -1,10 +1,10 @@
 {
-  "name": "InvestPop",
+  "name": "Kartomtrades",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
   "forwardPorts": [3000],
   "portsAttributes": {
     "3000": {
-      "label": "InvestPop App",
+      "label": "Kartomtrades App",
       "onAutoForward": "openBrowser",
       "visibility": "public"
     }

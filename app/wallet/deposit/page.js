@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
-  BarChart3,
   Menu,
   ArrowLeft,
   CheckCircle,
@@ -182,7 +181,7 @@ export default function DepositPage() {
           <button onClick={() => setSidebarOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-4 w-4 text-white" />
+              <span className="text-white font-black text-sm leading-none">K</span>
             </div>
             <span className="font-bold text-white text-sm">Deposit Funds</span>
           </div>
@@ -198,7 +197,7 @@ export default function DepositPage() {
 
           <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">Deposit Funds</h1>
           <p className="text-slate-400 text-sm mb-6">
-            Send crypto to your InvestPop wallet. Funds are credited after admin verification.
+            Send crypto to your Kartomtrades wallet. Funds are credited after admin verification.
           </p>
 
           {/* Step 1: Select amount + method */}

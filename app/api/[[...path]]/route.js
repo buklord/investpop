@@ -453,7 +453,7 @@ async function handleRoute(request, context) {
     // ============ ROOT ENDPOINT ============
     if ((route === '/' || route === '/root') && method === 'GET') {
       return handleCORS(NextResponse.json({ 
-        message: 'InvestPop Trading API',
+        message: 'Kartomtrades Trading API',
         version: '2.2.0',
         features: ['trading_fees', 'slippage_simulation', 'weighted_average_entry', 'account_snapshots']
       }))

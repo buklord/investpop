@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   TrendingUp, 
   TrendingDown, 
-  BarChart3, 
   Wallet,
   LineChart,
   Shield,
@@ -251,9 +250,9 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-white" />
+                <span className="text-white font-black text-lg leading-none">K</span>
               </div>
-              <span className="text-xl font-bold text-white">InvestPop</span>
+              <span className="text-xl font-bold text-white">Kartomtrades</span>
             </div>
 
             <div className="hidden lg:flex items-center gap-8">
@@ -354,7 +353,7 @@ export default function HomePage() {
                     <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
                     <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
                   </div>
-                  <span className="text-slate-400 text-xs ml-2">InvestPop Terminal — BTC/USD</span>
+                  <span className="text-slate-400 text-xs ml-2">Kartomtrades Terminal — BTC/USD</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
                   <Activity className="h-3 w-3" />
@@ -551,7 +550,7 @@ export default function HomePage() {
       <section id="features" className="py-16 px-4 bg-[#0d1421]">
         <div className="container mx-auto">
           <div className="text-center mb-10">
-            <div className="text-xs text-emerald-400 font-semibold uppercase tracking-widest mb-3">Why InvestPop</div>
+            <div className="text-xs text-emerald-400 font-semibold uppercase tracking-widest mb-3">Why Kartomtrades</div>
             <h2 className="text-3xl font-bold text-white">Built for serious traders</h2>
           </div>
 
@@ -603,9 +602,9 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-5 w-5 text-white" />
+                  <span className="text-white font-black text-lg leading-none">K</span>
                 </div>
-                <span className="text-xl font-bold text-white">InvestPop</span>
+                <span className="text-xl font-bold text-white">Kartomtrades</span>
               </div>
               <p className="text-slate-500 text-xs max-w-xs leading-relaxed">
                 A professional-grade simulated trading platform for education and practice. Not a licensed financial advisor.
@@ -661,9 +660,9 @@ export default function HomePage() {
             <CardHeader>
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-white" />
+                  <span className="text-white font-black text-sm leading-none">K</span>
                 </div>
-                <span className="text-white font-bold">InvestPop</span>
+                <span className="text-white font-bold">Kartomtrades</span>
               </div>
               <CardTitle className="text-white text-xl">
                 {authMode === 'login' ? 'Welcome Back' : 'Create Account'}

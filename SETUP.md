@@ -1,4 +1,4 @@
-# InvestPop — Setup & Deployment Guide
+# Kartomtrades — Setup & Deployment Guide
 
 ---
 
@@ -107,7 +107,7 @@ Replace `your@email.com` with your account email. After running it, log out and 
 
 ## 🚀 Deploy to Vercel (Go Live — Public URL)
 
-Vercel gives you a free public URL (e.g. `investpop.vercel.app`) that anyone can visit — no Codespaces required.
+Vercel gives you a free public URL (e.g. `kartomtrades.vercel.app`) that anyone can visit — no Codespaces required.
 
 ### Step 1 — Merge this branch first
 In GitHub, open the Pull Request for `copilot/add-live-trade-monitor` and click **Merge**. This puts all your code onto `main`.
@@ -117,7 +117,7 @@ Go to **[vercel.com](https://vercel.com)** and sign up with your GitHub account 
 
 ### Step 3 — Import your repository
 1. Click **"Add New… → Project"**
-2. Select the `ay4real5/investpop` repository
+2. Select your GitHub repository (e.g. `buklord/<your-repo>`)
 3. Vercel auto-detects **Next.js** — click **Deploy**
 
 ### Step 4 — Add Environment Variables
@@ -127,7 +127,7 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 |---|---|
 | `DATABASE_URL` | Supabase → Project → Settings → Database → **Transaction pooler** connection string |
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
-| `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://investpop.vercel.app` |
+| `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://kartomtrades.vercel.app` |
 | `NEXT_PUBLIC_TAWK_SRC` | `https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk` (already configured — just paste this) |
 
 > 💡 `DIRECT_URL` is **no longer required** — only `DATABASE_URL` is needed.

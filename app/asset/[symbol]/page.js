@@ -12,7 +12,6 @@ import {
   TrendingUp, 
   TrendingDown, 
   RefreshCw, 
-  BarChart3,
   Star,
   StarOff,
   AlertCircle,
@@ -281,9 +280,9 @@ export default function AssetPage() {
               </Link>
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-white" />
+                  <span className="text-white font-black text-sm leading-none">K</span>
                 </div>
-                <span className="font-bold text-white text-sm">InvestPop</span>
+                <span className="font-bold text-white text-sm">Kartomtrades</span>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
