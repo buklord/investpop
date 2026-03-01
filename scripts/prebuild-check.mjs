@@ -1,5 +1,8 @@
 import net from 'node:net'
 
+// Skip port check on Vercel / CI environments
+if (process.env.VERCEL || process.env.CI) process.exit(0)
+
 const PORT = Number(process.env.NEXT_DEV_PORT || 3000)
 
 const server = net.createServer()
