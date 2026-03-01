@@ -146,9 +146,10 @@ export default function HomePage() {
 
     setSubmitting(true)
 
-    // 20-second timeout — prevents indefinite hang when DB is paused/waking up
+    // 60-second timeout — gives schema init time to complete on first request
+    // after a server restart or Supabase restore (schema migrations run once per process)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
 
     try {
       const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
