@@ -5,38 +5,18 @@ import { formatPrice, getPipSize } from '@/lib/trading/pips'
 
 // ── Timeframe config ─────────────────────────────────────────────────────────
 const TIMEFRAMES = [
-  { label: '1m',  bucketSecs: 60     },
-  { label: '5m',  bucketSecs: 300    },
-  { label: '1H',  bucketSecs: 3600   },
-  { label: '5H',  bucketSecs: 18000  },
-  { label: '1D',  bucketSecs: 86400  },
-  { label: '1W',  bucketSecs: 604800 },
+  { label: '1m', secs: 60 },
+  { label: '5m', secs: 300 },
+  { label: '1H', secs: 3600 },
+  { label: '5H', secs: 18000 },
+  { label: '1D', secs: 86400 },
+  { label: '1W', secs: 604800 },
 ]
 
-function buildCandles(ticks, bucketSecs) {
-  if (!Array.isArray(ticks) || ticks.length === 0) return []
-  const map = new Map()
-  for (const tick of ticks) {
-    const mid = Number(tick?.mid)
-    const t = Number(tick?.t)
-    if (!Number.isFinite(mid) || mid <= 0) continue
-    if (!Number.isFinite(t) || t <= 0) continue
-    const time = Math.floor(t / 1000 / bucketSecs) * bucketSecs
-    if (!map.has(time)) {
-      map.set(time, { time, open: mid, high: mid, low: mid, close: mid })
-    } else {
-      const c = map.get(time)
-      c.high  = Math.max(c.high, mid)
-      c.low   = Math.min(c.low, mid)
-      c.close = mid
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => a.time - b.time)
-}
-
-export default function InstrumentChart({ ticks = [], instrument, quote, onBuy, onSell }) {
+export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const [tfIdx, setTfIdx] = useState(1) // default 5m
   const [chartReady, setChartReady] = useState(false)
+  const [candles, setCandles] = useState([])
 
   const containerRef  = useRef(null)
   const chartApiRef   = useRef(null)
@@ -46,12 +26,37 @@ export default function InstrumentChart({ ticks = [], instrument, quote, onBuy, 
 
   const tf = TIMEFRAMES[tfIdx]
 
-  const candles = useMemo(() => buildCandles(ticks, tf.bucketSecs), [ticks, tf.bucketSecs])
-
   const pipSize = useMemo(
     () => getPipSize({ symbolId: instrument?.symbol, type: instrument?.type }),
     [instrument?.symbol, instrument?.type]
   )
+
+  // ── Fetch candles (cached server-side) ──────────────────────────────────
+  useEffect(() => {
+    if (!instrument?.symbol) return
+    let alive = true
+    const controller = new AbortController()
+
+    async function load() {
+      try {
+        const url = `/api/market/candles/${encodeURIComponent(instrument.symbol)}?tf=${tf.secs}&limit=200`
+        const res = await fetch(url, { signal: controller.signal })
+        if (!res.ok) return
+        const data = await res.json().catch(() => null)
+        if (!alive || !data) return
+        const next = Array.isArray(data.candles) ? data.candles : []
+        setCandles(next)
+      } catch {}
+    }
+
+    load()
+    const id = setInterval(load, 30_000) // client refresh; server cache is 60s
+    return () => {
+      alive = false
+      clearInterval(id)
+      try { controller.abort() } catch {}
+    }
+  }, [instrument?.symbol, tf.secs])
 
   // ── Ref callback – fires when the container DIV is first added to the DOM ──
   const setContainer = useCallback((el) => {

@@ -60,7 +60,6 @@ export default function MarketsPage() {
   const [search, setSearch]           = useState('')
 
   const [selected, setSelected]       = useState(null)
-  const [chartTicks, setChartTicks]   = useState([])
 
   const [ticket, setTicket]           = useState(null)
   const [positionId, setPositionId]   = useState(null)
@@ -134,22 +133,7 @@ export default function MarketsPage() {
     if (!selected && assets.length > 0) setSelected(assets[0])
   }, [assets, selected])
 
-  // ── Chart ticks for selected instrument ───────────────────────────────────
-  useEffect(() => {
-    if (!selected?.symbol) return
-    let alive = true
-    async function load() {
-      try {
-        const res = await fetch('/api/market/history/' + encodeURIComponent(selected.symbol) + '?limit=500')
-        if (!res.ok) return
-        const d = await res.json()
-        if (alive) setChartTicks(d.history || [])
-      } catch {}
-    }
-    load()
-    const id = setInterval(load, 2000)
-    return () => { alive = false; clearInterval(id) }
-  }, [selected?.symbol])
+  // Chart data is fetched by InstrumentChart via /api/market/candles/*
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -354,7 +338,6 @@ export default function MarketsPage() {
           {selected ? (
             <InstrumentChart
               key={selected.symbol}
-              ticks={chartTicks}
               instrument={selected}
               quote={selectedQuote}
               onSell={() => openTicket(selected, 'SELL')}
