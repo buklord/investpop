@@ -2,9 +2,6 @@ import { NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const rawSecret = process.env.SESSION_SECRET
-if (!rawSecret && process.env.NODE_ENV === 'production') {
-  throw new Error('SESSION_SECRET environment variable must be set in production')
-}
 const SECRET_KEY = new TextEncoder().encode(
   rawSecret || 'fallback-secret-key-change-in-production'
 )
