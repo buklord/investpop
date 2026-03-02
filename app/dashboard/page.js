@@ -189,22 +189,23 @@ export default function DashboardPage() {
   }
 
   const fetchQuotesParallel = async (symbolTypes) => {
-    const newQuotes = {}
-    const promises = symbolTypes.map(async (st) => {
-      const [symbol, type] = st.split(':')
-      try {
-        const res = await fetch(`/api/quote?symbol=${symbol}&type=${type}`)
-        if (res.ok) {
-          const data = await res.json()
-          return { symbol, data }
-        }
-      } catch (err) {}
-      return null
-    })
-    
-    const results = await Promise.all(promises)
-    results.forEach(r => { if (r) newQuotes[r.symbol] = r.data })
-    setQuotes(prev => ({ ...prev, ...newQuotes }))
+    if (!symbolTypes || symbolTypes.length === 0) return
+
+    try {
+      // Format: "AAPL,stock|BTCUSD,crypto|MSFT,stock"
+      const symbolsParam = symbolTypes
+        .map(st => {
+          const [symbol, type] = st.split(':')
+          return `${symbol},${type || 'stock'}`
+        })
+        .join('|')
+
+      const res = await fetch(`/api/quotes/batch?symbols=${encodeURIComponent(symbolsParam)}`)
+      if (!res.ok) return
+      const data = await res.json()
+
+      setQuotes(prev => ({ ...prev, ...(data?.quotes || {}) }))
+    } catch (_) {}
   }
 
   const refreshData = async () => {

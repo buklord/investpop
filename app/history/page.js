@@ -115,15 +115,19 @@ export default function HistoryPage() {
       // Fetch quotes for open positions
       const symbols = [...new Set((openData.positions || []).map(p => `${p.symbol}:${p.type}`))]
       if (symbols.length > 0) {
-        const qs = {}
-        await Promise.all(symbols.map(async st => {
-          const [sym, typ] = st.split(':')
-          try {
-            const r = await fetch(`/api/quote?symbol=${sym}&type=${typ}`)
-            if (r.ok) qs[sym] = (await r.json())
-          } catch {}
-        }))
-        setQuotes(qs)
+        try {
+          const symbolsParam = symbols
+            .map(st => {
+              const [sym, typ] = st.split(':')
+              return `${sym},${typ || 'stock'}`
+            })
+            .join('|')
+          const r = await fetch(`/api/quotes/batch?symbols=${encodeURIComponent(symbolsParam)}`)
+          if (r.ok) {
+            const d = await r.json()
+            setQuotes(d?.quotes || {})
+          }
+        } catch {}
       }
     } catch (err) { console.error('Failed to load history:', err) }
   }
@@ -131,15 +135,19 @@ export default function HistoryPage() {
   const refreshQuotes = async () => {
     if (openPositions.length === 0) return
     const symbols = [...new Set(openPositions.map(p => `${p.symbol}:${p.type}`))]
-    const qs = { ...quotes }
-    await Promise.all(symbols.map(async st => {
-      const [sym, typ] = st.split(':')
-      try {
-        const r = await fetch(`/api/quote?symbol=${sym}&type=${typ}`)
-        if (r.ok) qs[sym] = await r.json()
-      } catch {}
-    }))
-    setQuotes({ ...qs })
+    try {
+      const symbolsParam = symbols
+        .map(st => {
+          const [sym, typ] = st.split(':')
+          return `${sym},${typ || 'stock'}`
+        })
+        .join('|')
+      const r = await fetch(`/api/quotes/batch?symbols=${encodeURIComponent(symbolsParam)}`)
+      if (r.ok) {
+        const d = await r.json()
+        setQuotes(prev => ({ ...prev, ...(d?.quotes || {}) }))
+      }
+    } catch {}
   }
 
   const refreshData = async () => {

@@ -99,16 +99,18 @@ export default function AssetPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      // Fetch quote first (most important)
-      await fetchQuote()
-      
-      // Then fetch other data in parallel
+      // Fetch quote + other data in parallel
+      const quotePromise = fetchQuote()
+
       const [accountRes, positionsRes, assetsRes, watchlistRes] = await Promise.all([
         fetch('/api/account'),
         fetch(`/api/positions?status=open&symbol=${symbol}`),
         fetch('/api/assets'),
         fetch('/api/watchlist')
       ])
+
+      // Ensure quote update finishes (best-effort)
+      await quotePromise
       
       if (accountRes.ok) {
         const accountData = await accountRes.json()

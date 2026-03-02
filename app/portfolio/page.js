@@ -80,20 +80,26 @@ export default function PortfolioPage() {
   }
 
   const fetchQuotes = async (symbolTypes) => {
-    const newQuotes = {}
-    for (const st of symbolTypes) {
-      const [symbol, type] = st.split(':')
-      try {
-        const res = await fetch(`/api/quote?symbol=${symbol}&type=${type}`)
-        if (res.ok) {
-          const data = await res.json()
-          newQuotes[symbol] = data
-        }
-      } catch (err) {
-        console.error(`Failed to fetch quote for ${symbol}:`, err)
-      }
+    if (!symbolTypes || symbolTypes.length === 0) {
+      setQuotes({})
+      return
     }
-    setQuotes(newQuotes)
+
+    try {
+      const symbolsParam = symbolTypes
+        .map(st => {
+          const [symbol, type] = st.split(':')
+          return `${symbol},${type || 'stock'}`
+        })
+        .join('|')
+
+      const res = await fetch(`/api/quotes/batch?symbols=${encodeURIComponent(symbolsParam)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setQuotes(data?.quotes || {})
+    } catch (err) {
+      console.error('Failed to fetch batch quotes:', err)
+    }
   }
 
   const refreshData = async () => {

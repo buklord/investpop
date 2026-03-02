@@ -610,7 +610,7 @@ async function handleRoute(request, context) {
       })
 
       // Best-effort email notification (never blocks signup)
-      sendEmail({ to: email, ...welcomeEmail() }).catch(() => {})
+      sendEmail({ to: email, ...welcomeEmail({ firstName: regFirstName, lastName: regLastName }) }).catch(() => {})
 
       response.cookies.set(COOKIE_NAME, token, cookieOptions)
       return handleCORS(response)
