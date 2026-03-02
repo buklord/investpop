@@ -2064,10 +2064,10 @@ async function handleRoute(request, context) {
 
       // Create ledger entry
       const ledgerId = uuidv4()
-      const desc = reason ? `Admin adjustment: ${reason}` : 'Admin balance adjustment'
+      const desc = reason ? `Deposit approved: ${reason}` : 'Deposit approved'
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, account_type, created_at)
-        VALUES (${ledgerId}, ${targetUserId}, 'ADMIN_ADJUSTMENT',
+        VALUES (${ledgerId}, ${targetUserId}, 'DEPOSIT',
           ${numAmount}, ${newRealBalance}, ${desc}, 'REAL', NOW())
       `
 
