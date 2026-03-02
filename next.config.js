@@ -17,16 +17,6 @@ const nextConfig = {
     maxInactiveAge: 10000,
     pagesBufferLength: 2,
   },
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "Content-Security-Policy", value: "frame-ancestors *;" },
-        ],
-      },
-    ];
-  },
 };
 
 module.exports = nextConfig;
