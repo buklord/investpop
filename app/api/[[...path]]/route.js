@@ -10,6 +10,7 @@ import { AccountService } from '@/lib/services/accountService'
 import { TRADING_CONFIG } from '@/lib/services/tradingConfig'
 import * as MarketSim from '@/lib/marketSimulator'
 import { sendEmail } from '@/lib/email'
+import { welcomeEmail, depositDecisionEmail, withdrawalDecisionEmail } from '@/lib/emailTemplates'
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -609,11 +610,7 @@ async function handleRoute(request, context) {
       })
 
       // Best-effort email notification (never blocks signup)
-      sendEmail({
-        to: email,
-        subject: 'Welcome to Kartomtrades',
-        text: `Your account has been created successfully. You can now log in and start trading.`,
-      }).catch(() => {})
+      sendEmail({ to: email, ...welcomeEmail() }).catch(() => {})
 
       response.cookies.set(COOKIE_NAME, token, cookieOptions)
       return handleCORS(response)
@@ -2400,10 +2397,7 @@ async function handleRoute(request, context) {
           const approved = action === 'APPROVE'
           sendEmail({
             to: depEmail,
-            subject: approved ? 'Deposit approved' : 'Deposit rejected',
-            text: approved
-              ? `Your deposit of $${depAmount.toFixed(2)} via ${depMethod} has been approved.`
-              : `Your deposit request via ${depMethod} has been rejected. Please contact support if you have questions.`,
+            ...depositDecisionEmail({ approved, amount: depAmount, method: depMethod }),
           }).catch(() => {})
         }
 
@@ -2547,8 +2541,7 @@ async function handleRoute(request, context) {
           if (to) {
             sendEmail({
               to,
-              subject: 'Withdrawal rejected',
-              text: `Your withdrawal request${wrAmount ? ` for $${wrAmount.toFixed(2)}` : ''}${wrMethod ? ` via ${wrMethod}` : ''} was rejected. Please contact support for details.`,
+              ...withdrawalDecisionEmail({ approved: false, amount: wrAmount, method: wrMethod }),
             }).catch(() => {})
           }
         }
@@ -2630,8 +2623,7 @@ async function handleRoute(request, context) {
           if (to) {
             sendEmail({
               to,
-              subject: 'Withdrawal approved',
-              text: `Your withdrawal of $${Number(r.amount).toFixed(2)}${r.method ? ` via ${String(r.method)}` : ''} has been approved.`,
+              ...withdrawalDecisionEmail({ approved: true, amount: Number(r.amount), method: String(r.method || '') }),
             }).catch(() => {})
           }
         } catch (_) {}
@@ -3134,6 +3126,8 @@ async function handleAdminMarketControl(route, method, body, adminUserId) {
 // Patch handleRoute to include market routes
 const _origHandleRoute = handleRoute
 async function handleRouteWithMarket(request, context) {
+  const perfEnabled = process.env.DEBUG_PERF === '1'
+  const perfStart = perfEnabled ? Date.now() : 0
   const { pathname } = new URL(request.url)
   const segments = pathname.split('/api')[1] || '/'
   const method = request.method.toUpperCase()
@@ -3143,7 +3137,13 @@ async function handleRouteWithMarket(request, context) {
     let body = {}
     try { body = method !== 'GET' ? await request.json() : {} } catch {}
     const result = await handleMarketRoute(segments, method, body, request.url)
-    if (result) return result
+    if (result) {
+      if (perfEnabled) {
+        const ms = Date.now() - perfStart
+        console.log(`[perf] ${method} ${pathname} ${result.status} ${ms}ms`)
+      }
+      return result
+    }
   }
 
   // Admin market control routes
@@ -3153,10 +3153,21 @@ async function handleRouteWithMarket(request, context) {
     let body = {}
     try { body = method !== 'GET' ? await request.json() : {} } catch {}
     const result = await handleAdminMarketControl(segments, method, body, auth.user.userId)
-    if (result) return result
+    if (result) {
+      if (perfEnabled) {
+        const ms = Date.now() - perfStart
+        console.log(`[perf] ${method} ${pathname} ${result.status} ${ms}ms`)
+      }
+      return result
+    }
   }
 
-  return _origHandleRoute(request, context)
+  const res = await _origHandleRoute(request, context)
+  if (perfEnabled) {
+    const ms = Date.now() - perfStart
+    console.log(`[perf] ${method} ${pathname} ${res.status} ${ms}ms`)
+  }
+  return res
 }
 
 // Export all HTTP methods
