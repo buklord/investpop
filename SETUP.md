@@ -129,6 +129,8 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
 | `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://kartomtrades.vercel.app` |
 | `NEXT_PUBLIC_TAWK_SRC` | `https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk` (already configured — just paste this) |
+| `RESEND_API_KEY` | Resend → API Keys (optional; enables email notifications) |
+| `EMAIL_FROM` | Verified sender, e.g. `noreply@yourdomain.com` (optional; enables email notifications) |
 
 > 💡 `DIRECT_URL` is **no longer required** — only `DATABASE_URL` is needed.
 

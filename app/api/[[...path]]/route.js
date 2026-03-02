@@ -9,6 +9,7 @@ import { TradeService } from '@/lib/services/tradeService'
 import { AccountService } from '@/lib/services/accountService'
 import { TRADING_CONFIG } from '@/lib/services/tradingConfig'
 import * as MarketSim from '@/lib/marketSimulator'
+import { sendEmail } from '@/lib/email'
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -606,6 +607,13 @@ async function handleRoute(request, context) {
           currency: 'USD'
         }
       })
+
+      // Best-effort email notification (never blocks signup)
+      sendEmail({
+        to: email,
+        subject: 'Welcome to Kartomtrades',
+        text: `Your account has been created successfully. You can now log in and start trading.`,
+      }).catch(() => {})
 
       response.cookies.set(COOKIE_NAME, token, cookieOptions)
       return handleCORS(response)
@@ -2336,6 +2344,12 @@ async function handleRoute(request, context) {
       const depUserId = String(dep.user_id)
       const depAmount  = parseFloat(dep.amount)
       const depMethod  = String(dep.method || 'BTC')
+      // Email (best-effort)
+      const emailRows = await prisma.$queryRawUnsafe(
+        `SELECT email FROM users WHERE id = $1 LIMIT 1`,
+        depUserId
+      ).catch(() => [])
+      const depEmail = String(emailRows?.[0]?.email || '')
 
       try {
         if (action === 'APPROVE') {
@@ -2380,6 +2394,19 @@ async function handleRoute(request, context) {
           depUserId,
           JSON.stringify({ depositId, amount: depAmount, method: depMethod })
         )
+
+        // Best-effort email notification (never blocks response)
+        if (depEmail) {
+          const approved = action === 'APPROVE'
+          sendEmail({
+            to: depEmail,
+            subject: approved ? 'Deposit approved' : 'Deposit rejected',
+            text: approved
+              ? `Your deposit of $${depAmount.toFixed(2)} via ${depMethod} has been approved.`
+              : `Your deposit request via ${depMethod} has been rejected. Please contact support if you have questions.`,
+          }).catch(() => {})
+        }
+
         return handleCORS(NextResponse.json({
           message: action === 'APPROVE' ? `$${depAmount.toFixed(2)} deposited to user account.` : 'Deposit request rejected.',
           status: newStatus
@@ -2492,6 +2519,16 @@ async function handleRoute(request, context) {
 
       // REJECT: status-only update
       if (action === 'REJECT') {
+        const reqRows = await prisma.$queryRawUnsafe(
+          `SELECT user_id::text AS user_id, amount::float8 AS amount, method, address
+           FROM withdrawal_requests WHERE id = $1 LIMIT 1`,
+          withdrawalId
+        ).catch(() => [])
+        const wr = reqRows?.[0]
+        const wrUserId = wr?.user_id ? String(wr.user_id) : ''
+        const wrAmount = Number(wr?.amount || 0)
+        const wrMethod = String(wr?.method || '')
+
         const updated = await prisma.$executeRawUnsafe(
           `UPDATE withdrawal_requests
            SET status = 'REJECTED', reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW()
@@ -2499,6 +2536,22 @@ async function handleRoute(request, context) {
           withdrawalId, admin.user.userId
         )
         if (!updated) return handleCORS(NextResponse.json({ error: 'Withdrawal request not found' }, { status: 404 }))
+
+        // Best-effort email notification
+        if (wrUserId) {
+          const emailRows = await prisma.$queryRawUnsafe(
+            `SELECT email FROM users WHERE id = $1 LIMIT 1`,
+            wrUserId
+          ).catch(() => [])
+          const to = String(emailRows?.[0]?.email || '')
+          if (to) {
+            sendEmail({
+              to,
+              subject: 'Withdrawal rejected',
+              text: `Your withdrawal request${wrAmount ? ` for $${wrAmount.toFixed(2)}` : ''}${wrMethod ? ` via ${wrMethod}` : ''} was rejected. Please contact support for details.`,
+            }).catch(() => {})
+          }
+        }
 
         const auditId = uuidv4()
         await prisma.$executeRawUnsafe(
@@ -2566,6 +2619,22 @@ async function handleRoute(request, context) {
           JSON.stringify({ withdrawalId, amount: Number(r.amount), method: String(r.method || ''), ledgerId })
         )
         logActivity(String(r.user_id), 'WITHDRAWAL_APPROVED', { amount: Number(r.amount), method: String(r.method || '') })
+
+        // Best-effort email notification
+        try {
+          const emailRows = await prisma.$queryRawUnsafe(
+            `SELECT email FROM users WHERE id = $1 LIMIT 1`,
+            String(r.user_id)
+          )
+          const to = String(emailRows?.[0]?.email || '')
+          if (to) {
+            sendEmail({
+              to,
+              subject: 'Withdrawal approved',
+              text: `Your withdrawal of $${Number(r.amount).toFixed(2)}${r.method ? ` via ${String(r.method)}` : ''} has been approved.`,
+            }).catch(() => {})
+          }
+        } catch (_) {}
 
         return handleCORS(NextResponse.json({
           message: `Withdrawal approved — $${Number(r.amount).toFixed(2)} deducted from Real Wallet.`,
