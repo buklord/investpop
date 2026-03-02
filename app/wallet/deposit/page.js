@@ -38,7 +38,7 @@ const PAYMENT_METHODS = [
     color: 'text-green-400',
     bg: 'bg-green-500/10 border-green-500/30',
     activeBg: 'bg-green-500/20 border-green-500',
-    address: '0x742d35Cc6634C0532925a3b8D4C9F15dC8dC9B55',
+    address: '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4',
     network: 'ERC-20 (Ethereum)'
   }
 ]

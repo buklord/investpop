@@ -58,7 +58,7 @@ const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'demo@investdash.com'
 // Payment addresses for deposit requests — override with DEPOSIT_BTC_ADDRESS / DEPOSIT_USDT_ADDRESS env vars
 const DEPOSIT_ADDRESSES = {
   BTC: process.env.DEPOSIT_BTC_ADDRESS || 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-  USDT: process.env.DEPOSIT_USDT_ADDRESS || '0x742d35Cc6634C0532925a3b8D4C9F15dC8dC9B55'
+  USDT: process.env.DEPOSIT_USDT_ADDRESS || '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4'
 }
 
 // Force-settle outcome multipliers (Admin God Mode)
