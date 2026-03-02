@@ -51,6 +51,31 @@ export default function KycVerifyPage() {
 
   useEffect(() => { checkAuth() }, [])
 
+  // If user is waiting on admin review, keep KYC status fresh so approvals
+  // take effect without requiring a manual refresh.
+  useEffect(() => {
+    if (!user) return
+    if (kycStatus !== 'SUBMITTED') return
+    let cancelled = false
+
+    const refresh = async () => {
+      try {
+        const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
+        if (!kRes.ok) return
+        const kd = await kRes.json()
+        const ks = kd.kycStatus || 'PENDING'
+        if (cancelled) return
+        setKycStatus(ks)
+        if (ks === 'APPROVED') { router.push('/wallet/deposit'); return }
+        if (ks === 'REJECTED') { setStep(1); return }
+      } catch (_) {}
+    }
+
+    refresh()
+    const interval = setInterval(refresh, 8000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [user, kycStatus, router])
+
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me')
@@ -59,7 +84,7 @@ export default function KycVerifyPage() {
       setUser(data.user)
       // Read live KYC status from the DB-backed endpoint so admin approvals take effect immediately.
       // Also pre-fill identity fields if already saved.
-      const kRes = await fetch('/api/kyc/status')
+      const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
       if (kRes.ok) {
         const kd = await kRes.json()
         const ks = kd.kycStatus || 'PENDING'

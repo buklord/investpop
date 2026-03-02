@@ -62,6 +62,28 @@ export default function DepositPage() {
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadDeposits() }, [user])
 
+  // Keep KYC status fresh while the user is gated, so admin approvals take
+  // effect without requiring a manual refresh.
+  useEffect(() => {
+    if (!user) return
+    if (kycStatus == null) return
+    if ((kycStatus || 'PENDING') === 'APPROVED') return
+
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
+        if (!kRes.ok) return
+        const kd = await kRes.json()
+        if (cancelled) return
+        setKycStatus(kd.kycStatus || 'PENDING')
+      } catch (_) {}
+    }
+
+    const interval = setInterval(refresh, 8000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [user, kycStatus])
+
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me')
@@ -71,7 +93,7 @@ export default function DepositPage() {
 
       // Always read KYC status from DB-backed endpoint so admin approvals take effect immediately.
       try {
-        const kRes = await fetch('/api/kyc/status')
+        const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
         if (kRes.ok) {
           const kd = await kRes.json()
           setKycStatus(kd.kycStatus || 'PENDING')

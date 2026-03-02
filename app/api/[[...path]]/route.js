@@ -18,6 +18,11 @@ function handleCORS(response) {
   response.headers.set('Access-Control-Allow-Credentials', 'true')
   return response
 }
+function noStore(response) {
+  response.headers.set('Cache-Control', 'no-store, max-age=0')
+  response.headers.set('Pragma', 'no-cache')
+  return response
+}
 
 // Helper function to require authentication
 async function requireAuth() {
@@ -683,19 +688,50 @@ async function handleRoute(request, context) {
       }
 
       // IMPORTANT: /auth/me must be fast and must not hang the UI if the DB is
-      // unavailable (e.g. Supabase circuit breaker). The JWT cookie already
-      // contains `role`, so we can respond without any DB round-trip.
-      const role = auth.user.role || 'USER'
-      const isSuspended = false
-      const kycStatus = 'PENDING'
-      const broadcastMessage = ''
-      const spreadMultiplier = 1.0
+      // unavailable (e.g. Supabase circuit breaker). We'll *try* to read fresh
+      // role/kyc/suspension from DB with a short timeout, but fall back to the
+      // JWT if the DB is slow/unavailable.
+      const jwtRole = auth.user.role || 'USER'
+      let role = jwtRole
+      let isSuspended = false
+      let kycStatus = 'PENDING'
 
-      return handleCORS(NextResponse.json({
+      try {
+        const timeoutMs = 350
+        const dbRows = await Promise.race([
+          prisma.$queryRaw`
+            SELECT role, is_suspended, kyc_status
+            FROM users
+            WHERE id = ${auth.user.userId}
+            LIMIT 1
+          `,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('db timeout')), timeoutMs))
+        ])
+        const u = dbRows?.[0]
+        if (u) {
+          role = u.role || role
+          isSuspended = !!u.is_suspended
+          kycStatus = u.kyc_status || kycStatus
+        }
+      } catch (_) {}
+
+      const response = NextResponse.json({
         user: { id: auth.user.userId, email: auth.user.email, role, isSuspended, kycStatus },
-        broadcastMessage,
-        spreadMultiplier
-      }))
+        broadcastMessage: '',
+        spreadMultiplier: 1.0
+      })
+
+      // If the DB role changed (e.g., promoted/demoted), re-issue the JWT so
+      // middleware + UI reflect the current role.
+      if (role && role !== jwtRole) {
+        try {
+          const token = await createSession(auth.user.userId, auth.user.email, role)
+          const cookieOptions = getSessionCookieOptions()
+          response.cookies.set(COOKIE_NAME, token, cookieOptions)
+        } catch (_) {}
+      }
+
+      return handleCORS(noStore(response))
     }
 
     // ============ QUOTE ENDPOINT ============
@@ -1117,14 +1153,15 @@ async function handleRoute(request, context) {
         FROM users WHERE id = ${auth.user.userId}
       `
       const u = rows[0] || {}
-      return handleCORS(NextResponse.json({
+      const response = NextResponse.json({
         kycStatus: u.kyc_status || 'PENDING',
         firstName: u.first_name || '',
         lastName: u.last_name || '',
         phoneNumber: u.phone_number || '',
         country: u.country || '',
         dateOfBirth: u.date_of_birth ? u.date_of_birth.toISOString().split('T')[0] : '',
-      }))
+      })
+      return handleCORS(noStore(response))
     }
 
     // POST /api/kyc/submit — submit KYC details

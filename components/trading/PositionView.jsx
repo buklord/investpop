@@ -119,7 +119,7 @@ export default function PositionView({ positionId, onClose, embedded = false }) 
     let cancelled = false
 
     async function init() {
-      const { createChart, LineStyle, CrosshairMode } = await import('lightweight-charts')
+      const { createChart, CandlestickSeries, LineStyle, CrosshairMode } = await import('lightweight-charts')
       if (cancelled) return
 
       const themedRoot = chartRef.current?.closest('.dark') || document.documentElement
@@ -149,7 +149,7 @@ export default function PositionView({ positionId, onClose, embedded = false }) 
         crosshair: { mode: CrosshairMode.Normal },
       })
 
-      const series = chart.addCandlestickSeries({
+      const series = chart.addSeries(CandlestickSeries, {
         upColor,
         downColor,
         borderUpColor: upColor,
