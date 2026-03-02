@@ -48,7 +48,6 @@ export default function DepositPage() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [kycStatus, setKycStatus] = useState(null)
 
   const [amount, setAmount] = useState('500')
   const [method, setMethod] = useState('BTC')
@@ -62,47 +61,12 @@ export default function DepositPage() {
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadDeposits() }, [user])
 
-  // Keep KYC status fresh while the user is gated, so admin approvals take
-  // effect without requiring a manual refresh.
-  useEffect(() => {
-    if (!user) return
-    if (kycStatus == null) return
-    if ((kycStatus || 'PENDING') === 'APPROVED') return
-
-    let cancelled = false
-    const refresh = async () => {
-      try {
-        const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
-        if (!kRes.ok) return
-        const kd = await kRes.json()
-        if (cancelled) return
-        setKycStatus(kd.kycStatus || 'PENDING')
-      } catch (_) {}
-    }
-
-    const interval = setInterval(refresh, 8000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [user, kycStatus])
-
   const checkAuth = async () => {
     try {
       const res = await fetch('/api/auth/me')
       if (!res.ok) { router.push('/'); return }
       const data = await res.json()
       setUser(data.user)
-
-      // Always read KYC status from DB-backed endpoint so admin approvals take effect immediately.
-      try {
-        const kRes = await fetch('/api/kyc/status', { cache: 'no-store' })
-        if (kRes.ok) {
-          const kd = await kRes.json()
-          setKycStatus(kd.kycStatus || 'PENDING')
-        } else {
-          setKycStatus('PENDING')
-        }
-      } catch (_) {
-        setKycStatus('PENDING')
-      }
     } catch { router.push('/') }
     finally { setLoading(false) }
   }
@@ -176,45 +140,6 @@ export default function DepositPage() {
       <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
     </div>
   )
-
-  // If auth loaded but KYC hasn't yet, keep a consistent loading state.
-  if (kycStatus == null) {
-    return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-      </div>
-    )
-  }
-
-  // KYC gate — block access until verified
-  const ks = kycStatus || 'PENDING'
-  if (ks !== 'APPROVED') {
-    const kycMessages = {
-      PENDING:   { icon: '🔒', title: 'Verification Required', desc: 'To deposit real funds you must complete identity verification (KYC). This takes less than 5 minutes.', cta: 'Start Verification', href: '/kyc/verify', color: 'border-amber-500/30 bg-amber-500/5' },
-      SUBMITTED: { icon: '⏳', title: 'Verification In Progress', desc: 'Your documents are under review. You will be notified within 24 hours once your account is verified.', cta: 'Check Status', href: '/kyc/verify', color: 'border-blue-500/30 bg-blue-500/5' },
-      REJECTED:  { icon: '❌', title: 'Verification Rejected', desc: 'Your identity verification was not successful. Please re-submit with valid documents.', cta: 'Re-Submit Documents', href: '/kyc/verify', color: 'border-red-500/30 bg-red-500/5' },
-    }
-    const info = kycMessages[ks] || kycMessages.PENDING
-    return (
-      <div className="min-h-screen bg-[#0d1117] flex">
-        <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className={`max-w-md w-full rounded-2xl border p-8 text-center space-y-4 ${info.color}`}>
-            <div className="text-5xl">{info.icon}</div>
-            <h2 className="text-xl font-bold text-white">{info.title}</h2>
-            <p className="text-slate-400 text-sm">{info.desc}</p>
-            <Link href={info.href}>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white mt-2 w-full">
-                {info.cta}
-              </Button>
-            </Link>
-            <Link href="/wallet" className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">← Back to Wallet</Link>
-          </div>
-        </div>
-        {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex">

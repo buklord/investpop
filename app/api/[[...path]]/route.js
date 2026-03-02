@@ -2047,25 +2047,28 @@ async function handleRoute(request, context) {
         return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
       }
 
-      // Adjust balance
+      // Adjust REAL wallet balance (and active balance only if the user is currently in REAL mode)
       await prisma.$executeRaw`
-        UPDATE virtual_accounts SET balance = balance + ${numAmount}
+        UPDATE virtual_accounts
+        SET real_balance = real_balance + ${numAmount},
+            balance = CASE WHEN trading_mode = 'REAL' THEN balance + ${numAmount} ELSE balance END,
+            updated_at = NOW()
         WHERE user_id = ${targetUserId}
       `
 
-      // Get new balance
+      // Get new real balance for ledger snapshot
       const accounts = await prisma.$queryRaw`
-        SELECT balance FROM virtual_accounts WHERE user_id = ${targetUserId}
+        SELECT real_balance FROM virtual_accounts WHERE user_id = ${targetUserId}
       `
-      const newBalance = parseFloat(accounts[0]?.balance || 0)
+      const newRealBalance = parseFloat(accounts[0]?.real_balance || 0)
 
       // Create ledger entry
       const ledgerId = uuidv4()
       const desc = reason ? `Admin adjustment: ${reason}` : 'Admin balance adjustment'
       await prisma.$executeRaw`
-        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, created_at)
+        INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, account_type, created_at)
         VALUES (${ledgerId}, ${targetUserId}, 'ADMIN_ADJUSTMENT',
-                ${numAmount}, ${newBalance}, ${desc}, NOW())
+          ${numAmount}, ${newRealBalance}, ${desc}, 'REAL', NOW())
       `
 
       // Create audit log entry
@@ -2073,13 +2076,13 @@ async function handleRoute(request, context) {
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
         VALUES (${auditId}, ${admin.user.userId}, 'ADJUST_BALANCE',
-                ${targetUserId}, ${JSON.stringify({ amount: numAmount, reason: reason || null, newBalance })}::jsonb, NOW())
+                ${targetUserId}, ${JSON.stringify({ amount: numAmount, reason: reason || null, newRealBalance })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({
         message: 'Balance adjusted successfully',
         amount: numAmount,
-        newBalance
+        newRealBalance
       }))
     }
 
@@ -2553,7 +2556,7 @@ async function handleRoute(request, context) {
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
 
       const body = await request.json()
-      const { positionId, outcome } = body  // outcome: 'PROFIT' | 'LOSS'
+      const { positionId, outcome, percent } = body  // outcome: 'PROFIT' | 'LOSS'
       if (!positionId || !['PROFIT', 'LOSS'].includes(outcome)) {
         return handleCORS(NextResponse.json({ error: 'positionId and outcome (PROFIT|LOSS) required' }, { status: 400 }))
       }
@@ -2581,8 +2584,16 @@ async function handleRoute(request, context) {
       const entryPrice = parseFloat(pos.entry_price)
       const notional = qty * entryPrice
 
-      // Target P&L: +FORCE_PROFIT_RATIO of notional for profit, -FORCE_LOSS_RATIO for loss
-      const targetPnl = outcome === 'PROFIT' ? notional * FORCE_PROFIT_RATIO : -(notional * FORCE_LOSS_RATIO)
+      // Target P&L: admin-provided percentage of notional (fallback to defaults)
+      const defaultPercent = outcome === 'PROFIT' ? (FORCE_PROFIT_RATIO * 100) : (FORCE_LOSS_RATIO * 100)
+      const inputPercent = percent === undefined || percent === null || percent === ''
+        ? defaultPercent
+        : parseFloat(percent)
+      if (!Number.isFinite(inputPercent) || inputPercent <= 0) {
+        return handleCORS(NextResponse.json({ error: 'percent must be a positive number' }, { status: 400 }))
+      }
+      const ratio = inputPercent / 100
+      const targetPnl = outcome === 'PROFIT' ? (notional * ratio) : -(notional * ratio)
 
       // Sale value = entry cost + targetPnl (we credit this back to the user)
       const originalCost = entryPrice * qty
@@ -2638,8 +2649,9 @@ async function handleRoute(request, context) {
       `
 
       return handleCORS(NextResponse.json({
-        message: `Position ${pos.symbol} settled as ${outcome}. P&L: $${targetPnl.toFixed(2)}`,
+        message: `Position ${pos.symbol} settled as ${outcome} (${inputPercent}%). P&L: $${targetPnl.toFixed(2)}`,
         outcome,
+        percent: inputPercent,
         targetPnl,
         saleValue
       }))

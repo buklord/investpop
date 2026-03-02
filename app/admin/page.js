@@ -53,6 +53,7 @@ export default function AdminPage() {
 
   // Force close state
   const [forceClosePositionId, setForceClosePositionId] = useState('')
+  const [forceSettlePercent, setForceSettlePercent] = useState('')
   const [forceCloseLoading, setForceCloseLoading] = useState(false)
   const [forceCloseMsg, setForceCloseMsg] = useState(null)
 
@@ -444,7 +445,11 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/force-settle', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positionId, outcome })
+        body: JSON.stringify({
+          positionId,
+          outcome,
+          percent: forceSettlePercent === '' ? undefined : parseFloat(forceSettlePercent)
+        })
       })
       const data = await res.json()
       if (res.ok) { setSettleMsg({ type: 'success', text: data.message }); loadData() }
@@ -670,7 +675,7 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-slate-400 text-sm mb-3">
-                  Force-close any position by ID. Choose Force Profit (+10%) or Force Loss (−5%) — logged as &quot;Trade Settlement&quot;.
+                  Force-close any position by UUID. Choose Profit or Loss and set any percentage you want — logged as &quot;Trade Settlement&quot;.
                 </p>
                 <form onSubmit={handleForceClose} className="space-y-3">
                   <Input
@@ -679,6 +684,15 @@ export default function AdminPage() {
                     placeholder="Position UUID"
                     required
                     className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 font-mono text-sm"
+                  />
+                  <Input
+                    value={forceSettlePercent}
+                    onChange={e => setForceSettlePercent(e.target.value)}
+                    placeholder="Percent (e.g. 10, 1, 15, 30)"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                   />
                   <Msg msg={forceCloseMsg} />
                   <Msg msg={settleMsg} />
