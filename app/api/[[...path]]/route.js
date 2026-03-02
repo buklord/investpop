@@ -682,14 +682,37 @@ async function handleRoute(request, context) {
         ))
       }
 
-      // IMPORTANT: /auth/me must be fast and must not hang the UI if the DB is
-      // unavailable (e.g. Supabase circuit breaker). The JWT cookie already
-      // contains `role`, so we can respond without any DB round-trip.
+      // Role comes from the JWT (no DB round-trip needed for that).
+      // KYC status, suspension, broadcast, and spread MUST come from the DB
+      // so that admin approvals/changes take effect immediately for the user.
+      // Wrapped in try/catch so the endpoint never hangs if the DB is temporarily
+      // unavailable — falls back to safe defaults in that case.
       const role = auth.user.role || 'USER'
-      const isSuspended = false
-      const kycStatus = 'PENDING'
-      const broadcastMessage = ''
-      const spreadMultiplier = 1.0
+      let isSuspended = false
+      let kycStatus = 'PENDING'
+      let broadcastMessage = ''
+      let spreadMultiplier = 1.0
+
+      try {
+        const [userRows, settingRows] = await Promise.all([
+          prisma.$queryRaw`
+            SELECT kyc_status, is_suspended FROM users WHERE id = ${auth.user.userId}
+          `,
+          prisma.$queryRaw`
+            SELECT key, value FROM system_settings WHERE key IN ('broadcast_message', 'spread_multiplier')
+          `
+        ])
+        if (userRows[0]) {
+          kycStatus = userRows[0].kyc_status || 'PENDING'
+          isSuspended = userRows[0].is_suspended || false
+        }
+        for (const row of settingRows) {
+          if (row.key === 'broadcast_message') broadcastMessage = row.value || ''
+          if (row.key === 'spread_multiplier') spreadMultiplier = parseFloat(row.value) || 1.0
+        }
+      } catch (_) {
+        // DB unavailable — safe defaults already set above
+      }
 
       return handleCORS(NextResponse.json({
         user: { id: auth.user.userId, email: auth.user.email, role, isSuspended, kycStatus },
