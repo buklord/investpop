@@ -10,7 +10,28 @@ import { AccountService } from '@/lib/services/accountService'
 import { TRADING_CONFIG } from '@/lib/services/tradingConfig'
 import * as MarketSim from '@/lib/marketSimulator'
 import { sendEmail } from '@/lib/email'
-import { welcomeEmail, depositDecisionEmail, withdrawalDecisionEmail } from '@/lib/emailTemplates'
+import {
+  welcomeEmail,
+  depositDecisionEmail,
+  withdrawalDecisionEmail,
+  depositRequestReceivedEmail,
+  withdrawalRequestReceivedEmail,
+} from '@/lib/emailTemplates'
+
+async function sendEmailBestEffort(payload, label = '') {
+  try {
+    const result = await sendEmail(payload)
+    if (result?.skipped) {
+      console.warn('[email] skipped', label)
+    } else if (result?.ok === false) {
+      console.error('[email] failed', label, result?.error)
+    }
+    return result
+  } catch (err) {
+    console.error('[email] unexpected error', label, err?.message || err)
+    return { ok: false, error: err?.message || String(err) }
+  }
+}
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -610,7 +631,10 @@ async function handleRoute(request, context) {
       })
 
       // Best-effort email notification (never blocks signup)
-      sendEmail({ to: email, ...welcomeEmail({ firstName: regFirstName, lastName: regLastName }) }).catch(() => {})
+      await sendEmailBestEffort(
+        { to: String(email || '').trim(), ...welcomeEmail({ firstName: regFirstName, lastName: regLastName }) },
+        'welcome'
+      )
 
       response.cookies.set(COOKIE_NAME, token, cookieOptions)
       return handleCORS(response)
@@ -2272,6 +2296,16 @@ async function handleRoute(request, context) {
         id, auth.user.userId, parseFloat(amount), chosenMethod, address
       )
       logActivity(auth.user.userId, 'DEPOSIT_REQUEST', { amount: parseFloat(amount), method: chosenMethod })
+
+      // Best-effort email receipt (awaited so it reliably sends on serverless)
+      const to = String(auth.user.email || '').trim()
+      if (to) {
+        await sendEmailBestEffort(
+          { to, ...depositRequestReceivedEmail({ amount: parseFloat(amount), method: chosenMethod, address }) },
+          'deposit-request-received'
+        )
+      }
+
       return handleCORS(NextResponse.json({ message: 'Deposit request submitted. Awaiting admin approval.', id, amount: parseFloat(amount), method: chosenMethod, address }))
     }
 
@@ -2392,13 +2426,19 @@ async function handleRoute(request, context) {
           JSON.stringify({ depositId, amount: depAmount, method: depMethod })
         )
 
-        // Best-effort email notification (never blocks response)
-        if (depEmail) {
+        // Best-effort email notification (awaited so it reliably sends on serverless)
+        const to = String(depEmail || '').trim()
+        if (to) {
           const approved = action === 'APPROVE'
-          sendEmail({
-            to: depEmail,
-            ...depositDecisionEmail({ approved, amount: depAmount, method: depMethod }),
-          }).catch(() => {})
+          await sendEmailBestEffort(
+            {
+              to,
+              ...depositDecisionEmail({ approved, amount: depAmount, method: depMethod }),
+            },
+            'deposit-decision'
+          )
+        } else {
+          console.warn('[deposit] no recipient email for user', depUserId)
         }
 
         return handleCORS(NextResponse.json({
@@ -2450,6 +2490,16 @@ async function handleRoute(request, context) {
         id, auth.user.userId, numAmount, chosenMethod, addr
       )
       logActivity(auth.user.userId, 'WITHDRAWAL_REQUEST', { amount: numAmount, method: chosenMethod })
+
+      // Best-effort email receipt (awaited so it reliably sends on serverless)
+      const to = String(auth.user.email || '').trim()
+      if (to) {
+        await sendEmailBestEffort(
+          { to, ...withdrawalRequestReceivedEmail({ amount: numAmount, method: chosenMethod, address: addr }) },
+          'withdrawal-request-received'
+        )
+      }
+
       return handleCORS(NextResponse.json({ message: 'Withdrawal request submitted. Awaiting admin approval.', id, amount: numAmount, method: chosenMethod, address: addr, status: 'PENDING' }))
     }
 
@@ -2537,12 +2587,17 @@ async function handleRoute(request, context) {
             `SELECT email FROM users WHERE id = $1 LIMIT 1`,
             wrUserId
           ).catch(() => [])
-          const to = String(emailRows?.[0]?.email || '')
+          const to = String(emailRows?.[0]?.email || '').trim()
           if (to) {
-            sendEmail({
-              to,
-              ...withdrawalDecisionEmail({ approved: false, amount: wrAmount, method: wrMethod }),
-            }).catch(() => {})
+            await sendEmailBestEffort(
+              {
+                to,
+                ...withdrawalDecisionEmail({ approved: false, amount: wrAmount, method: wrMethod }),
+              },
+              'withdrawal-reject'
+            )
+          } else {
+            console.warn('[withdrawal] no recipient email for user', wrUserId)
           }
         }
 
@@ -2619,12 +2674,17 @@ async function handleRoute(request, context) {
             `SELECT email FROM users WHERE id = $1 LIMIT 1`,
             String(r.user_id)
           )
-          const to = String(emailRows?.[0]?.email || '')
+          const to = String(emailRows?.[0]?.email || '').trim()
           if (to) {
-            sendEmail({
-              to,
-              ...withdrawalDecisionEmail({ approved: true, amount: Number(r.amount), method: String(r.method || '') }),
-            }).catch(() => {})
+            await sendEmailBestEffort(
+              {
+                to,
+                ...withdrawalDecisionEmail({ approved: true, amount: Number(r.amount), method: String(r.method || '') }),
+              },
+              'withdrawal-approve'
+            )
+          } else {
+            console.warn('[withdrawal] no recipient email for user', String(r.user_id))
           }
         } catch (_) {}
 
