@@ -69,7 +69,9 @@ const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
 // Each statement has its own try/catch so a failure in one does NOT
 // prevent the others from running (e.g. ALTER TYPE failing inside a
 // transaction must not block deposit_requests table creation).
+let schemaReady = false
 async function ensureSchemaExtensions() {
+  if (schemaReady) return
   // Fast-path: if the schema is already fully migrated (kyc_status column exists
   // on users and market_prices table exists), skip ALL DDL — no locks, no delay.
   // This is the normal path for every request on an established production DB.
@@ -86,6 +88,7 @@ async function ensureSchemaExtensions() {
     ])
     if (colCheck.length > 0 && tableCheck.length > 0) {
       // Schema is current — nothing to do
+      schemaReady = true
       return
     }
   } catch (_) {
@@ -381,6 +384,10 @@ async function ensureSchemaExtensions() {
   // ALTER TYPE cannot run inside a transaction — separate try/catch is critical
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
+
+  // If we got this far, the schema has been checked/extended best-effort.
+  // Mark as ready so we don't re-run info_schema checks on every request.
+  schemaReady = true
 }
 
 // Log a user action to the activity feed (best-effort, never throws)
@@ -400,18 +407,35 @@ async function logActivity(userId, action, details = {}) {
 // that the users + virtual_accounts tables are guaranteed to exist.  All other
 // routes leave it running in the background; they will benefit from IF NOT
 // EXISTS idempotency on subsequent requests.
-let schemaInitPromise = null
+let schemaInitInFlight = null
+let marketTrendLoaded = false
 
 function getSchemaInitPromise() {
-  if (!schemaInitPromise) {
-    schemaInitPromise = ensureSchemaExtensions()
-      .then(() =>
-        prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
-      )
-      .then(rows => { if (rows?.[0]) setMarketTrend(rows[0].value) })
-      .catch(e => console.warn('[schema] init warning:', e.message))
-  }
-  return schemaInitPromise
+  if (schemaReady && marketTrendLoaded) return Promise.resolve()
+  if (schemaInitInFlight) return schemaInitInFlight
+
+  schemaInitInFlight = (async () => {
+    await ensureSchemaExtensions()
+    // Best-effort: load persisted market trend once.
+    if (!marketTrendLoaded) {
+      try {
+        const rows = await prisma.$queryRaw`SELECT value FROM system_settings WHERE key = 'market_trend'`
+        if (rows?.[0]) setMarketTrend(rows[0].value)
+        marketTrendLoaded = true
+      } catch (_) {
+        // If system_settings isn't ready yet, allow retry on a later request.
+      }
+    }
+  })()
+    .catch(e => {
+      console.warn('[schema] init warning:', e.message)
+    })
+    .finally(() => {
+      // Clear so a future request can retry if init was partial or failed.
+      schemaInitInFlight = null
+    })
+
+  return schemaInitInFlight
 }
 
 // Route handler function
@@ -423,13 +447,17 @@ async function handleRoute(request, context) {
   // Schema init runs once per process in the background — never block any route on it.
   // Tables already exist in production; blocking login on ~50 sequential DDL statements
   // causes timeouts when Supabase is waking up after a restore.
-  if (route !== '/auth/me' && route !== '/health') {
+  const isMarketSimRoute = route.startsWith('/market/')
+  if (!isMarketSimRoute && route !== '/auth/me' && route !== '/health') {
     getSchemaInitPromise()
   }
 
   // Rate limiting
   const clientIp = getClientIp(request)
-  const rateLimitResult = rateLimit(clientIp)
+  const rateLimitOpts = isMarketSimRoute
+    ? { maxRequests: route === '/market/tick' ? 1800 : 600 }
+    : undefined
+  const rateLimitResult = rateLimit(clientIp, rateLimitOpts)
   if (!rateLimitResult.success) {
     return handleCORS(NextResponse.json(
       { error: 'Too many requests. Please try again later.' },
