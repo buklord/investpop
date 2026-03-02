@@ -57,19 +57,22 @@ export default function KycVerifyPage() {
       if (!res.ok) { router.push('/'); return }
       const data = await res.json()
       setUser(data.user)
-      const ks = data.user.kycStatus || 'PENDING'
-      setKycStatus(ks)
-      if (ks === 'APPROVED') { router.push('/wallet/deposit'); return }
-      if (ks === 'SUBMITTED') setStep(3)
-      // Pre-fill if details exist
+      // Read live KYC status from the DB-backed endpoint so admin approvals take effect immediately.
+      // Also pre-fill identity fields if already saved.
       const kRes = await fetch('/api/kyc/status')
       if (kRes.ok) {
         const kd = await kRes.json()
+        const ks = kd.kycStatus || 'PENDING'
+        setKycStatus(ks)
+        if (ks === 'APPROVED') { router.push('/wallet/deposit'); return }
+        if (ks === 'SUBMITTED') setStep(3)
         if (kd.firstName) setFirstName(kd.firstName)
         if (kd.lastName) setLastName(kd.lastName)
         if (kd.dateOfBirth) setDob(kd.dateOfBirth)
         if (kd.country) setCountry(kd.country)
         if (kd.phoneNumber) setPhone(kd.phoneNumber)
+      } else {
+        setKycStatus('PENDING')
       }
     } catch { router.push('/') }
     finally { setLoading(false) }
