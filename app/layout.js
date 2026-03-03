@@ -17,11 +17,11 @@ const TAWK_SRC = process.env.NEXT_PUBLIC_TAWK_SRC || (
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
       </head>
-      <body>
+      <body className="bg-background text-foreground">
         {children}
 
         {/* ── Tawk.to Live Chat ─────────────────────────────────────────────
