@@ -183,7 +183,7 @@ async function ensureSchemaExtensions() {
       balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
       real_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
-      trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO',
+      trading_mode VARCHAR(10) NOT NULL DEFAULT 'REAL',
       currency VARCHAR(10) NOT NULL DEFAULT 'USD',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -191,12 +191,17 @@ async function ensureSchemaExtensions() {
   // Add new columns to existing virtual_accounts tables (idempotent)
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS demo_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'demo_balance column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS real_balance DOUBLE PRECISION NOT NULL DEFAULT 0`, 'real_balance column')
-  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'DEMO'`, 'trading_mode column')
+  await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS trading_mode VARCHAR(10) NOT NULL DEFAULT 'REAL'`, 'trading_mode column')
   await run(`ALTER TABLE virtual_accounts ADD COLUMN IF NOT EXISTS margin_reserved DOUBLE PRECISION NOT NULL DEFAULT 0`, 'margin_reserved column')
   // Ensure user_id UNIQUE index exists so ON CONFLICT (user_id) works
   await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
   // Migrate existing rows: treat old balance as demo balance
   await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
+  // If REAL is now the default mode, make sure legacy accounts have a usable
+  // real wallet too (only when real_balance is still uninitialized).
+  await run(`UPDATE virtual_accounts SET real_balance = demo_balance WHERE real_balance = 0 AND demo_balance > 0`, 'seed real_balance from demo_balance')
+  // Default users into REAL mode going forward.
+  await run(`UPDATE virtual_accounts SET trading_mode = 'REAL' WHERE trading_mode IS NULL OR trading_mode = ''`, 'default trading_mode to REAL')
 
   // ── Trading tables ────────────────────────────────────────────────────────
   await run(`
@@ -596,12 +601,12 @@ async function handleRoute(request, context) {
         } catch (_) {}
       }
 
-      // Create virtual account with starting demo balance (real_balance starts at $0).
+      // Create virtual account with starting balances for BOTH wallets.
       // Wrapped in try/catch so any unexpected constraint issue never blocks signup.
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REAL')
           ON CONFLICT (user_id) DO NOTHING
         `
       } catch (vaErr) {
@@ -706,8 +711,20 @@ async function handleRoute(request, context) {
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${user.id}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          VALUES (${user.id}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REAL')
           ON CONFLICT (user_id) DO NOTHING
+        `
+      } catch (_) {}
+
+      // Default into REAL mode on login so the platform opens in REAL by default.
+      // Best-effort and idempotent.
+      try {
+        await prisma.$executeRaw`
+          UPDATE virtual_accounts
+          SET trading_mode = 'REAL',
+              balance = COALESCE(real_balance, balance),
+              updated_at = NOW()
+          WHERE user_id = ${user.id}
         `
       } catch (_) {}
 
@@ -1062,7 +1079,7 @@ async function handleRoute(request, context) {
       // ── Step 1: Read balances directly from virtual_accounts (fast, no Prisma client) ──
       let realBalance = 0
       let demoBalance = 0
-      let tradingMode = 'DEMO'
+      let tradingMode = 'REAL'
       let currency = 'USD'
       let vaBalance = 0
 
@@ -1076,7 +1093,7 @@ async function handleRoute(request, context) {
         vaBalance   = parseFloat(va.balance       || 0)
         demoBalance = parseFloat(va.demo_balance  || 0)
         realBalance = parseFloat(va.real_balance  || 0)
-        tradingMode = va.trading_mode || 'DEMO'
+        tradingMode = va.trading_mode === 'DEMO' ? 'DEMO' : 'REAL'
         currency    = va.currency     || 'USD'
       } catch (err) {
         console.warn('[account] virtual_accounts read failed:', err.message)
@@ -1103,15 +1120,17 @@ async function handleRoute(request, context) {
         }
       } catch (_) { /* ledger_entries.account_type may not exist yet — use va values */ }
 
-      // ── Step 3: Self-heal va columns (align active balance to the selected mode) ──
+      // ── Step 3: Keep legacy `balance` aligned to the selected mode (no cross-wallet writes) ──
       try {
         await prisma.$executeRawUnsafe(
           `UPDATE virtual_accounts
-           SET real_balance = $1,
-               demo_balance = $2,
-               balance = CASE WHEN trading_mode = 'REAL' THEN $1 ELSE $2 END
-           WHERE user_id = $3`,
-          realBalance, demoBalance, auth.user.userId
+           SET trading_mode = COALESCE(trading_mode, 'REAL'),
+               balance = CASE WHEN COALESCE(trading_mode, 'REAL') = 'REAL'
+                 THEN COALESCE(real_balance, 0)
+                 ELSE COALESCE(demo_balance, 0)
+               END
+           WHERE user_id = $1`,
+          auth.user.userId
         )
       } catch (_) { /* non-critical — ignore */ }
 
@@ -1158,7 +1177,7 @@ async function handleRoute(request, context) {
         return handleCORS(NextResponse.json({ error: 'Account not found' }, { status: 404 }))
       }
       const curr = rows[0]
-      const currentMode = curr.trading_mode || 'DEMO'
+      const currentMode = curr.trading_mode === 'DEMO' ? 'DEMO' : 'REAL'
 
       if (currentMode === mode) {
         return handleCORS(NextResponse.json({
@@ -1170,25 +1189,19 @@ async function handleRoute(request, context) {
         }))
       }
 
-      // Save current balance back to the correct mode's column, then load new mode balance
-      const currentBalance = parseFloat(curr.balance)
+      // IMPORTANT: Do not copy the shared legacy `balance` into the wallet columns.
+      // Wallet columns are the source of truth; `balance` is derived from them.
+      await prisma.$executeRaw`
+        UPDATE virtual_accounts
+        SET trading_mode = ${mode},
+            balance = CASE WHEN ${mode} = 'REAL' THEN COALESCE(real_balance, 0) ELSE COALESCE(demo_balance, 0) END,
+            updated_at = NOW()
+        WHERE user_id = ${auth.user.userId}
+      `
+
       const newBalance = mode === 'DEMO'
         ? parseFloat(curr.demo_balance || 0)
         : parseFloat(curr.real_balance || 0)
-
-      if (currentMode === 'DEMO') {
-        await prisma.$executeRaw`
-          UPDATE virtual_accounts
-          SET demo_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
-          WHERE user_id = ${auth.user.userId}
-        `
-      } else {
-        await prisma.$executeRaw`
-          UPDATE virtual_accounts
-          SET real_balance = ${currentBalance}, balance = ${newBalance}, trading_mode = ${mode}
-          WHERE user_id = ${auth.user.userId}
-        `
-      }
 
       return handleCORS(NextResponse.json({
         message: `Switched to ${mode} mode`,
@@ -1806,7 +1819,7 @@ async function handleRoute(request, context) {
       const accs = await prisma.$queryRaw`
         SELECT trading_mode FROM virtual_accounts WHERE user_id = ${auth.user.userId} LIMIT 1
       `.catch(() => [])
-      const tradingMode = accs[0]?.trading_mode || 'DEMO'
+      const tradingMode = accs[0]?.trading_mode === 'DEMO' ? 'DEMO' : 'REAL'
 
       // Return entries for the active wallet type; fall back to all entries if account_type column is absent
       const entries = await prisma.$queryRaw`

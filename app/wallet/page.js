@@ -28,7 +28,7 @@ export default function WalletPage() {
 
   const [account, setAccount] = useState(null)
   const [ledger, setLedger] = useState([])
-  const [ledgerMode, setLedgerMode] = useState('DEMO')
+  const [ledgerMode, setLedgerMode] = useState('REAL')
   const [refreshing, setRefreshing] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -56,7 +56,7 @@ export default function WalletPage() {
       const ledgerData = await ledgerRes.json()
       setAccount(accountData)
       setLedger(ledgerData.entries || [])
-      setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'DEMO')
+      setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'REAL')
     } catch (err) {
       console.error('Failed to load wallet data:', err)
     }
@@ -90,7 +90,7 @@ export default function WalletPage() {
       case 'TRADE_BUY': return 'text-red-500'
       case 'FEE': return 'text-red-500'
       case 'WITHDRAWAL': return 'text-red-500'
-      default: return 'text-slate-400'
+      default: return 'text-muted-foreground'
     }
   }
 
@@ -108,7 +108,7 @@ export default function WalletPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
@@ -118,22 +118,22 @@ export default function WalletPage() {
   const demoBalance = account?.demoBalance ?? 0
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex">
+    <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 min-w-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-white p-1">
+        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1">
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-black text-sm leading-none">K</span>
             </div>
-            <span className="font-bold text-white text-sm">Kartomtrades</span>
+            <span className="font-bold text-foreground text-sm">Kartomtrades</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={refreshData} disabled={refreshing} className="text-slate-400 p-1">
+          <Button variant="ghost" size="sm" onClick={refreshData} disabled={refreshing} className="text-muted-foreground p-1">
             <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
@@ -142,11 +142,11 @@ export default function WalletPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6 sm:mb-8">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">My Wallets</h1>
-              <p className="text-slate-400 text-sm">Manage your Real and Practice accounts</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">My Wallets</h1>
+              <p className="text-muted-foreground text-sm">Manage your Real and Practice accounts</p>
             </div>
             <Button variant="ghost" onClick={refreshData} disabled={refreshing}
-              className="hidden lg:flex text-slate-400 hover:text-white">
+              className="hidden lg:flex text-muted-foreground hover:text-foreground">
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -155,7 +155,7 @@ export default function WalletPage() {
           {/* Dual Wallet Cards */}
           <div className="grid sm:grid-cols-2 gap-4 mb-6">
             {/* Real Wallet */}
-            <Card className="bg-[#161b22] border-emerald-500/30 relative overflow-hidden">
+            <Card className="bg-card border-emerald-500/30 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -translate-y-8 translate-x-8" />
               <CardContent className="p-5 relative">
                 <div className="flex items-center gap-3 mb-3">
@@ -163,11 +163,11 @@ export default function WalletPage() {
                     <ShieldCheck className="h-5 w-5 text-emerald-400" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold text-sm">Real Wallet</div>
-                    <div className="text-slate-500 text-xs">Funded via verified deposit</div>
+                    <div className="text-foreground font-semibold text-sm">Real Wallet</div>
+                    <div className="text-muted-foreground text-xs">Funded via verified deposit</div>
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-white mb-4">{formatCurrency(realBalance)}</div>
+                <div className="text-3xl font-bold text-foreground mb-4">{formatCurrency(realBalance)}</div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     onClick={() => router.push('/wallet/deposit')}
@@ -191,7 +191,7 @@ export default function WalletPage() {
             </Card>
 
             {/* Demo Wallet */}
-            <Card className="bg-[#161b22] border-amber-500/30 relative overflow-hidden">
+            <Card className="bg-card border-amber-500/30 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -translate-y-8 translate-x-8" />
               <CardContent className="p-5 relative">
                 <div className="flex items-center gap-3 mb-3">
@@ -199,11 +199,11 @@ export default function WalletPage() {
                     <Gamepad2 className="h-5 w-5 text-amber-400" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold text-sm">Practice Wallet</div>
-                    <div className="text-slate-500 text-xs">Virtual funds for risk-free trading</div>
+                    <div className="text-foreground font-semibold text-sm">Practice Wallet</div>
+                    <div className="text-muted-foreground text-xs">Virtual funds for risk-free trading</div>
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-white mb-4">{formatCurrency(demoBalance)}</div>
+                <div className="text-3xl font-bold text-foreground mb-4">{formatCurrency(demoBalance)}</div>
                 {successMsg && (
                   <div className="flex items-center gap-2 text-emerald-400 text-xs mb-3 bg-emerald-500/10 rounded-lg px-3 py-2">
                     <CheckCircle className="h-3 w-3 flex-shrink-0" />
@@ -229,33 +229,33 @@ export default function WalletPage() {
 
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-3 mb-6">
-            <Card className="bg-[#161b22] border-slate-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="h-4 w-4 text-blue-400" />
-                  <span className="text-slate-400 text-xs">Total Equity</span>
+                  <span className="text-muted-foreground text-xs">Total Equity</span>
                 </div>
-                <div className="text-lg font-bold text-white">{formatCurrency(account?.equity)}</div>
+                <div className="text-lg font-bold text-foreground">{formatCurrency(account?.equity)}</div>
               </CardContent>
             </Card>
-            <Card className="bg-[#161b22] border-slate-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   {(account?.realizedPnl || 0) >= 0
                     ? <ArrowUpRight className="h-4 w-4 text-emerald-400" />
                     : <ArrowDownRight className="h-4 w-4 text-red-400" />}
-                  <span className="text-slate-400 text-xs">Realized P&L</span>
+                  <span className="text-muted-foreground text-xs">Realized P&L</span>
                 </div>
                 <div className={`text-lg font-bold ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl)}
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-[#161b22] border-slate-800">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Wallet className="h-4 w-4 text-purple-400" />
-                  <span className="text-slate-400 text-xs">Open P&L</span>
+                  <span className="text-muted-foreground text-xs">Open P&L</span>
                 </div>
                 <div className={`text-lg font-bold ${(account?.openPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl)}
@@ -265,10 +265,10 @@ export default function WalletPage() {
           </div>
 
           {/* Ledger History */}
-          <Card className="bg-[#161b22] border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white text-base">Transaction History</CardTitle>
+                <CardTitle className="text-foreground text-base">Transaction History</CardTitle>
                 <span className={`text-xs font-medium px-2 py-1 rounded-full ${ledgerMode === 'REAL' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
                   {ledgerMode === 'REAL' ? '💼 Real Wallet' : '🎯 Practice Wallet'}
                 </span>
@@ -277,14 +277,14 @@ export default function WalletPage() {
             <CardContent className="p-0">
               {ledger.length === 0 ? (
                 <div className="text-center py-10">
-                  <Wallet className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm">No transactions yet</p>
+                  <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No transactions yet</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[500px]">
                     <thead>
-                      <tr className="text-slate-500 text-xs border-b border-slate-800">
+                      <tr className="text-muted-foreground text-xs border-b border-border">
                         <th className="text-left p-4">Type</th>
                         <th className="text-left p-4">Description</th>
                         <th className="text-right p-4">Amount</th>
@@ -294,18 +294,18 @@ export default function WalletPage() {
                     </thead>
                     <tbody>
                       {ledger.map(entry => (
-                        <tr key={entry.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                        <tr key={entry.id} className="border-b border-border/60 hover:bg-muted/40">
                           <td className="p-4">
                             <span className={`text-sm font-medium ${entryTypeColor(entry.type)}`}>
                               {entryTypeLabel(entry.type)}
                             </span>
                           </td>
-                          <td className="p-4 text-slate-400 text-sm">{entry.description || '—'}</td>
+                          <td className="p-4 text-muted-foreground text-sm">{entry.description || '—'}</td>
                           <td className={`p-4 text-right text-sm font-medium ${entry.amount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                             {entry.amount >= 0 ? '+' : ''}{formatCurrency(entry.amount)}
                           </td>
-                          <td className="p-4 text-right text-white text-sm">{formatCurrency(entry.balance)}</td>
-                          <td className="p-4 text-right text-slate-500 text-xs">
+                          <td className="p-4 text-right text-foreground text-sm">{formatCurrency(entry.balance)}</td>
+                          <td className="p-4 text-right text-muted-foreground text-xs">
                             {new Date(entry.created_at).toLocaleDateString()}
                           </td>
                         </tr>

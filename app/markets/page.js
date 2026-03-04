@@ -15,7 +15,7 @@ import { formatPrice, getPipSize } from '@/lib/trading/pips'
 
 // ── tiny change % badge ────────────────────────────────────────────────────
 function ChangeBadge({ pct }) {
-  if (!Number.isFinite(pct)) return <span className="text-slate-500 text-xs">—</span>
+  if (!Number.isFinite(pct)) return <span className="text-muted-foreground text-xs">—</span>
   const pos = pct >= 0
   return (
     <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-bold tabular-nums
@@ -36,8 +36,8 @@ function PriceBtn({ label, price, pipSize, onClick, variant }) {
       onClick={onClick}
       className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-full border px-2.5 py-1 sm:px-4 sm:py-1.5 transition-colors w-full
         ${isSell
-          ? 'border-slate-600 hover:border-orange-400 hover:bg-orange-500/10 text-white'
-          : 'border-slate-600 hover:border-emerald-400 hover:bg-emerald-500/10 text-white'
+          ? 'border-border hover:border-orange-400 hover:bg-orange-500/10 text-foreground'
+          : 'border-border hover:border-emerald-400 hover:bg-emerald-500/10 text-foreground'
         }`}
     >
       <span className="font-mono text-[11px] sm:text-sm tabular-nums leading-none">{display}</span>
@@ -162,8 +162,8 @@ export default function MarketsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
-        <div className="text-slate-400 text-sm">Loading…</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Loading…</div>
       </div>
     )
   }
@@ -200,7 +200,7 @@ export default function MarketsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen bg-[#0d1117] flex overflow-hidden dark">
+    <div className="h-screen bg-background flex overflow-hidden">
 
       {/* Sidebar */}
       <AppSidebar
@@ -215,23 +215,23 @@ export default function MarketsPage() {
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* ── Mobile header ───────────────────────────────────────────── */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 px-4 py-3 flex items-center justify-between flex-shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="text-white">
+        <div className="lg:hidden bg-card border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground">
             <Menu className="h-6 w-6" />
           </button>
-          <span className="font-bold text-white">Markets</span>
-          <div className="text-xs font-mono text-slate-300">{headerEquity}</div>
+          <span className="font-bold text-foreground">Markets</span>
+          <div className="text-xs font-mono text-muted-foreground">{headerEquity}</div>
         </div>
 
         {/* ── Search + balance bar ─────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-[#161b22] border-b border-slate-800">
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search markets…"
-            className="max-w-xs bg-[#0d1117] border-slate-700 text-white placeholder:text-slate-500 h-8 text-sm"
+            className="max-w-xs bg-background border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
           />
-          <div className="ml-auto text-sm font-mono text-slate-300 hidden lg:block">{headerEquity}</div>
+          <div className="ml-auto text-sm font-mono text-muted-foreground hidden lg:block">{headerEquity}</div>
         </div>
 
         {/* ── Instrument TABLE: takes top 55%, scrollable ──────────────── */}
@@ -239,7 +239,7 @@ export default function MarketsPage() {
 
           {/* Column headers */}
           <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
-                          px-4 py-2 bg-[#0d1020] border-b border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          px-4 py-2 bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             <span>Instrument</span>
             <span className="text-center">Change</span>
             <span className="text-center">Sell</span>
@@ -274,22 +274,22 @@ export default function MarketsPage() {
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(a) }}
                   className={[
                     'grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
-                    'px-4 py-2.5 border-b border-slate-800/50 cursor-pointer transition-colors',
+                    'px-4 py-2.5 border-b border-border/60 cursor-pointer transition-colors',
                     active
-                      ? 'bg-[#1a2035] border-l-2 border-l-blue-500'
-                      : 'hover:bg-slate-800/25',
+                      ? 'bg-accent border-l-2 border-l-blue-500'
+                      : 'hover:bg-accent/50',
                   ].join(' ')}
                 >
                   {/* Instrument name */}
                   <div className="min-w-0 flex items-center gap-2">
-                    <div className="w-7 h-7 rounded bg-slate-700/60 flex items-center justify-center flex-shrink-0">
-                      <span className="text-[9px] font-bold text-slate-300 leading-none">{a.symbol.slice(0,3)}</span>
+                    <div className="w-7 h-7 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                      <span className="text-[9px] font-bold text-muted-foreground leading-none">{a.symbol.slice(0,3)}</span>
                     </div>
                     <div className="min-w-0">
-                      <div className={`font-semibold text-sm whitespace-normal break-words sm:whitespace-nowrap sm:truncate leading-tight ${active ? 'text-blue-400' : 'text-white'}`}>
+                      <div className={`font-semibold text-sm whitespace-normal break-words sm:whitespace-nowrap sm:truncate leading-tight ${active ? 'text-blue-400' : 'text-foreground'}`}>
                         {a.name || a.symbol}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-mono">{a.symbol}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{a.symbol}</div>
                     </div>
                   </div>
 
@@ -330,13 +330,13 @@ export default function MarketsPage() {
             })}
 
             {filtered.length === 0 && (
-              <div className="px-4 py-10 text-center text-slate-500 text-sm">No instruments found.</div>
+              <div className="px-4 py-10 text-center text-muted-foreground text-sm">No instruments found.</div>
             )}
           </div>
         </div>
 
         {/* ── Chart panel: takes bottom 45%, always visible ────────────── */}
-        <div className="flex-1 min-h-0 border-t border-slate-800 overflow-hidden">
+        <div className="flex-1 min-h-0 border-t border-border overflow-hidden">
           {selected ? (
             <InstrumentChart
               key={selected.symbol}
@@ -346,7 +346,7 @@ export default function MarketsPage() {
               onBuy={()  => openTicket(selected, 'BUY')}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+            <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
               Select an instrument to view the chart
             </div>
           )}

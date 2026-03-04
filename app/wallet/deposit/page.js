@@ -83,7 +83,7 @@ export default function DepositPage() {
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === method)
   // Use server-returned address (step 2+) or fall back to client-side placeholder for QR preview
   const displayAddress = serverAddress || selectedMethod?.address || ''
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(displayAddress)}&bgcolor=161b22&color=ffffff&qzone=1`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(displayAddress)}&bgcolor=ffffff&color=000000&qzone=1`
 
   const handleNext = () => {
     const num = parseFloat(amount)
@@ -136,45 +136,45 @@ export default function DepositPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+    <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex">
+    <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 min-w-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
+        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1"><Menu className="h-6 w-6" /></button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-black text-sm leading-none">K</span>
             </div>
-            <span className="font-bold text-white text-sm">Deposit Funds</span>
+            <span className="font-bold text-foreground text-sm">Deposit Funds</span>
           </div>
           <div className="w-8" />
         </div>
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
           {/* Back button */}
-          <Link href="/wallet" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-6 text-sm transition-colors">
+          <Link href="/wallet" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 text-sm transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Back to Wallet
           </Link>
 
-          <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">Deposit Funds</h1>
-          <p className="text-slate-400 text-sm mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Deposit Funds</h1>
+          <p className="text-muted-foreground text-sm mb-6">
             Send crypto to your Kartomtrades wallet. Funds are credited after admin verification.
           </p>
 
           {/* Step 1: Select amount + method */}
           {step === 1 && (
-            <Card className="bg-[#161b22] border-slate-800 mb-6">
+            <Card className="bg-card border-border mb-6">
               <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
+                <CardTitle className="text-foreground text-base flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-emerald-400" />
                   Step 1: Choose Amount &amp; Method
                 </CardTitle>
@@ -182,14 +182,14 @@ export default function DepositPage() {
               <CardContent className="space-y-5">
                 {/* Quick amounts */}
                 <div>
-                  <label className="text-slate-400 text-sm mb-2 block">Amount (USD)</label>
+                  <label className="text-muted-foreground text-sm mb-2 block">Amount (USD)</label>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {['100', '250', '500', '1000', '5000'].map(a => (
                       <button key={a} onClick={() => setAmount(a)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
                           amount === a
                             ? 'bg-emerald-600 text-white border-emerald-600'
-                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                            : 'bg-muted text-muted-foreground border-border hover:border-ring'
                         }`}>
                         ${parseInt(a).toLocaleString()}
                       </button>
@@ -202,13 +202,13 @@ export default function DepositPage() {
                     min="10"
                     step="1"
                     placeholder="Custom amount"
-                    className="bg-slate-800 border-slate-700 text-white"
+                    className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
 
                 {/* Payment method */}
                 <div>
-                  <label className="text-slate-400 text-sm mb-2 block">Payment Method</label>
+                  <label className="text-muted-foreground text-sm mb-2 block">Payment Method</label>
                   <div className="grid grid-cols-2 gap-3">
                     {PAYMENT_METHODS.map(m => (
                       <button key={m.id} onClick={() => setMethod(m.id)}
@@ -216,8 +216,8 @@ export default function DepositPage() {
                           method === m.id ? m.activeBg : m.bg
                         }`}>
                         <div className={`text-2xl font-bold mb-1 ${m.color}`}>{m.icon}</div>
-                        <div className="text-white font-semibold text-sm">{m.label}</div>
-                        <div className="text-slate-500 text-xs">{m.network}</div>
+                        <div className="text-foreground font-semibold text-sm">{m.label}</div>
+                        <div className="text-muted-foreground text-xs">{m.network}</div>
                       </button>
                     ))}
                   </div>
@@ -241,18 +241,18 @@ export default function DepositPage() {
 
           {/* Step 2: QR Code */}
           {step === 2 && (
-            <Card className="bg-[#161b22] border-slate-800 mb-6">
+            <Card className="bg-card border-border mb-6">
               <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
+                <CardTitle className="text-foreground text-base flex items-center gap-2">
                   <Wallet className="h-5 w-5 text-emerald-400" />
                   Step 2: Send Payment
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="text-center">
-                  <div className="text-slate-400 text-sm mb-1">Send exactly</div>
+                  <div className="text-muted-foreground text-sm mb-1">Send exactly</div>
                   <div className="text-3xl font-bold text-emerald-400">{formatCurrency(parseFloat(amount))}</div>
-                  <div className="text-slate-400 text-sm mt-1">via {selectedMethod?.label} ({selectedMethod?.network})</div>
+                  <div className="text-muted-foreground text-sm mt-1">via {selectedMethod?.label} ({selectedMethod?.network})</div>
                 </div>
 
                 {/* QR Code */}
@@ -267,18 +267,18 @@ export default function DepositPage() {
                       className="rounded-lg"
                     />
                   </div>
-                  <div className="text-slate-500 text-xs">Scan with your crypto wallet</div>
+                  <div className="text-muted-foreground text-xs">Scan with your crypto wallet</div>
                 </div>
 
                 {/* Address */}
                 <div>
-                  <div className="text-slate-400 text-xs mb-2">Payment Address</div>
-                  <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-3 border border-slate-700">
+                  <div className="text-muted-foreground text-xs mb-2">Payment Address</div>
+                  <div className="flex items-center gap-2 bg-muted rounded-lg p-3 border border-border">
                     <code className="text-emerald-400 text-xs flex-1 break-all font-mono">
                       {displayAddress}
                     </code>
                     <button onClick={handleCopyAddress}
-                      className="text-slate-400 hover:text-white flex-shrink-0 transition-colors"
+                      className="text-muted-foreground hover:text-foreground flex-shrink-0 transition-colors"
                       title="Copy address">
                       {copied ? <CheckCircle className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                     </button>
@@ -297,7 +297,7 @@ export default function DepositPage() {
                 )}
 
                 <div className="flex gap-3">
-                  <Button variant="ghost" onClick={() => setStep(1)} className="text-slate-400 hover:text-white flex-1">
+                  <Button variant="ghost" onClick={() => setStep(1)} className="text-muted-foreground hover:text-foreground flex-1">
                     ← Back
                   </Button>
                   <Button
@@ -315,21 +315,21 @@ export default function DepositPage() {
 
           {/* Step 3: Success */}
           {step === 3 && (
-            <Card className="bg-[#161b22] border-emerald-500/20 mb-6">
+            <Card className="bg-card border-emerald-500/20 mb-6">
               <CardContent className="p-8 text-center">
                 <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle className="h-8 w-8 text-emerald-400" />
                 </div>
-                <h2 className="text-xl font-bold text-white mb-2">Request Submitted!</h2>
-                <p className="text-slate-400 text-sm mb-1">
-                  Your deposit request for <strong className="text-white">{formatCurrency(parseFloat(amount))}</strong> via <strong className="text-white">{selectedMethod?.label}</strong> has been received.
+                <h2 className="text-xl font-bold text-foreground mb-2">Request Submitted!</h2>
+                <p className="text-muted-foreground text-sm mb-1">
+                  Your deposit request for <strong className="text-foreground">{formatCurrency(parseFloat(amount))}</strong> via <strong className="text-foreground">{selectedMethod?.label}</strong> has been received.
                 </p>
-                <p className="text-slate-500 text-sm mb-6">
+                <p className="text-muted-foreground text-sm mb-6">
                   Our team will verify your payment and credit your account within 24 hours.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Button onClick={() => { setStep(1); setAmount('500') }}
-                    variant="ghost" className="text-slate-400 hover:text-white border border-slate-700">
+                    variant="ghost" className="text-muted-foreground hover:text-foreground border border-border">
                     Make Another Deposit
                   </Button>
                   <Link href="/wallet">
@@ -344,17 +344,17 @@ export default function DepositPage() {
 
           {/* Past deposits */}
           {pastDeposits.length > 0 && (
-            <Card className="bg-[#161b22] border-slate-800">
+            <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-white text-base">Deposit History</CardTitle>
+                <CardTitle className="text-foreground text-base">Deposit History</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y divide-slate-800">
+                <div className="divide-y divide-border">
                   {pastDeposits.map(dep => (
                     <div key={dep.id} className="px-4 py-3 flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-white text-sm font-medium">{formatCurrency(dep.amount)}</div>
-                        <div className="text-slate-500 text-xs">{dep.method} · {new Date(dep.created_at).toLocaleDateString()}</div>
+                        <div className="text-foreground text-sm font-medium">{formatCurrency(dep.amount)}</div>
+                        <div className="text-muted-foreground text-xs">{dep.method} · {new Date(dep.created_at).toLocaleDateString()}</div>
                       </div>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor(dep.status)}`}>
                         {dep.status}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -20,6 +21,8 @@ import {
   ChevronDown,
   MessageCircle,
   Briefcase,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
 // Opens the Tawk.to chat with retry (safe — no-ops if Tawk is not loaded)
@@ -64,11 +67,17 @@ const navGroups = [
 export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account: accountProp }) {
   const router = useRouter()
   const pathname = usePathname()
+  const { theme, resolvedTheme, setTheme } = useTheme()
+  const [themeMounted, setThemeMounted] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [openGroups, setOpenGroups] = useState({ trade: true, funds: true, settings: false, help: false })
   const [pendingDeposits, setPendingDeposits] = useState(0)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
+
+  useEffect(() => {
+    setThemeMounted(true)
+  }, [])
 
   // If parent didn't pass account data (non-dashboard pages), fetch it ourselves
   useEffect(() => {
@@ -139,7 +148,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
       className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg transition-colors ${
         isActive(href)
           ? 'bg-emerald-600/20 text-emerald-400'
-          : 'text-slate-300 hover:bg-slate-800'
+          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
       }`}
       onClick={() => setSidebarOpen(false)}
     >
@@ -148,24 +157,40 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     </Link>
   )
 
+  const currentTheme = (resolvedTheme || theme) === 'light' ? 'light' : 'dark'
+  const toggleTheme = () => setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+
   return (
-    <div className={`fixed lg:static inset-y-0 left-0 z-50 ${collapsed ? 'lg:w-16' : 'lg:w-64'} w-64 bg-[#161b22] border-r border-slate-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-all duration-200 flex-shrink-0`}>
+    <div className={`fixed lg:static inset-y-0 left-0 z-50 ${collapsed ? 'lg:w-16' : 'lg:w-64'} w-64 bg-sidebar border-r border-sidebar-border transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-all duration-200 flex-shrink-0`}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-slate-800">
+        <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-black text-lg leading-none">K</span>
               </div>
-              {!collapsed && <span className="text-xl font-bold text-white truncate">Kartomtrades</span>}
+              {!collapsed && <span className="text-xl font-bold text-sidebar-foreground truncate">Kartomtrades</span>}
             </Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 ml-auto">
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground ml-auto">
               <X className="h-5 w-5" />
             </button>
             <button
+              onClick={toggleTheme}
+              className="text-muted-foreground hover:text-foreground transition-colors ml-auto lg:ml-2"
+              title="Toggle theme"
+              aria-label="Toggle theme"
+              type="button"
+            >
+              {themeMounted && currentTheme === 'dark' ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </button>
+            <button
               onClick={() => setCollapsed(c => !c)}
-              className="hidden lg:block text-slate-500 hover:text-slate-300 ml-auto transition-colors"
+              className="hidden lg:block text-muted-foreground hover:text-foreground ml-2 transition-colors"
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               <ChevronLeft className={`h-4 w-4 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`} />
@@ -176,21 +201,21 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
             <div className="mt-4">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-slate-800 text-slate-200 text-sm">
+                  <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm">
                     {(email || 'A').slice(0, 1).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <div className="text-white font-semibold truncate">{displayName}</div>
-                  <div className="text-xs text-slate-400 truncate">{email || '—'}</div>
+                  <div className="text-sidebar-foreground font-semibold truncate">{displayName}</div>
+                  <div className="text-xs text-muted-foreground truncate">{email || '—'}</div>
                 </div>
               </div>
 
-              <div className="mt-3 bg-slate-800/60 rounded-lg p-2 text-xs space-y-1">
+              <div className="mt-3 bg-sidebar-accent/60 rounded-lg p-2 text-xs space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Mode</span>
+                  <span className="text-muted-foreground">Mode</span>
                   {accountLoading || tradingMode === null ? (
-                    <span className="text-slate-500 text-xs italic">Loading…</span>
+                    <span className="text-muted-foreground text-xs italic">Loading…</span>
                   ) : (
                     <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
                       {tradingMode === 'REAL' ? 'Real' : 'Demo'}
@@ -198,11 +223,11 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   )}
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Available</span>
-                  <span className="text-white font-mono">{fmt(available)}</span>
+                  <span className="text-muted-foreground">Available</span>
+                  <span className="text-sidebar-foreground font-mono">{fmt(available)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Equity</span>
+                  <span className="text-muted-foreground">Equity</span>
                   <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
                 </div>
               </div>
@@ -220,7 +245,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               <button
                 onClick={openTawk}
                 title="Live Support"
-                className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-800"
+                className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0" />
               </button>
@@ -231,7 +256,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   className={`flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors relative ${
                     pathname.startsWith('/admin')
                       ? 'bg-amber-600/20 text-amber-400'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                   }`}
                 >
                   <Shield className="h-4 w-4 flex-shrink-0" />
@@ -252,7 +277,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, [group.id]: open }))}
                 >
                   <CollapsibleTrigger className="w-full">
-                    <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200 transition-colors">
+                    <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-sidebar-foreground transition-colors">
                       <span>{group.label}</span>
                       <ChevronDown className={`h-4 w-4 transition-transform ${openGroups[group.id] ? 'rotate-180' : ''}`} />
                     </div>
@@ -265,14 +290,14 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </Collapsible>
               ))}
 
-              <Separator className="my-2 bg-slate-800" />
+              <Separator className="my-2 bg-sidebar-border" />
 
               <Collapsible
                 open={!!openGroups.help}
                 onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, help: open }))}
               >
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200 transition-colors">
+                  <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-sidebar-foreground transition-colors">
                     <span>Help</span>
                     <ChevronDown className={`h-4 w-4 transition-transform ${openGroups.help ? 'rotate-180' : ''}`} />
                   </div>
@@ -280,7 +305,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 <CollapsibleContent className="space-y-0.5">
                   <button
                     onClick={openTawk}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-800"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
                   >
                     <MessageCircle className="h-4 w-4 flex-shrink-0" />
                     <span className="text-sm">Live Support</span>
@@ -294,7 +319,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
                     pathname.startsWith('/admin')
                       ? 'bg-amber-600/20 text-amber-400'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                   }`}
                 >
                   <Shield className="h-4 w-4 flex-shrink-0" />
@@ -311,7 +336,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-slate-800">
+        <div className="p-3 border-t border-sidebar-border">
           {!collapsed && user?.role === 'ADMIN' && (
             <div className="text-xs text-amber-400 mb-2 px-1">● ADMIN</div>
           )}
@@ -319,7 +344,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
             variant="ghost"
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
-            className={`w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} text-slate-300 hover:text-white hover:bg-slate-800`}
+            className={`w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent`}
           >
             <LogOut className="h-4 w-4 flex-shrink-0" />
             {!collapsed && <span className="ml-2">Logout</span>}

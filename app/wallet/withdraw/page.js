@@ -159,7 +159,7 @@ export default function WithdrawPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
@@ -168,7 +168,7 @@ export default function WithdrawPage() {
   // If auth loaded but KYC hasn't yet, keep a consistent loading state.
   if (kycStatus == null) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
@@ -184,19 +184,19 @@ export default function WithdrawPage() {
     }
     const info = kycMessages[ks] || kycMessages.PENDING
     return (
-      <div className="min-h-screen bg-[#0d1117] flex">
+      <div className="min-h-screen bg-background flex">
         <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <div className="flex-1 flex items-center justify-center p-6">
           <div className={`max-w-md w-full rounded-2xl border p-8 text-center space-y-4 ${info.color}`}>
             <div className="text-5xl">{info.icon}</div>
-            <h2 className="text-xl font-bold text-white">{info.title}</h2>
-            <p className="text-slate-400 text-sm">{info.desc}</p>
+            <h2 className="text-xl font-bold text-foreground">{info.title}</h2>
+            <p className="text-muted-foreground text-sm">{info.desc}</p>
             <Link href={info.href}>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white mt-2 w-full">
                 {info.cta}
               </Button>
             </Link>
-            <Link href="/wallet" className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">← Back to Wallet</Link>
+            <Link href="/wallet" className="block text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to Wallet</Link>
           </div>
         </div>
         {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -205,36 +205,36 @@ export default function WithdrawPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex">
+    <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 min-w-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
+        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1"><Menu className="h-6 w-6" /></button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-black text-sm leading-none">K</span>
             </div>
-            <span className="font-bold text-white text-sm">Withdraw</span>
+            <span className="font-bold text-foreground text-sm">Withdraw</span>
           </div>
           <div className="w-8" />
         </div>
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
-          <Link href="/wallet" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-6 text-sm transition-colors">
+          <Link href="/wallet" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 text-sm transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Back to Wallet
           </Link>
 
-          <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">Withdraw Funds</h1>
-          <p className="text-slate-400 text-sm mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Withdraw Funds</h1>
+          <p className="text-muted-foreground text-sm mb-6">
             Requests are reviewed by an admin. Your Real Wallet balance is deducted only after approval.
           </p>
 
-          <Card className="bg-[#161b22] border-slate-800 mb-6">
+          <Card className="bg-card border-border mb-6">
             <CardHeader>
-              <CardTitle className="text-white text-base flex items-center gap-2">
+              <CardTitle className="text-foreground text-base flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-emerald-400" />
                 Withdrawal Request
               </CardTitle>
@@ -253,7 +253,7 @@ export default function WithdrawPage() {
                       key={m}
                       type="button"
                       onClick={() => setMethod(m)}
-                      className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${method === m ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${method === m ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600' : 'bg-muted border-border text-muted-foreground hover:text-foreground'}`}
                     >
                       {m}
                     </button>
@@ -269,18 +269,18 @@ export default function WithdrawPage() {
                     min="0"
                     max={realBalance}
                     placeholder="Amount (USD)"
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                    className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                   />
                   <Input
                     value={address}
                     onChange={e => setAddress(e.target.value)}
                     placeholder={method === 'BTC' ? 'BTC address' : 'USDT address'}
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                    className="bg-background border-border text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
 
-                <div className="text-slate-500 text-xs">
-                  Available to withdraw: <span className="text-slate-300 font-medium">{formatCurrency(realBalance)}</span>
+                <div className="text-muted-foreground text-xs">
+                  Available to withdraw: <span className="text-foreground font-medium">{formatCurrency(realBalance)}</span>
                 </div>
 
                 <Button
@@ -295,18 +295,18 @@ export default function WithdrawPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[#161b22] border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white text-base">Recent withdrawal requests</CardTitle>
+              <CardTitle className="text-foreground text-base">Recent withdrawal requests</CardTitle>
             </CardHeader>
             <CardContent>
               {withdrawals.length === 0 ? (
-                <div className="text-slate-500 text-sm">No withdrawal requests yet.</div>
+                <div className="text-muted-foreground text-sm">No withdrawal requests yet.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[650px]">
                     <thead>
-                      <tr className="text-slate-500 text-xs border-b border-slate-800">
+                      <tr className="text-muted-foreground text-xs border-b border-border">
                         <th className="text-left p-3">Method</th>
                         <th className="text-right p-3">Amount</th>
                         <th className="text-left p-3">Address</th>
@@ -316,14 +316,14 @@ export default function WithdrawPage() {
                     </thead>
                     <tbody>
                       {withdrawals.map(w => (
-                        <tr key={w.id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                          <td className="p-3 text-white text-sm font-medium">{w.method}</td>
-                          <td className="p-3 text-right text-white text-sm">{formatCurrency(w.amount)}</td>
-                          <td className="p-3 text-slate-400 text-xs font-mono truncate max-w-[320px]">{w.address}</td>
+                        <tr key={w.id} className="border-b border-border hover:bg-muted/50">
+                          <td className="p-3 text-foreground text-sm font-medium">{w.method}</td>
+                          <td className="p-3 text-right text-foreground text-sm">{formatCurrency(w.amount)}</td>
+                          <td className="p-3 text-muted-foreground text-xs font-mono truncate max-w-[320px]">{w.address}</td>
                           <td className="p-3 text-center">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${statusPill(w.status)}`}>{w.status}</span>
                           </td>
-                          <td className="p-3 text-right text-slate-500 text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
+                          <td className="p-3 text-right text-muted-foreground text-xs">{new Date(w.created_at).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>

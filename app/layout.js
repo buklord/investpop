@@ -1,5 +1,6 @@
 import './globals.css'
 import Script from 'next/script'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata = {
   title: 'Kartomtrades - Live Trading Platform',
@@ -17,12 +18,14 @@ const TAWK_SRC = process.env.NEXT_PUBLIC_TAWK_SRC || (
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
       </head>
       <body className="bg-background text-foreground">
-        {children}
+        <ThemeProvider defaultTheme="dark" enableSystem={false}>
+          {children}
+        </ThemeProvider>
 
         {/* ── Tawk.to Live Chat ─────────────────────────────────────────────
             Loads on every page when NEXT_PUBLIC_TAWK_SRC (or the legacy
