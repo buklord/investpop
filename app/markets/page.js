@@ -54,7 +54,7 @@ function InstrumentRowSkeleton({ keyId }) {
   return (
     <div
       key={keyId}
-      className="grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center px-4 py-2.5 border-b border-border/60"
+      className="grid grid-cols-[minmax(0,2fr)_96px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_96px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_96px_1fr_1fr_minmax(0,1fr)] items-center px-4 py-2.5 border-b border-border/60"
     >
       <div className="min-w-0 flex items-center gap-2">
         <Skeleton className="w-7 h-7 rounded" />
@@ -276,10 +276,10 @@ export default function MarketsPage() {
         <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ height: '55%' }}>
 
           {/* Column headers */}
-          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center
+          <div className="flex-shrink-0 grid grid-cols-[minmax(0,2fr)_96px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_96px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_96px_1fr_1fr_minmax(0,1fr)] items-center
                           px-4 py-2 bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             <span>Instrument</span>
-            <span className="text-center">Change</span>
+            <span className="text-left pl-2">Change</span>
             <span className="text-center">Sell</span>
             <span className="text-center">Buy</span>
             <span className="hidden lg:block text-right">High / Low</span>
@@ -318,7 +318,7 @@ export default function MarketsPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(a) }}
                   className={[
-                    'grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center',
+                    'grid grid-cols-[minmax(0,2fr)_96px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_96px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_96px_1fr_1fr_minmax(0,1fr)] items-center',
                     'px-4 py-2.5 border-b border-border/60 cursor-pointer transition-colors',
                     active
                       ? 'bg-accent border-l-2 border-l-blue-500'

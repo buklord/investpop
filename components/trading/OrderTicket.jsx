@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { getPipSize, formatPrice, pipsToPriceDelta } from '@/lib/trading/pips'
 import {
@@ -13,8 +12,6 @@ import {
   formatMoneyApprox,
   formatPctApprox,
 } from '@/lib/trading/pl'
-
-const ORDER_TYPES = ['MARKET', 'LIMIT', 'STOP', 'STOP_LIMIT']
 
 function clampNumber(value, { min = -Infinity, max = Infinity } = {}) {
   const n = Number(value)
@@ -26,8 +23,6 @@ function reducer(state, action) {
   switch (action.type) {
     case 'setSide':
       return { ...state, side: action.value }
-    case 'setOrderType':
-      return { ...state, orderType: action.value }
     case 'setSize':
       return { ...state, size: action.value }
     case 'setMarketRangeEnabled':
@@ -42,10 +37,6 @@ function reducer(state, action) {
       return { ...state, sl: { ...state.sl, enabled: action.value } }
     case 'setSlPips':
       return { ...state, sl: { ...state.sl, pips: action.value } }
-    case 'setTriggerPrice':
-      return { ...state, pending: { ...state.pending, triggerPrice: action.value } }
-    case 'setLimitPrice':
-      return { ...state, pending: { ...state.pending, limitPrice: action.value } }
     case 'setTrailingEnabled':
       return { ...state, trailing: { ...state.trailing, enabled: action.value } }
     case 'setComment':
@@ -62,7 +53,6 @@ function getSizeLabel(type) {
 function createInitialState({ side, entryRefPrice }) {
   return {
     side,
-    orderType: 'MARKET',
     entryRefPrice,
     size: '',
     marketRange: { enabled: false, pips: 5 },
@@ -70,7 +60,6 @@ function createInitialState({ side, entryRefPrice }) {
     sl: { enabled: true, pips: 20 },
     triggerBasis: 'TRADE',
     trailing: { enabled: false },
-    pending: { triggerPrice: '', limitPrice: '' },
     comment: '',
   }
 }
@@ -138,19 +127,7 @@ export default function OrderTicket({
 
     const entryMarket = state.side === 'BUY' ? ask : bid
 
-    const triggerPrice = clampNumber(state.pending.triggerPrice, { min: 0 })
-    const limitPrice = clampNumber(state.pending.limitPrice, { min: 0 })
-
-    const entryPending =
-      state.orderType === 'LIMIT'
-        ? limitPrice
-        : state.orderType === 'STOP'
-          ? triggerPrice
-          : state.orderType === 'STOP_LIMIT'
-            ? (limitPrice ?? triggerPrice)
-            : null
-
-    const entry = state.orderType === 'MARKET' ? entryMarket : entryPending
+    const entry = entryMarket
 
     const tpPrice =
       state.tp.enabled && Number.isFinite(entry)
@@ -172,10 +149,8 @@ export default function OrderTicket({
       entry,
       tpPrice,
       slPrice,
-      triggerPrice,
-      limitPrice,
     }
-  }, [quote?.bid, quote?.ask, pipSize, state.orderType, state.pending.limitPrice, state.pending.triggerPrice, state.side, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
+  }, [quote?.bid, quote?.ask, pipSize, state.side, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
 
   const account = useMemo(() => {
     // OrderTicket doesn’t fetch account itself; the parent can set window.__account if desired.
@@ -221,17 +196,8 @@ export default function OrderTicket({
     const size = clampNumber(state.size, { min: 0 })
     if (!size || size <= 0) errors.push('Size must be greater than 0')
 
-    if (!ORDER_TYPES.includes(state.orderType)) errors.push('Invalid order type')
-
-    if (!session.isOpen && state.orderType === 'MARKET') {
+    if (!session.isOpen) {
       errors.push('Market is closed for market orders')
-    }
-
-    if (state.orderType === 'LIMIT' && !derived.limitPrice) errors.push('Limit price is required')
-    if (state.orderType === 'STOP' && !derived.triggerPrice) errors.push('Trigger price is required')
-    if (state.orderType === 'STOP_LIMIT') {
-      if (!derived.triggerPrice) errors.push('Trigger price is required')
-      if (!derived.limitPrice) errors.push('Limit price is required')
     }
 
     if (state.tp.enabled && (!clampNumber(state.tp.pips, { min: 0 }) || Number(state.tp.pips) <= 0)) {
@@ -241,7 +207,7 @@ export default function OrderTicket({
       errors.push('SL pips must be positive')
     }
 
-    if (state.marketRange.enabled && state.orderType === 'MARKET') {
+    if (state.marketRange.enabled) {
       const tol = pipsToPriceDelta(state.marketRange.pips, pipSize)
       const ref = Number(state.entryRefPrice)
       if (Number.isFinite(ref) && tol > 0) {
@@ -260,7 +226,7 @@ export default function OrderTicket({
     }
 
     return { isValid: errors.length === 0, errors }
-  }, [derived.limitPrice, derived.triggerPrice, pipSize, quote?.ask, quote?.bid, session.isOpen, state.entryRefPrice, state.marketRange.enabled, state.marketRange.pips, state.orderType, state.side, state.size, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
+  }, [pipSize, quote?.ask, quote?.bid, session.isOpen, state.entryRefPrice, state.marketRange.enabled, state.marketRange.pips, state.side, state.size, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
 
   const placeOrder = useCallback(async () => {
     setSubmitError('')
@@ -274,59 +240,31 @@ export default function OrderTicket({
     try {
       const size = Number(state.size)
 
-      if (state.orderType === 'MARKET') {
-        const payload = {
-          symbol: instrument.symbol,
-          type: instrument.type,
-          action: state.side,
-          quantity: size,
-          takeProfit: state.tp.enabled ? derived.tpPrice : null,
-          stopLoss: state.sl.enabled ? derived.slPrice : null,
-        }
-
-        const res = await fetch('/api/trade', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data?.error || 'Failed to execute trade')
-
-        if (onExecuted) onExecuted({ type: 'MARKET', trade: data.trade, instrument })
-        return
+      const payload = {
+        symbol: instrument.symbol,
+        type: instrument.type,
+        action: state.side,
+        quantity: size,
+        takeProfit: state.tp.enabled ? derived.tpPrice : null,
+        stopLoss: state.sl.enabled ? derived.slPrice : null,
       }
 
-      // Pending orders: map to existing limit-order endpoint.
-      const pendingPrice =
-        state.orderType === 'LIMIT'
-          ? derived.limitPrice
-          : state.orderType === 'STOP'
-            ? derived.triggerPrice
-            : derived.limitPrice
-
-      const res = await fetch('/api/orders/limit', {
+      const res = await fetch('/api/trade', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          symbol: instrument.symbol,
-          type: instrument.type,
-          action: state.side,
-          quantity: size,
-          limitPrice: pendingPrice,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error || 'Failed to create pending order')
+      if (!res.ok) throw new Error(data?.error || 'Failed to execute trade')
 
-      if (onExecuted) onExecuted({ type: state.orderType, order: data.order, instrument })
+      if (onExecuted) onExecuted({ type: 'MARKET', trade: data.trade, instrument })
     } catch (e) {
       setSubmitError(e?.message || 'Failed to place order')
     } finally {
       setSubmitting(false)
     }
-  }, [derived.limitPrice, derived.slPrice, derived.tpPrice, derived.triggerPrice, instrument, onExecuted, state.orderType, state.side, state.size, state.sl.enabled, state.tp.enabled, validation.errors, validation.isValid])
+  }, [derived.slPrice, derived.tpPrice, instrument, onExecuted, state.side, state.size, state.sl.enabled, state.tp.enabled, validation.errors, validation.isValid])
 
   const showClosedBanner = !session.isOpen
   const disablePlace = submitting || !validation.isValid
@@ -349,15 +287,9 @@ export default function OrderTicket({
 
         {/* Content */}
         <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
-          {/* Order type selector */}
-          <Tabs value={state.orderType} onValueChange={(v) => dispatch({ type: 'setOrderType', value: v })}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="MARKET">Market</TabsTrigger>
-              <TabsTrigger value="LIMIT">Limit</TabsTrigger>
-              <TabsTrigger value="STOP">Stop</TabsTrigger>
-              <TabsTrigger value="STOP_LIMIT">Stop-limit</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="rounded-lg bg-card border border-border p-2">
+            <div className="text-sm font-semibold text-foreground text-center">Market Order</div>
+          </div>
 
           {/* Market status banner */}
           {showClosedBanner && (
@@ -398,36 +330,6 @@ export default function OrderTicket({
               <div>S: <span className="font-mono text-foreground">{formatPrice((derived.ask ?? 0) - (derived.bid ?? 0), pipSize)}</span></div>
             </div>
           </div>
-
-          {/* Required prices for pending orders */}
-          {state.orderType !== 'MARKET' && (
-            <div className="rounded-lg bg-card border border-border p-3 space-y-3">
-              {state.orderType !== 'LIMIT' && (
-                <div>
-                  <div className="text-sm text-foreground mb-1">Trigger</div>
-                  <Input
-                    value={state.pending.triggerPrice}
-                    onChange={(e) => dispatch({ type: 'setTriggerPrice', value: e.target.value })}
-                    inputMode="decimal"
-                    className="font-mono"
-                    placeholder="Trigger price"
-                  />
-                </div>
-              )}
-              {state.orderType !== 'STOP' && (
-                <div>
-                  <div className="text-sm text-foreground mb-1">Price</div>
-                  <Input
-                    value={state.pending.limitPrice}
-                    onChange={(e) => dispatch({ type: 'setLimitPrice', value: e.target.value })}
-                    inputMode="decimal"
-                    className="font-mono"
-                    placeholder={state.orderType === 'LIMIT' ? 'Limit price' : 'Limit price'}
-                  />
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Size */}
           <div className="rounded-lg bg-card border border-border p-3">
