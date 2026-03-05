@@ -896,7 +896,10 @@ async function handleRoute(request, context) {
       const assets = await prisma.$queryRaw`
         SELECT id, symbol, name, type, created_at FROM assets ORDER BY type, symbol
       `
-      return handleCORS(NextResponse.json({ assets }))
+      const res = NextResponse.json({ assets })
+      // Cache: asset catalog changes rarely; keep it fast on repeat page loads.
+      res.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+      return handleCORS(res)
     }
 
     // POST /api/assets/seed - Seed default assets (idempotent — always upserts missing assets)
@@ -3058,7 +3061,10 @@ async function handleMarketRoute(route, method, body, requestUrl = '') {
   // GET /api/market/prices — returns all current bid/ask/mid prices
   if (route === '/market/prices' && method === 'GET') {
     const prices = MarketSim.getAllPrices()
-    return handleCORS(NextResponse.json({ prices, settings: MarketSim.getSettings() }))
+    const res = NextResponse.json({ prices, settings: MarketSim.getSettings() })
+    // Cache: very short TTL; client also polls /market/tick every 2s.
+    res.headers.set('Cache-Control', 'public, max-age=1, stale-while-revalidate=9')
+    return handleCORS(res)
   }
 
   // GET /api/market/session — returns whether trading is currently open

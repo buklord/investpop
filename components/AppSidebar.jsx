@@ -176,19 +176,6 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               <X className="h-5 w-5" />
             </button>
             <button
-              onClick={toggleTheme}
-              className="text-muted-foreground hover:text-foreground transition-colors ml-auto lg:ml-2"
-              title="Toggle theme"
-              aria-label="Toggle theme"
-              type="button"
-            >
-              {themeMounted && currentTheme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </button>
-            <button
               onClick={() => setCollapsed(c => !c)}
               className="hidden lg:block text-muted-foreground hover:text-foreground ml-2 transition-colors"
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -248,6 +235,19 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0" />
+              </button>
+              <button
+                onClick={toggleTheme}
+                title={themeMounted ? `Theme: ${currentTheme === 'dark' ? 'Dark' : 'Light'}` : 'Toggle theme'}
+                aria-label="Toggle theme"
+                type="button"
+                className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
+              >
+                {themeMounted && currentTheme === 'dark' ? (
+                  <Sun className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                  <Moon className="h-4 w-4 flex-shrink-0" />
+                )}
               </button>
               {user?.role === 'ADMIN' && (
                 <Link
@@ -312,6 +312,19 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   </button>
                 </CollapsibleContent>
               </Collapsible>
+
+              <button
+                onClick={toggleTheme}
+                type="button"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
+              >
+                {themeMounted && currentTheme === 'dark' ? (
+                  <Sun className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                  <Moon className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span className="text-sm">Theme</span>
+              </button>
 
               {user?.role === 'ADMIN' && (
                 <Link

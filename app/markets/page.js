@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu, TrendingUp, TrendingDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Drawer, DrawerContent } from '@/components/ui/drawer'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -49,11 +50,42 @@ function PriceBtn({ label, price, pipSize, onClick, variant }) {
   )
 }
 
+function InstrumentRowSkeleton({ keyId }) {
+  return (
+    <div
+      key={keyId}
+      className="grid grid-cols-[minmax(0,2fr)_76px_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 sm:gap-x-0 sm:grid-cols-[minmax(0,2fr)_80px_1fr_1fr] lg:grid-cols-[minmax(0,2fr)_80px_1fr_1fr_minmax(0,1fr)] items-center px-4 py-2.5 border-b border-border/60"
+    >
+      <div className="min-w-0 flex items-center gap-2">
+        <Skeleton className="w-7 h-7 rounded" />
+        <div className="min-w-0 space-y-1">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className="h-2 w-20" />
+        </div>
+      </div>
+      <div className="flex justify-start pl-1">
+        <Skeleton className="h-5 w-16 rounded" />
+      </div>
+      <div className="flex justify-center">
+        <Skeleton className="h-8 w-full max-w-[160px] rounded-full" />
+      </div>
+      <div className="flex justify-center">
+        <Skeleton className="h-8 w-full max-w-[160px] rounded-full" />
+      </div>
+      <div className="hidden lg:flex flex-col items-end gap-1">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    </div>
+  )
+}
+
 export default function MarketsPage() {
   const router   = useRouter()
   const isMobile = useIsMobile()
 
   const [loading, setLoading]         = useState(true)
+  const [marketLoading, setMarketLoading] = useState(true)
   const [user, setUser]               = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [assets, setAssets]           = useState([])
@@ -90,12 +122,13 @@ export default function MarketsPage() {
     let cancelled = false
 
     async function loadInitial() {
+      if (!cancelled) setMarketLoading(true)
       try {
         fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
         const [acctRes, assetsRes, pricesRes] = await Promise.all([
-          fetch('/api/account'),
-          fetch('/api/assets'),
-          fetch('/api/market/prices'),
+          fetch('/api/account', { cache: 'no-store' }),
+          fetch('/api/assets', { cache: 'force-cache' }),
+          fetch('/api/market/prices', { cache: 'force-cache' }),
         ])
         if (!cancelled && acctRes.ok)   setAccount(await acctRes.json())
         if (!cancelled && assetsRes.ok) {
@@ -107,6 +140,9 @@ export default function MarketsPage() {
           if (!cancelled) setPrices(d.prices || {})
         }
       } catch {}
+      finally {
+        if (!cancelled) setMarketLoading(false)
+      }
     }
 
     loadInitial()
@@ -159,6 +195,8 @@ export default function MarketsPage() {
     const s  = c === 'USD' ? '$' : c === 'EUR' ? '€' : c === 'GBP' ? '£' : ''
     return Number.isFinite(eq) ? `${s}${eq.toFixed(2)}` : '—'
   }, [account])
+
+  const showMarketSkeleton = marketLoading && assets.length === 0
 
   if (loading) {
     return (
@@ -249,7 +287,14 @@ export default function MarketsPage() {
 
           {/* Rows */}
           <div className="flex-1 overflow-y-auto">
-            {filtered.map((a) => {
+            {showMarketSkeleton ? (
+              <>
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <InstrumentRowSkeleton key={i} keyId={i} />
+                ))}
+              </>
+            ) : (
+            filtered.map((a) => {
               const q       = prices[a.symbol] || prices[a.symbol?.toUpperCase()] || null
               const pipSize = getPipSize({ symbolId: a.symbol, type: a.type })
               const bid     = q?.bid
@@ -327,9 +372,9 @@ export default function MarketsPage() {
                   </div>
                 </div>
               )
-            })}
+            }))}
 
-            {filtered.length === 0 && (
+            {!marketLoading && filtered.length === 0 && (
               <div className="px-4 py-10 text-center text-muted-foreground text-sm">No instruments found.</div>
             )}
           </div>
@@ -345,6 +390,10 @@ export default function MarketsPage() {
               onSell={() => openTicket(selected, 'SELL')}
               onBuy={()  => openTicket(selected, 'BUY')}
             />
+          ) : showMarketSkeleton ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+              Loading markets…
+            </div>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
               Select an instrument to view the chart
