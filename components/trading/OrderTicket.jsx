@@ -39,6 +39,10 @@ function reducer(state, action) {
       return { ...state, sl: { ...state.sl, pips: action.value } }
     case 'setTrailingEnabled':
       return { ...state, trailing: { ...state.trailing, enabled: action.value } }
+    case 'setJournalTag':
+      return { ...state, journalTag: action.value }
+    case 'setJournalMood':
+      return { ...state, journalMood: action.value }
     case 'setComment':
       return { ...state, comment: action.value }
     default:
@@ -60,6 +64,8 @@ function createInitialState({ side, entryRefPrice }) {
     sl: { enabled: true, pips: 20 },
     triggerBasis: 'TRADE',
     trailing: { enabled: false },
+    journalTag: '',
+    journalMood: '',
     comment: '',
   }
 }
@@ -247,6 +253,9 @@ export default function OrderTicket({
         quantity: size,
         takeProfit: state.tp.enabled ? derived.tpPrice : null,
         stopLoss: state.sl.enabled ? derived.slPrice : null,
+        journalTag: String(state.journalTag || '').trim() || undefined,
+        journalMood: String(state.journalMood || '').trim() || undefined,
+        journalNote: String(state.comment || '').trim() || undefined,
       }
 
       const res = await fetch('/api/trade', {
@@ -264,7 +273,21 @@ export default function OrderTicket({
     } finally {
       setSubmitting(false)
     }
-  }, [derived.slPrice, derived.tpPrice, instrument, onExecuted, state.side, state.size, state.sl.enabled, state.tp.enabled, validation.errors, validation.isValid])
+  }, [
+    derived.slPrice,
+    derived.tpPrice,
+    instrument,
+    onExecuted,
+    state.comment,
+    state.journalMood,
+    state.journalTag,
+    state.side,
+    state.size,
+    state.sl.enabled,
+    state.tp.enabled,
+    validation.errors,
+    validation.isValid,
+  ])
 
   const showClosedBanner = !session.isOpen
   const disablePlace = submitting || !validation.isValid
@@ -455,15 +478,27 @@ export default function OrderTicket({
             </div>
           </div>
 
-          {/* Comment */}
+          {/* Journal (optional) */}
           <div className="rounded-lg bg-card border border-border p-3">
-            <div className="text-sm text-foreground mb-2">Comment</div>
+            <div className="text-sm text-foreground mb-2">Journal (optional)</div>
+            <div className="grid sm:grid-cols-2 gap-2 mb-2">
+              <Input
+                value={state.journalTag}
+                onChange={(e) => dispatch({ type: 'setJournalTag', value: e.target.value.slice(0, 50) })}
+                placeholder="Setup tag (e.g. breakout)"
+              />
+              <Input
+                value={state.journalMood}
+                onChange={(e) => dispatch({ type: 'setJournalMood', value: e.target.value.slice(0, 30) })}
+                placeholder="Mood (e.g. calm)"
+              />
+            </div>
             <Input
               value={state.comment}
-              onChange={(e) => dispatch({ type: 'setComment', value: e.target.value.slice(0, 100) })}
-              placeholder=""
+              onChange={(e) => dispatch({ type: 'setComment', value: e.target.value.slice(0, 300) })}
+              placeholder="Quick note about your trade idea"
             />
-            <div className="mt-1 text-right text-xs text-muted-foreground">{String(state.comment || '').length}/100</div>
+            <div className="mt-1 text-right text-xs text-muted-foreground">{String(state.comment || '').length}/300</div>
           </div>
 
           {submitError && (
