@@ -236,19 +236,6 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0" />
               </button>
-              <button
-                onClick={toggleTheme}
-                title={themeMounted ? `Theme: ${currentTheme === 'dark' ? 'Dark' : 'Light'}` : 'Toggle theme'}
-                aria-label="Toggle theme"
-                type="button"
-                className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
-              >
-                {themeMounted && currentTheme === 'dark' ? (
-                  <Sun className="h-4 w-4 flex-shrink-0" />
-                ) : (
-                  <Moon className="h-4 w-4 flex-shrink-0" />
-                )}
-              </button>
               {user?.role === 'ADMIN' && (
                 <Link
                   href="/admin"
@@ -313,19 +300,6 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </CollapsibleContent>
               </Collapsible>
 
-              <button
-                onClick={toggleTheme}
-                type="button"
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sidebar-foreground/80 hover:bg-sidebar-accent"
-              >
-                {themeMounted && currentTheme === 'dark' ? (
-                  <Sun className="h-4 w-4 flex-shrink-0" />
-                ) : (
-                  <Moon className="h-4 w-4 flex-shrink-0" />
-                )}
-                <span className="text-sm">Theme</span>
-              </button>
-
               {user?.role === 'ADMIN' && (
                 <Link
                   href="/admin"
@@ -353,6 +327,21 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
           {!collapsed && user?.role === 'ADMIN' && (
             <div className="text-xs text-amber-400 mb-2 px-1">● ADMIN</div>
           )}
+
+          <Button
+            variant="ghost"
+            onClick={toggleTheme}
+            title={collapsed ? (themeMounted ? `Theme: ${currentTheme === 'dark' ? 'Dark' : 'Light'}` : 'Toggle theme') : undefined}
+            className={`w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent mb-1`}
+          >
+            {themeMounted && currentTheme === 'dark' ? (
+              <Sun className="h-4 w-4 flex-shrink-0" />
+            ) : (
+              <Moon className="h-4 w-4 flex-shrink-0" />
+            )}
+            {!collapsed && <span className="ml-2">Theme</span>}
+          </Button>
+
           <Button
             variant="ghost"
             onClick={handleLogout}

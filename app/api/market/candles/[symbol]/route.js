@@ -5,6 +5,8 @@ import { BASE_PRICES } from '@/lib/marketSimulator'
 const CACHE_TTL_MS = 60_000
 const CACHE = globalThis.__INVESTPOP_CANDLE_CACHE || (globalThis.__INVESTPOP_CANDLE_CACHE = new Map())
 
+const CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=60'
+
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n))
 }
@@ -84,7 +86,10 @@ export async function GET(_req, { params }) {
   const cached = CACHE.get(key)
   const now = Date.now()
   if (cached && now - cached.ts < CACHE_TTL_MS) {
-    return NextResponse.json({ symbol: String(symbol).toUpperCase(), tf: tfSecs, candles: cached.data, cached: true })
+    return NextResponse.json(
+      { symbol: String(symbol).toUpperCase(), tf: tfSecs, candles: cached.data, cached: true },
+      { headers: { 'Cache-Control': CACHE_CONTROL } }
+    )
   }
 
   const candles = generateCandles({ symbol, tfSecs, limit })
@@ -93,6 +98,6 @@ export async function GET(_req, { params }) {
   // Cache hint (works for edge/CDN too)
   return NextResponse.json(
     { symbol: String(symbol).toUpperCase(), tf: tfSecs, candles, cached: false },
-    { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=60' } }
+    { headers: { 'Cache-Control': CACHE_CONTROL } }
   )
 }

@@ -36,6 +36,7 @@ export default function AdminPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const [users, setUsers] = useState([])
@@ -279,6 +280,7 @@ export default function AdminPage() {
   }
 
   const loadData = async () => {
+    setDataLoading(true)
     try {
       const [usersRes, auditRes, activityRes, settingsRes, depositsRes, withdrawalsRes, kycRes] = await Promise.all([
         fetch('/api/admin/users'),
@@ -303,6 +305,8 @@ export default function AdminPage() {
       }
     } catch (err) {
       console.error('Failed to load admin data:', err)
+    } finally {
+      setDataLoading(false)
     }
   }
 
@@ -510,6 +514,13 @@ export default function AdminPage() {
               Refresh
             </Button>
           </div>
+
+          {(dataLoading || refreshing) && (
+            <div className="mb-4 flex items-center gap-2 text-slate-400 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading…</span>
+            </div>
+          )}
 
           {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

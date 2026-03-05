@@ -19,6 +19,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const [chartInitDone, setChartInitDone] = useState(false)
   const [candles, setCandles] = useState([])
   const [limit, setLimit] = useState(300)
+  const [candlesLoading, setCandlesLoading] = useState(false)
 
   const containerRef  = useRef(null)
   const chartApiRef   = useRef(null)
@@ -58,8 +59,10 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
     async function load() {
       try {
         fetchingRef.current = true
+        setCandlesLoading(true)
         const url = `/api/market/candles/${encodeURIComponent(instrument.symbol)}?tf=${tf.secs}&limit=${limit}`
-        const res = await fetch(url, { signal: controller.signal, cache: 'no-store' })
+        // Allow HTTP caching (the API sets Cache-Control for CDN + browser cache)
+        const res = await fetch(url, { signal: controller.signal, cache: 'force-cache' })
         if (!res.ok) return
         const data = await res.json().catch(() => null)
         if (!alive || !data) return
@@ -68,6 +71,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
       } catch {
       } finally {
         fetchingRef.current = false
+        setCandlesLoading(false)
       }
     }
 
@@ -246,6 +250,9 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const bid = quote?.bid
   const ask = quote?.ask
 
+  const quoteLoading = quote == null
+  const showChartLoading = !chartInitDone || candlesLoading || candles.length === 0
+
   return (
     <div className="flex flex-col h-full bg-[#0e1117] select-none">
 
@@ -259,7 +266,9 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
           >
             <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">Sell</span>
             <span className="text-sm font-mono text-white leading-tight tabular-nums">
-              {Number.isFinite(Number(bid)) ? formatPrice(bid, pipSize) : '—'}
+              {Number.isFinite(Number(bid))
+                ? formatPrice(bid, pipSize)
+                : quoteLoading ? 'Loading…' : '—'}
             </span>
           </button>
           <button
@@ -268,7 +277,9 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
           >
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Buy</span>
             <span className="text-sm font-mono text-white leading-tight tabular-nums">
-              {Number.isFinite(Number(ask)) ? formatPrice(ask, pipSize) : '—'}
+              {Number.isFinite(Number(ask))
+                ? formatPrice(ask, pipSize)
+                : quoteLoading ? 'Loading…' : '—'}
             </span>
           </button>
         </div>
@@ -283,7 +294,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
       {/* ── Chart canvas ── */}
       <div className="flex-1 min-h-0 relative">
         <div ref={setContainer} className="absolute inset-0" />
-        {candles.length === 0 && (
+        {showChartLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-slate-500 text-sm">Loading chart…</span>
           </div>
