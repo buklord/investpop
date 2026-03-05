@@ -385,6 +385,28 @@ async function ensureSchemaExtensions() {
       fees_paid DOUBLE PRECISION NOT NULL DEFAULT 0,
       UNIQUE (user_id, date)
     )`, 'daily_performance table')
+  await run(`
+    CREATE TABLE IF NOT EXISTS trade_journal_entries (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      trade_id TEXT,
+      position_id TEXT,
+      symbol VARCHAR(20),
+      setup_tag VARCHAR(50),
+      mood VARCHAR(30),
+      note TEXT,
+      screenshot_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'trade_journal_entries table')
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_trade_journal_user_created
+    ON trade_journal_entries (user_id, created_at DESC)
+  `, 'trade_journal user index')
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_trade_journal_trade
+    ON trade_journal_entries (trade_id)
+  `, 'trade_journal trade index')
 
   // ── Market simulator tables ─────────────────────────────────────────────────
   await run(`
@@ -986,7 +1008,19 @@ async function handleRoute(request, context) {
       }
 
       const body = await request.json()
-      const { symbol, type, action, quantity, takeProfit, stopLoss, leverage, accountType: clientAccountType } = body
+      const {
+        symbol,
+        type,
+        action,
+        quantity,
+        takeProfit,
+        stopLoss,
+        leverage,
+        accountType: clientAccountType,
+        journalNote,
+        journalTag,
+        journalMood,
+      } = body
 
       // Server-side mode validation: if client sends accountType, verify it matches DB
       if (clientAccountType) {
@@ -1061,6 +1095,29 @@ async function handleRoute(request, context) {
 
       // Log trade activity (best-effort)
       logActivity(auth.user.userId, `TRADE_${action}`, { symbol, quantity, action })
+
+      // Optional quick journal capture from order flow (best-effort, non-blocking).
+      if (journalNote || journalTag || journalMood) {
+        const note = typeof journalNote === 'string' ? journalNote.trim().slice(0, 2000) : ''
+        const setupTag = typeof journalTag === 'string' ? journalTag.trim().slice(0, 50) : ''
+        const mood = typeof journalMood === 'string' ? journalMood.trim().slice(0, 30) : ''
+        if (note || setupTag || mood) {
+          const journalId = uuidv4()
+          prisma.$executeRawUnsafe(
+            `INSERT INTO trade_journal_entries
+             (id, user_id, trade_id, position_id, symbol, setup_tag, mood, note, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+            journalId,
+            auth.user.userId,
+            result?.trade?.id || null,
+            result?.trade?.positionId || null,
+            String(symbol || '').toUpperCase() || null,
+            setupTag || null,
+            mood || null,
+            note || null
+          ).catch(() => {})
+        }
+      }
 
       return handleCORS(NextResponse.json({
         message: `${action} order executed`,
@@ -1457,6 +1514,240 @@ async function handleRoute(request, context) {
       const trades = await tradeService.getTradeHistory(100)
 
       return handleCORS(NextResponse.json({ trades }))
+    }
+
+    // GET /api/performance/metrics - Extended performance metrics for dashboard v2
+    if (route === '/performance/metrics' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const days = Math.max(7, Math.min(365, Number(searchParams.get('days') || 30)))
+
+      const positions = await prisma.$queryRawUnsafe(
+        `SELECT
+           id, symbol, side, quantity, entry_price, stop_loss,
+           realized_pnl, opened_at, closed_at
+         FROM trading_positions
+         WHERE user_id = $1
+           AND status = 'CLOSED'
+           AND closed_at >= NOW() - ($2::int * INTERVAL '1 day')
+         ORDER BY closed_at DESC`,
+        auth.user.userId,
+        days
+      )
+
+      const total = positions.length
+      const wins = positions.filter(p => Number(p.realized_pnl || 0) > 0)
+      const losses = positions.filter(p => Number(p.realized_pnl || 0) < 0)
+      const winRate = total > 0 ? (wins.length / total) * 100 : 0
+      const avgWin = wins.length > 0 ? wins.reduce((s, p) => s + Number(p.realized_pnl || 0), 0) / wins.length : 0
+      const avgLossAbs = losses.length > 0
+        ? Math.abs(losses.reduce((s, p) => s + Number(p.realized_pnl || 0), 0) / losses.length)
+        : 0
+      const expectancy = (winRate / 100) * avgWin - (1 - winRate / 100) * avgLossAbs
+
+      const holdMinutes = positions
+        .map((p) => {
+          const o = new Date(p.opened_at).getTime()
+          const c = new Date(p.closed_at).getTime()
+          if (!Number.isFinite(o) || !Number.isFinite(c) || c <= o) return null
+          return (c - o) / 60000
+        })
+        .filter((v) => Number.isFinite(v))
+      const avgHoldMinutes = holdMinutes.length > 0
+        ? holdMinutes.reduce((s, v) => s + v, 0) / holdMinutes.length
+        : 0
+
+      const rValues = positions
+        .map((p) => {
+          const qty = Number(p.quantity || 0)
+          const entry = Number(p.entry_price || 0)
+          const sl = Number(p.stop_loss || 0)
+          if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(entry) || entry <= 0) return null
+          if (!Number.isFinite(sl) || sl <= 0) return null
+          const riskPerUnit = Math.abs(entry - sl)
+          const risk = riskPerUnit * qty
+          if (!Number.isFinite(risk) || risk <= 0) return null
+          return Number(p.realized_pnl || 0) / risk
+        })
+        .filter((v) => Number.isFinite(v))
+      const avgR = rValues.length > 0 ? rValues.reduce((s, v) => s + v, 0) / rValues.length : 0
+
+      const snapshots = await prisma.$queryRawUnsafe(
+        `SELECT equity, balance, created_at
+         FROM account_snapshots
+         WHERE user_id = $1
+           AND created_at >= NOW() - ($2::int * INTERVAL '1 day')
+         ORDER BY created_at ASC`,
+        auth.user.userId,
+        days
+      )
+
+      let peak = null
+      let maxDrawdownPct = 0
+      for (const s of snapshots) {
+        const eq = Number(s.equity || s.balance || 0)
+        if (!Number.isFinite(eq) || eq <= 0) continue
+        if (peak == null || eq > peak) peak = eq
+        if (peak && peak > 0) {
+          const dd = ((peak - eq) / peak) * 100
+          if (dd > maxDrawdownPct) maxDrawdownPct = dd
+        }
+      }
+
+      const setupRows = await prisma.$queryRawUnsafe(
+        `SELECT setup_tag,
+                COUNT(*)::int AS trades,
+                AVG(CASE WHEN COALESCE(tp.realized_pnl, 0) > 0 THEN 1.0 ELSE 0.0 END) AS win_rate,
+                AVG(COALESCE(tp.realized_pnl, 0)) AS avg_pnl
+         FROM trade_journal_entries tj
+         LEFT JOIN trading_positions tp ON tp.id = tj.position_id
+         WHERE tj.user_id = $1
+           AND tj.setup_tag IS NOT NULL
+           AND tj.setup_tag <> ''
+           AND tj.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+         GROUP BY setup_tag
+         ORDER BY trades DESC, win_rate DESC
+         LIMIT 5`,
+        auth.user.userId,
+        days
+      )
+
+      return handleCORS(NextResponse.json({
+        days,
+        totals: { trades: total, wins: wins.length, losses: losses.length },
+        metrics: {
+          winRate,
+          expectancy,
+          avgR,
+          avgHoldMinutes,
+          maxDrawdownPct,
+        },
+        setups: setupRows,
+      }))
+    }
+
+    // GET /api/leaderboard - basic simulated leaderboard
+    if (route === '/leaderboard' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const limit = Math.max(10, Math.min(100, Number(searchParams.get('limit') || 25)))
+      const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 10000)
+
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT
+           u.id,
+           u.email,
+           COALESCE(va.real_balance, va.balance, 0) AS balance,
+           COALESCE((SELECT COUNT(*) FROM trades t WHERE t.user_id = u.id), 0)::int AS trades,
+           COALESCE((SELECT SUM(tp.realized_pnl) FROM trading_positions tp WHERE tp.user_id = u.id AND tp.status = 'CLOSED'), 0) AS realized_pnl
+         FROM users u
+         LEFT JOIN virtual_accounts va ON va.user_id = u.id
+         WHERE COALESCE(u.role, 'USER') <> 'ADMIN'
+         ORDER BY COALESCE(va.real_balance, va.balance, 0) DESC
+         LIMIT $1`,
+        limit
+      )
+
+      const leaderboard = rows.map((r, idx) => {
+        const balance = Number(r.balance || 0)
+        const returnPct = starting > 0 ? ((balance - starting) / starting) * 100 : 0
+        const rawEmail = String(r.email || '')
+        const handle = rawEmail.includes('@') ? rawEmail.split('@')[0] : `user${idx + 1}`
+        return {
+          rank: idx + 1,
+          userId: r.id,
+          handle,
+          balance,
+          returnPct,
+          trades: Number(r.trades || 0),
+          realizedPnl: Number(r.realized_pnl || 0),
+          isMe: String(r.id) === String(auth.user.userId),
+        }
+      })
+
+      return handleCORS(NextResponse.json({ leaderboard, startingBalance: starting }))
+    }
+
+    // GET /api/journal - current user's trade journal entries
+    if (route === '/journal' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const limit = Math.max(10, Math.min(200, Number(searchParams.get('limit') || 50)))
+
+      const entries = await prisma.$queryRawUnsafe(
+        `SELECT id, user_id, trade_id, position_id, symbol, setup_tag, mood, note, screenshot_url, created_at, updated_at
+         FROM trade_journal_entries
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        auth.user.userId,
+        limit
+      )
+
+      return handleCORS(NextResponse.json({ entries }))
+    }
+
+    // POST /api/journal - create a journal entry
+    if (route === '/journal' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json(
+          { error: auth.error },
+          { status: auth.status }
+        ))
+      }
+
+      const body = await request.json().catch(() => ({}))
+      const note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : ''
+      const setupTag = typeof body.setupTag === 'string' ? body.setupTag.trim().slice(0, 50) : ''
+      const mood = typeof body.mood === 'string' ? body.mood.trim().slice(0, 30) : ''
+      const screenshotUrl = typeof body.screenshotUrl === 'string' ? body.screenshotUrl.trim().slice(0, 500) : ''
+      const symbol = typeof body.symbol === 'string' ? body.symbol.trim().slice(0, 20).toUpperCase() : ''
+      const tradeId = typeof body.tradeId === 'string' ? body.tradeId.trim().slice(0, 100) : ''
+      const positionId = typeof body.positionId === 'string' ? body.positionId.trim().slice(0, 100) : ''
+
+      if (!note && !setupTag) {
+        return handleCORS(NextResponse.json({ error: 'note or setupTag is required' }, { status: 400 }))
+      }
+
+      const id = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO trade_journal_entries
+         (id, user_id, trade_id, position_id, symbol, setup_tag, mood, note, screenshot_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+        id,
+        auth.user.userId,
+        tradeId || null,
+        positionId || null,
+        symbol || null,
+        setupTag || null,
+        mood || null,
+        note || null,
+        screenshotUrl || null
+      )
+
+      return handleCORS(NextResponse.json({ message: 'Journal entry saved', id }))
     }
 
     // GET /api/account/snapshots - Get equity curve

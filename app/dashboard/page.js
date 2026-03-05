@@ -65,6 +65,8 @@ export default function DashboardPage() {
   const [watchlist, setWatchlist] = useState([])
   const [trades, setTrades] = useState([])
   const [quotes, setQuotes] = useState({})
+  const [perfMetrics, setPerfMetrics] = useState(null)
+  const [perfSetups, setPerfSetups] = useState([])
   const [dataLoading, setDataLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -174,6 +176,16 @@ export default function DashboardPage() {
       setPositions(positionsData.positions || [])
       setWatchlist(watchlistData.watchlist || [])
       setTrades(tradesData.trades || [])
+
+      // Extended metrics are best-effort (do not block dashboard if unavailable).
+      try {
+        const perfRes = await fetch('/api/performance/metrics?days=30')
+        if (perfRes.ok) {
+          const perf = await perfRes.json()
+          setPerfMetrics(perf.metrics || null)
+          setPerfSetups(Array.isArray(perf.setups) ? perf.setups : [])
+        }
+      } catch (_) {}
       
       // Fetch quotes in parallel
       const symbols = new Set()
@@ -244,6 +256,15 @@ export default function DashboardPage() {
     if (!value && value !== 0) return '0.00%'
     const prefix = value >= 0 ? '+' : ''
     return `${prefix}${value.toFixed(2)}%`
+  }
+
+  const formatMinutes = (mins) => {
+    const m = Number(mins || 0)
+    if (!Number.isFinite(m) || m <= 0) return '0m'
+    if (m < 60) return `${Math.round(m)}m`
+    const h = Math.floor(m / 60)
+    const rem = Math.round(m % 60)
+    return rem > 0 ? `${h}h ${rem}m` : `${h}h`
   }
 
   const cashBalance = account?.balance ?? 0
@@ -460,6 +481,60 @@ export default function DashboardPage() {
               </Card>
             )}
           </div>
+
+          {/* Performance Dashboard 2.0 (best-effort) */}
+          {perfMetrics && (
+            <div className="mb-4 sm:mb-8 grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <Card className="bg-card border-border">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Win Rate</div>
+                  <div className="text-lg sm:text-xl font-bold text-foreground">{formatPercent(perfMetrics.winRate || 0)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Expectancy</div>
+                  <div className={`text-lg sm:text-xl font-bold ${(perfMetrics.expectancy || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {formatCurrency(perfMetrics.expectancy || 0)}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Avg R</div>
+                  <div className={`text-lg sm:text-xl font-bold ${(perfMetrics.avgR || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(perfMetrics.avgR || 0).toFixed(2)}R
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Avg Hold</div>
+                  <div className="text-lg sm:text-xl font-bold text-foreground">{formatMinutes(perfMetrics.avgHoldMinutes || 0)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Max Drawdown</div>
+                  <div className="text-lg sm:text-xl font-bold text-red-400">-{Number(perfMetrics.maxDrawdownPct || 0).toFixed(2)}%</div>
+                </CardContent>
+              </Card>
+              {perfSetups.length > 0 && (
+                <Card className="bg-card border-border col-span-2 lg:col-span-5">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Top Setups (30d)</div>
+                    <div className="flex flex-wrap gap-2">
+                      {perfSetups.map((s) => (
+                        <span key={s.setup_tag} className="px-2.5 py-1 rounded-md bg-muted text-foreground text-xs">
+                          {s.setup_tag} · {(Number(s.win_rate || 0) * 100).toFixed(0)}% WR · {Number(s.trades || 0)} trades
+                        </span>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
           {/* Positions and Watchlist */}
           <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">

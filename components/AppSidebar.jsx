@@ -23,6 +23,8 @@ import {
   Briefcase,
   Sun,
   Moon,
+  BookOpen,
+  Trophy,
 } from 'lucide-react'
 
 // Opens the Tawk.to chat with retry (safe — no-ops if Tawk is not loaded)
@@ -50,6 +52,8 @@ const navGroups = [
       { href: '/markets', label: 'Markets', icon: Activity },
       { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
       { href: '/history', label: 'Analytics', icon: History },
+      { href: '/journal', label: 'Journal', icon: BookOpen },
+      { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
     ],
   },
   {
