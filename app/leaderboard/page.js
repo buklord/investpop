@@ -70,7 +70,7 @@ export default function LeaderboardPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
                 <Trophy className="h-6 w-6 text-amber-400" /> Top Traders
               </h1>
-              <p className="text-muted-foreground text-sm">Top 5 traders by realized profit.</p>
+              <p className="text-muted-foreground text-sm">Top 5 traders by account balance.</p>
             </div>
             <Button variant="ghost" onClick={loadBoard} className="hidden lg:inline-flex text-muted-foreground hover:text-foreground">
               <RefreshCw className="h-4 w-4 mr-2" /> Refresh
@@ -81,7 +81,7 @@ export default function LeaderboardPage() {
             <CardContent className="p-0">
               <div className="divide-y divide-border">
                 {entries.map((e, idx) => {
-                  const isProfit = (e.realizedPnl || 0) >= 0
+                  const balance = e.balance || 0
                   const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : ''
                   
                   return (
@@ -105,12 +105,10 @@ export default function LeaderboardPage() {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 ml-4">
-                        <div className={`text-base sm:text-lg font-bold ${
-                          isProfit ? 'text-emerald-400' : 'text-red-400'
-                        }`}>
-                          {isProfit ? '+' : ''}{money(e.realizedPnl)}
+                        <div className="text-base sm:text-lg font-bold text-emerald-400">
+                          {money(balance)}
                         </div>
-                        <div className="text-xs text-muted-foreground">Profit</div>
+                        <div className="text-xs text-muted-foreground">Balance</div>
                       </div>
                     </div>
                   )
