@@ -2361,7 +2361,7 @@ async function handleRoute(request, context) {
       }
 
       await prisma.$executeRaw`
-        UPDATE users SET role = ${role}, updated_at = NOW() WHERE id = ${target.id}
+        UPDATE users SET role = ${role}::"UserRole", updated_at = NOW() WHERE id = ${target.id}
       `
 
       const auditId = uuidv4()
