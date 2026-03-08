@@ -57,9 +57,15 @@ export default function DepositPage() {
   const [copied, setCopied] = useState(false)
   const [msg, setMsg] = useState(null)
   const [pastDeposits, setPastDeposits] = useState([])
+  const [methodConfigs, setMethodConfigs] = useState({})
 
   useEffect(() => { checkAuth() }, [])
-  useEffect(() => { if (user) loadDeposits() }, [user])
+  useEffect(() => {
+    if (user) {
+      loadDeposits()
+      loadDepositConfig()
+    }
+  }, [user])
 
   const checkAuth = async () => {
     try {
@@ -80,10 +86,23 @@ export default function DepositPage() {
     } catch (_) {}
   }
 
+  const loadDepositConfig = async () => {
+    try {
+      const res = await fetch('/api/wallet/deposit-config')
+      if (res.ok) {
+        const data = await res.json()
+        setMethodConfigs(data.methods || {})
+      }
+    } catch (_) {}
+  }
+
   const selectedMethod = PAYMENT_METHODS.find(m => m.id === method)
+  const serverMethodConfig = methodConfigs[method] || {}
   // Use server-returned address (step 2+) or fall back to client-side placeholder for QR preview
-  const displayAddress = serverAddress || selectedMethod?.address || ''
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(displayAddress)}&bgcolor=ffffff&color=000000&qzone=1`
+  const displayAddress = serverAddress || serverMethodConfig.address || selectedMethod?.address || ''
+  const qrUrl = serverMethodConfig.barcodeUrl
+    ? serverMethodConfig.barcodeUrl
+    : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(displayAddress)}&bgcolor=ffffff&color=000000&qzone=1`
 
   const handleNext = () => {
     const num = parseFloat(amount)

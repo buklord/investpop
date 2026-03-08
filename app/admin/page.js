@@ -28,6 +28,9 @@ import {
   Inbox,
   MonitorPlay,
   Eye,
+  Crown,
+  KeyRound,
+  Trash2,
   TrendingUp as BullIcon,
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
@@ -112,21 +115,47 @@ export default function AdminPage() {
   const [mcMsg, setMcMsg] = useState(null)
   const [mcPrices, setMcPrices] = useState({})
 
+  // Super admin state
+  const [saTargetEmail, setSaTargetEmail] = useState('')
+  const [saRole, setSaRole] = useState('ADMIN')
+  const [saRoleLoading, setSaRoleLoading] = useState(false)
+  const [saRoleMsg, setSaRoleMsg] = useState(null)
+
+  const [saBtcAddress, setSaBtcAddress] = useState('')
+  const [saUsdtAddress, setSaUsdtAddress] = useState('')
+  const [saBtcBarcode, setSaBtcBarcode] = useState('')
+  const [saUsdtBarcode, setSaUsdtBarcode] = useState('')
+  const [saConfigLoading, setSaConfigLoading] = useState(false)
+  const [saConfigMsg, setSaConfigMsg] = useState(null)
+
+  const [saResetEmail, setSaResetEmail] = useState('')
+  const [saResetPassword, setSaResetPassword] = useState('')
+  const [saResetLoading, setSaResetLoading] = useState(false)
+  const [saResetMsg, setSaResetMsg] = useState(null)
+
+  const [saDeleteEmail, setSaDeleteEmail] = useState('')
+  const [saDeleteConfirm, setSaDeleteConfirm] = useState('')
+  const [saDeleteLoading, setSaDeleteLoading] = useState(false)
+  const [saDeleteMsg, setSaDeleteMsg] = useState(null)
+
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
-      if (user.role !== 'ADMIN') { router.push('/dashboard'); return }
+      if (!isAdmin) { router.push('/dashboard'); return }
       loadData()
     }
-  }, [user])
+  }, [user, isAdmin])
 
   // Auto-refresh live positions every 10 seconds
   useEffect(() => {
-    if (!user || user.role !== 'ADMIN') return
+    if (!user || !isAdmin) return
     loadLivePositions()
     const interval = setInterval(loadLivePositions, 10000)
     return () => clearInterval(interval)
-  }, [user])
+  }, [user, isAdmin])
 
   // Load market settings when market-control tab is opened
   useEffect(() => {
@@ -303,6 +332,17 @@ export default function AdminPage() {
         setBroadcastText(s.broadcast_message || '')
         setSpreadValue(s.spread_multiplier || '1.0')
       }
+
+      if (isSuperAdmin) {
+        const saRes = await fetch('/api/super-admin/settings')
+        if (saRes.ok) {
+          const s = (await saRes.json()).settings || {}
+          setSaBtcAddress(s.deposit_btc_address || '')
+          setSaUsdtAddress(s.deposit_usdt_address || '')
+          setSaBtcBarcode(s.deposit_btc_barcode_url || '')
+          setSaUsdtBarcode(s.deposit_usdt_barcode_url || '')
+        }
+      }
     } catch (err) {
       console.error('Failed to load admin data:', err)
     } finally {
@@ -402,6 +442,115 @@ export default function AdminPage() {
     finally { setSpreadLoading(false) }
   }
 
+  const handleSuperSetRole = async (e) => {
+    e.preventDefault()
+    setSaRoleMsg(null)
+    setSaRoleLoading(true)
+    try {
+      const res = await fetch('/api/super-admin/set-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: saTargetEmail.trim(), role: saRole })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSaRoleMsg({ type: 'success', text: data.message || 'Role updated.' })
+        setSaTargetEmail('')
+        await loadData()
+      } else {
+        setSaRoleMsg({ type: 'error', text: data.error || 'Failed to update role.' })
+      }
+    } catch {
+      setSaRoleMsg({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setSaRoleLoading(false)
+    }
+  }
+
+  const handleSuperDepositConfig = async (e) => {
+    e.preventDefault()
+    setSaConfigMsg(null)
+    setSaConfigLoading(true)
+    try {
+      const res = await fetch('/api/super-admin/deposit-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          btcAddress: saBtcAddress,
+          usdtAddress: saUsdtAddress,
+          btcBarcodeUrl: saBtcBarcode,
+          usdtBarcodeUrl: saUsdtBarcode
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSaConfigMsg({ type: 'success', text: data.message || 'Deposit config updated.' })
+      } else {
+        setSaConfigMsg({ type: 'error', text: data.error || 'Failed to update config.' })
+      }
+    } catch {
+      setSaConfigMsg({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setSaConfigLoading(false)
+    }
+  }
+
+  const handleSuperResetPassword = async (e) => {
+    e.preventDefault()
+    setSaResetMsg(null)
+    setSaResetLoading(true)
+    try {
+      const res = await fetch('/api/super-admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: saResetEmail.trim(), newPassword: saResetPassword })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSaResetMsg({ type: 'success', text: data.message || 'Password reset.' })
+        setSaResetPassword('')
+      } else {
+        setSaResetMsg({ type: 'error', text: data.error || 'Failed to reset password.' })
+      }
+    } catch {
+      setSaResetMsg({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setSaResetLoading(false)
+    }
+  }
+
+  const handleSuperDeleteUser = async (e) => {
+    e.preventDefault()
+    setSaDeleteMsg(null)
+
+    if (saDeleteConfirm.trim().toUpperCase() !== 'DELETE') {
+      setSaDeleteMsg({ type: 'error', text: 'Type DELETE to confirm permanent account deletion.' })
+      return
+    }
+
+    setSaDeleteLoading(true)
+    try {
+      const res = await fetch('/api/super-admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: saDeleteEmail.trim() })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSaDeleteMsg({ type: 'success', text: data.message || 'User deleted.' })
+        setSaDeleteEmail('')
+        setSaDeleteConfirm('')
+        await loadData()
+      } else {
+        setSaDeleteMsg({ type: 'error', text: data.error || 'Failed to delete user.' })
+      }
+    } catch {
+      setSaDeleteMsg({ type: 'error', text: 'An error occurred.' })
+    } finally {
+      setSaDeleteLoading(false)
+    }
+  }
+
   const handleSuspend = async (targetUserId, suspend) => {
     setSuspendMsg(null); setSuspendingId(targetUserId)
     try {
@@ -478,7 +627,7 @@ export default function AdminPage() {
     </div>
   )
 
-  if (user?.role !== 'ADMIN') return null
+  if (!isAdmin) return null
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
@@ -505,7 +654,7 @@ export default function AdminPage() {
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                 <Shield className="h-6 w-6 text-amber-400" />
-                Admin Control Centre
+                {isSuperAdmin ? 'Super Admin Control Centre' : 'Admin Control Centre'}
               </h1>
               <p className="text-slate-400 text-sm mt-1">Platform management and oversight</p>
             </div>
@@ -564,7 +713,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-3">
                   <Shield className="h-5 w-5 text-amber-400" />
                   <div>
-                    <div className="text-amber-400/70 text-xs">Admin Mode</div>
+                    <div className="text-amber-400/70 text-xs">{isSuperAdmin ? 'Super Admin Mode' : 'Admin Mode'}</div>
                     <div className="text-amber-400 font-bold text-sm">ACTIVE</div>
                   </div>
                 </div>
@@ -783,6 +932,7 @@ export default function AdminPage() {
               { id: 'market-control', label: '🎛️ Market Control' },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
               { id: 'audit', label: `Audit Log (${auditLog.length})` },
+              ...(isSuperAdmin ? [{ id: 'super-admin', label: '👑 Super Admin' }] : []),
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
@@ -949,7 +1099,11 @@ export default function AdminPage() {
                             </td>
                             <td className="p-4">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                u.role === 'ADMIN' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-700 text-slate-400'
+                                u.role === 'SUPER_ADMIN'
+                                  ? 'bg-fuchsia-500/10 text-fuchsia-400'
+                                  : u.role === 'ADMIN'
+                                    ? 'bg-amber-500/10 text-amber-400'
+                                    : 'bg-slate-700 text-slate-400'
                               }`}>
                                 {u.role || 'USER'}
                               </span>
@@ -971,7 +1125,7 @@ export default function AdminPage() {
                                     <Eye className="h-3 w-3 mr-1 inline" />Shadow
                                   </Button>
                                 </Link>
-                                {u.role !== 'ADMIN' && (
+                                {u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN' && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -1523,6 +1677,113 @@ export default function AdminPage() {
                   )}
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {activeTab === 'super-admin' && isSuperAdmin && (
+            <div className="space-y-4">
+              <Card className="bg-[#161b22] border-fuchsia-500/30">
+                <CardHeader>
+                  <CardTitle className="text-white text-base flex items-center gap-2">
+                    <Crown className="h-5 w-5 text-fuchsia-400" />
+                    Super Admin Role Management
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSuperSetRole} className="space-y-3">
+                    <Input
+                      value={saTargetEmail}
+                      onChange={e => setSaTargetEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      type="email"
+                      required
+                      className="bg-slate-800 border-slate-700 text-white"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => setSaRole('ADMIN')}
+                        className={saRole === 'ADMIN' ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}
+                      >
+                        Promote to Admin
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setSaRole('USER')}
+                        className={saRole === 'USER' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}
+                      >
+                        Demote to User
+                      </Button>
+                    </div>
+                    <Msg msg={saRoleMsg} />
+                    <Button type="submit" disabled={saRoleLoading} className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white w-full">
+                      {saRoleLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Apply Role Change
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#161b22] border-blue-500/30">
+                <CardHeader>
+                  <CardTitle className="text-white text-base">Deposit Address & Barcode Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSuperDepositConfig} className="space-y-3">
+                    <Input value={saBtcAddress} onChange={e => setSaBtcAddress(e.target.value)} placeholder="BTC deposit address" required className="bg-slate-800 border-slate-700 text-white" />
+                    <Input value={saUsdtAddress} onChange={e => setSaUsdtAddress(e.target.value)} placeholder="USDT deposit address" required className="bg-slate-800 border-slate-700 text-white" />
+                    <Input value={saBtcBarcode} onChange={e => setSaBtcBarcode(e.target.value)} placeholder="BTC custom barcode image URL (optional)" className="bg-slate-800 border-slate-700 text-white" />
+                    <Input value={saUsdtBarcode} onChange={e => setSaUsdtBarcode(e.target.value)} placeholder="USDT custom barcode image URL (optional)" className="bg-slate-800 border-slate-700 text-white" />
+                    <Msg msg={saConfigMsg} />
+                    <Button type="submit" disabled={saConfigLoading} className="bg-blue-600 hover:bg-blue-700 text-white w-full">
+                      {saConfigLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Save Deposit Configuration
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <div className="grid lg:grid-cols-2 gap-4">
+                <Card className="bg-[#161b22] border-amber-500/30">
+                  <CardHeader>
+                    <CardTitle className="text-white text-base flex items-center gap-2">
+                      <KeyRound className="h-5 w-5 text-amber-400" />
+                      Reset User Password
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSuperResetPassword} className="space-y-3">
+                      <Input value={saResetEmail} onChange={e => setSaResetEmail(e.target.value)} placeholder="user@example.com" type="email" required className="bg-slate-800 border-slate-700 text-white" />
+                      <Input value={saResetPassword} onChange={e => setSaResetPassword(e.target.value)} placeholder="New password (min 8 chars)" type="password" minLength={8} required className="bg-slate-800 border-slate-700 text-white" />
+                      <Msg msg={saResetMsg} />
+                      <Button type="submit" disabled={saResetLoading} className="bg-amber-600 hover:bg-amber-700 text-white w-full">
+                        {saResetLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Reset Password
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-[#161b22] border-red-500/30">
+                  <CardHeader>
+                    <CardTitle className="text-white text-base flex items-center gap-2">
+                      <Trash2 className="h-5 w-5 text-red-400" />
+                      Delete User Account (Permanent)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSuperDeleteUser} className="space-y-3">
+                      <Input value={saDeleteEmail} onChange={e => setSaDeleteEmail(e.target.value)} placeholder="user@example.com" type="email" required className="bg-slate-800 border-slate-700 text-white" />
+                      <Input value={saDeleteConfirm} onChange={e => setSaDeleteConfirm(e.target.value)} placeholder='Type "DELETE" to confirm' required className="bg-slate-800 border-slate-700 text-white" />
+                      <Msg msg={saDeleteMsg} />
+                      <Button type="submit" disabled={saDeleteLoading} className="bg-red-600 hover:bg-red-700 text-white w-full">
+                        {saDeleteLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Delete Account Permanently
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
         </div>

@@ -56,6 +56,17 @@ async function requireAuth() {
   return { user: session }
 }
 
+const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN'])
+const SUPER_ADMIN_ROLE = 'SUPER_ADMIN'
+
+function isAdminRole(role) {
+  return ADMIN_ROLES.has(String(role || 'USER'))
+}
+
+function isSuperAdminRole(role) {
+  return String(role || 'USER') === SUPER_ADMIN_ROLE
+}
+
 // Helper function to require admin authentication
 async function requireAdminAuth() {
   const auth = await requireAuth()
@@ -63,10 +74,21 @@ async function requireAdminAuth() {
   const users = await prisma.$queryRaw`
     SELECT role FROM users WHERE id = ${auth.user.userId}
   `
-  if (!users[0] || users[0].role !== 'ADMIN') {
+  const role = users?.[0]?.role || auth.user.role || 'USER'
+  if (!users[0] || !isAdminRole(role)) {
     return { error: 'Forbidden: Admin access required', status: 403 }
   }
-  return auth
+  return { user: { ...auth.user, role } }
+}
+
+// Helper function to require super-admin authentication
+async function requireSuperAdminAuth() {
+  const admin = await requireAdminAuth()
+  if (admin.error) return admin
+  if (!isSuperAdminRole(admin.user.role)) {
+    return { error: 'Forbidden: Super admin access required', status: 403 }
+  }
+  return admin
 }
 
 // OPTIONS handler for CORS
@@ -74,14 +96,43 @@ export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
-// The email address that is allowed to hold the ADMIN role.
-// Set ADMIN_EMAIL in your .env to lock it to your account.
-const MASTER_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'demo@investdash.com'
+// The email address that is allowed to hold the SUPER_ADMIN role.
+// Set SUPER_ADMIN_EMAIL (or ADMIN_EMAIL for backward compatibility) in .env.
+const MASTER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'demo@investdash.com'
 
-// Payment addresses for deposit requests — override with DEPOSIT_BTC_ADDRESS / DEPOSIT_USDT_ADDRESS env vars
-const DEPOSIT_ADDRESSES = {
+// Payment addresses for deposit requests — can be overridden in system_settings.
+const DEFAULT_DEPOSIT_CONFIG = {
   BTC: process.env.DEPOSIT_BTC_ADDRESS || 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
-  USDT: process.env.DEPOSIT_USDT_ADDRESS || '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4'
+  USDT: process.env.DEPOSIT_USDT_ADDRESS || '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4',
+  BTC_BARCODE_URL: process.env.DEPOSIT_BTC_BARCODE_URL || '',
+  USDT_BARCODE_URL: process.env.DEPOSIT_USDT_BARCODE_URL || ''
+}
+
+async function getDepositConfig() {
+  const fallback = {
+    BTC: DEFAULT_DEPOSIT_CONFIG.BTC,
+    USDT: DEFAULT_DEPOSIT_CONFIG.USDT,
+    BTC_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.BTC_BARCODE_URL,
+    USDT_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL
+  }
+
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT key, value FROM system_settings
+      WHERE key IN ('deposit_btc_address', 'deposit_usdt_address', 'deposit_btc_barcode_url', 'deposit_usdt_barcode_url')
+    `
+    for (const row of rows || []) {
+      const key = String(row.key || '')
+      const value = String(row.value || '').trim()
+      if (!value) continue
+      if (key === 'deposit_btc_address') fallback.BTC = value
+      if (key === 'deposit_usdt_address') fallback.USDT = value
+      if (key === 'deposit_btc_barcode_url') fallback.BTC_BARCODE_URL = value
+      if (key === 'deposit_usdt_barcode_url') fallback.USDT_BARCODE_URL = value
+    }
+  } catch (_) {}
+
+  return fallback
 }
 
 // Force-settle outcome multipliers (Admin God Mode)
@@ -302,7 +353,11 @@ async function ensureSchemaExtensions() {
       ('spread_multiplier', '1.0'),
       ('market_trend', 'NEUTRAL'),
       ('market_is_open', 'true'),
-      ('market_session_message', '')
+      ('market_session_message', ''),
+      ('deposit_btc_address', '${DEFAULT_DEPOSIT_CONFIG.BTC}'),
+      ('deposit_usdt_address', '${DEFAULT_DEPOSIT_CONFIG.USDT}'),
+      ('deposit_btc_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.BTC_BARCODE_URL}'),
+      ('deposit_usdt_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL}')
     ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
 
   // ── Deposit, notifications, KYC ───────────────────────────────────────────
@@ -1656,7 +1711,7 @@ async function handleRoute(request, context) {
            COALESCE((SELECT SUM(tp.realized_pnl) FROM trading_positions tp WHERE tp.user_id = u.id AND tp.status = 'CLOSED'), 0) AS realized_pnl
          FROM users u
          LEFT JOIN virtual_accounts va ON va.user_id = u.id
-         WHERE COALESCE(u.role, 'USER') <> 'ADMIN'
+         WHERE COALESCE(u.role, 'USER') NOT IN ('ADMIN', 'SUPER_ADMIN')
          ORDER BY COALESCE(va.real_balance, va.balance, 0) DESC
          LIMIT $1`,
         limit
@@ -2217,7 +2272,7 @@ async function handleRoute(request, context) {
 
     // ============ ADMIN ENDPOINTS ============
 
-    // POST /api/admin/bootstrap - Promote current user to ADMIN (only if no ADMIN exists yet)
+    // POST /api/admin/bootstrap - Promote current user to SUPER_ADMIN (single-owner bootstrap)
     if (route === '/admin/bootstrap' && method === 'POST') {
       const auth = await requireAuth()
       if (auth.error) {
@@ -2227,31 +2282,235 @@ async function handleRoute(request, context) {
       // Security: only the master admin email may claim ADMIN
       if (auth.user.email !== MASTER_ADMIN_EMAIL) {
         return handleCORS(NextResponse.json(
-          { error: 'Only the designated admin email address may claim admin access.' },
+          { error: 'Only the designated super admin email address may claim super admin access.' },
           { status: 403 }
         ))
       }
 
-      // Atomic conditional update: only promotes this user if no ADMIN currently exists.
+      // Atomic conditional update: only promote if no SUPER_ADMIN exists.
       // The WHERE NOT EXISTS prevents the race condition of two simultaneous calls both succeeding.
       const result = await prisma.$executeRaw`
-        UPDATE users SET role = 'ADMIN'
+        UPDATE users SET role = 'SUPER_ADMIN'
         WHERE id = ${auth.user.userId}
-          AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'ADMIN')
+          AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'SUPER_ADMIN')
       `
 
       if (result === 0) {
-        // Already admin or another admin exists — just ensure this email has admin
+        // Already super admin or one exists — just ensure designated email has SUPER_ADMIN.
         await prisma.$executeRaw`
-          UPDATE users SET role = 'ADMIN' WHERE id = ${auth.user.userId}
+          UPDATE users SET role = 'SUPER_ADMIN' WHERE id = ${auth.user.userId}
         `
       }
 
       return handleCORS(NextResponse.json({
-        message: 'You have been promoted to ADMIN. Refresh the page to see the Admin menu.',
+        message: 'You have been promoted to SUPER_ADMIN. Refresh the page to see admin controls.',
         userId: auth.user.userId,
         email: auth.user.email
       }))
+    }
+
+    // GET /api/super-admin/settings - Super admin config panel data
+    if (route === '/super-admin/settings' && method === 'GET') {
+      const superAdmin = await requireSuperAdminAuth()
+      if (superAdmin.error) {
+        return handleCORS(NextResponse.json({ error: superAdmin.error }, { status: superAdmin.status }))
+      }
+
+      const settings = await prisma.$queryRaw`
+        SELECT key, value FROM system_settings
+        WHERE key IN (
+          'deposit_btc_address',
+          'deposit_usdt_address',
+          'deposit_btc_barcode_url',
+          'deposit_usdt_barcode_url'
+        )
+      `
+      const result = {}
+      settings.forEach((s) => { result[s.key] = s.value })
+      return handleCORS(NextResponse.json({ settings: result }))
+    }
+
+    // POST /api/super-admin/set-role - Promote/demote user roles
+    if (route === '/super-admin/set-role' && method === 'POST') {
+      const superAdmin = await requireSuperAdminAuth()
+      if (superAdmin.error) {
+        return handleCORS(NextResponse.json({ error: superAdmin.error }, { status: superAdmin.status }))
+      }
+
+      const body = await request.json()
+      const email = String(body.email || '').trim().toLowerCase()
+      const role = String(body.role || '').trim().toUpperCase()
+
+      if (!email || !['USER', 'ADMIN'].includes(role)) {
+        return handleCORS(NextResponse.json({ error: 'email and role (USER or ADMIN) are required' }, { status: 400 }))
+      }
+
+      if (email === String(superAdmin.user.email || '').toLowerCase()) {
+        return handleCORS(NextResponse.json({ error: 'Use account settings for your own role changes' }, { status: 400 }))
+      }
+
+      const targetRows = await prisma.$queryRaw`
+        SELECT id, email, role FROM users WHERE email = ${email} LIMIT 1
+      `
+      const target = targetRows?.[0]
+      if (!target) {
+        return handleCORS(NextResponse.json({ error: 'User not found' }, { status: 404 }))
+      }
+      if (String(target.role || 'USER') === 'SUPER_ADMIN') {
+        return handleCORS(NextResponse.json({ error: 'Cannot modify another SUPER_ADMIN account' }, { status: 403 }))
+      }
+
+      await prisma.$executeRaw`
+        UPDATE users SET role = ${role}, updated_at = NOW() WHERE id = ${target.id}
+      `
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}, ${superAdmin.user.userId}, 'SUPER_ADMIN_SET_ROLE', ${target.id},
+                ${JSON.stringify({ email, role })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: `Role updated to ${role}`, userId: target.id, role }))
+    }
+
+    // POST /api/super-admin/deposit-config - Update platform deposit addresses/barcodes
+    if (route === '/super-admin/deposit-config' && method === 'POST') {
+      const superAdmin = await requireSuperAdminAuth()
+      if (superAdmin.error) {
+        return handleCORS(NextResponse.json({ error: superAdmin.error }, { status: superAdmin.status }))
+      }
+
+      const body = await request.json()
+      const btcAddress = String(body.btcAddress || '').trim()
+      const usdtAddress = String(body.usdtAddress || '').trim()
+      const btcBarcodeUrl = String(body.btcBarcodeUrl || '').trim()
+      const usdtBarcodeUrl = String(body.usdtBarcodeUrl || '').trim()
+
+      if (!btcAddress || !usdtAddress) {
+        return handleCORS(NextResponse.json({ error: 'BTC and USDT addresses are required' }, { status: 400 }))
+      }
+
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_btc_address', ${btcAddress}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${btcAddress}, updated_at = NOW()
+      `
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_usdt_address', ${usdtAddress}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${usdtAddress}, updated_at = NOW()
+      `
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_btc_barcode_url', ${btcBarcodeUrl}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${btcBarcodeUrl}, updated_at = NOW()
+      `
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_usdt_barcode_url', ${usdtBarcodeUrl}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${usdtBarcodeUrl}, updated_at = NOW()
+      `
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}, ${superAdmin.user.userId}, 'SUPER_ADMIN_UPDATE_DEPOSIT_CONFIG', NULL,
+                ${JSON.stringify({ btcAddress, usdtAddress, btcBarcodeUrl, usdtBarcodeUrl })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: 'Deposit config updated' }))
+    }
+
+    // POST /api/super-admin/reset-password - Reset any user's password
+    if (route === '/super-admin/reset-password' && method === 'POST') {
+      const superAdmin = await requireSuperAdminAuth()
+      if (superAdmin.error) {
+        return handleCORS(NextResponse.json({ error: superAdmin.error }, { status: superAdmin.status }))
+      }
+
+      const body = await request.json()
+      const email = String(body.email || '').trim().toLowerCase()
+      const newPassword = String(body.newPassword || '')
+
+      if (!email || newPassword.length < 8) {
+        return handleCORS(NextResponse.json({ error: 'email and newPassword (min 8 chars) are required' }, { status: 400 }))
+      }
+
+      const targetRows = await prisma.$queryRaw`
+        SELECT id, role FROM users WHERE email = ${email} LIMIT 1
+      `
+      const target = targetRows?.[0]
+      if (!target) {
+        return handleCORS(NextResponse.json({ error: 'User not found' }, { status: 404 }))
+      }
+      if (String(target.role || 'USER') === 'SUPER_ADMIN') {
+        return handleCORS(NextResponse.json({ error: 'Cannot reset password for another SUPER_ADMIN' }, { status: 403 }))
+      }
+
+      const newHash = await hashPassword(newPassword)
+      await prisma.$executeRaw`
+        UPDATE users SET password_hash = ${newHash}, updated_at = NOW() WHERE id = ${target.id}
+      `
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}, ${superAdmin.user.userId}, 'SUPER_ADMIN_RESET_PASSWORD', ${target.id},
+                ${JSON.stringify({ email })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: 'Password reset successfully' }))
+    }
+
+    // POST /api/super-admin/delete-user - Permanently delete a user and related data
+    if (route === '/super-admin/delete-user' && method === 'POST') {
+      const superAdmin = await requireSuperAdminAuth()
+      if (superAdmin.error) {
+        return handleCORS(NextResponse.json({ error: superAdmin.error }, { status: superAdmin.status }))
+      }
+
+      const body = await request.json()
+      const email = String(body.email || '').trim().toLowerCase()
+
+      if (!email) {
+        return handleCORS(NextResponse.json({ error: 'email is required' }, { status: 400 }))
+      }
+      if (email === String(superAdmin.user.email || '').toLowerCase()) {
+        return handleCORS(NextResponse.json({ error: 'Self-delete is blocked for safety' }, { status: 400 }))
+      }
+
+      const targetRows = await prisma.$queryRaw`
+        SELECT id, email, role FROM users WHERE email = ${email} LIMIT 1
+      `
+      const target = targetRows?.[0]
+      if (!target) {
+        return handleCORS(NextResponse.json({ error: 'User not found' }, { status: 404 }))
+      }
+      if (String(target.role || 'USER') === 'SUPER_ADMIN') {
+        return handleCORS(NextResponse.json({ error: 'Cannot delete another SUPER_ADMIN account' }, { status: 403 }))
+      }
+
+      await prisma.$transaction([
+        prisma.$executeRaw`DELETE FROM notifications WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM deposit_requests WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM withdrawal_requests WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM kyc_requests WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM account_snapshots WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM watchlist_items WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM portfolio_positions WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM trades WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM trading_positions WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM ledger_entries WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM activity_log WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM virtual_accounts WHERE user_id = ${target.id}`,
+        prisma.$executeRaw`DELETE FROM users WHERE id = ${target.id}`
+      ])
+
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}, ${superAdmin.user.userId}, 'SUPER_ADMIN_DELETE_USER', ${target.id},
+                ${JSON.stringify({ email })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({ message: 'User account deleted permanently', userId: target.id }))
     }
 
     // GET /api/admin/users - List all users with balances (optimized: select only needed fields)
@@ -2582,6 +2841,20 @@ async function handleRoute(request, context) {
 
     // ============ DEPOSIT REQUEST ENDPOINTS ============
 
+    // GET /api/wallet/deposit-config — current deposit addresses and optional barcode URLs
+    if (route === '/wallet/deposit-config' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const cfg = await getDepositConfig()
+      return handleCORS(NextResponse.json({
+        methods: {
+          BTC: { address: cfg.BTC, barcodeUrl: cfg.BTC_BARCODE_URL },
+          USDT: { address: cfg.USDT, barcodeUrl: cfg.USDT_BARCODE_URL }
+        }
+      }))
+    }
+
     // POST /api/wallet/deposit-request — user submits a deposit request
     if (route === '/wallet/deposit-request' && method === 'POST') {
       const auth = await requireAuth()
@@ -2595,7 +2868,8 @@ async function handleRoute(request, context) {
       }
       const validMethods = ['BTC', 'USDT']
       const chosenMethod = validMethods.includes(payMethod) ? payMethod : 'BTC'
-      const address = DEPOSIT_ADDRESSES[chosenMethod]
+      const depositConfig = await getDepositConfig()
+      const address = depositConfig[chosenMethod]
       const id = uuidv4()
       await prisma.$executeRawUnsafe(
         `INSERT INTO deposit_requests (id, user_id, amount, method, address, status, created_at, updated_at)
@@ -2650,7 +2924,7 @@ async function handleRoute(request, context) {
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
       // Role is embedded in the session; non-admins always get 0 without extra DB query
-      if (auth.user.role !== 'ADMIN') return handleCORS(NextResponse.json({ count: 0 }))
+      if (!isAdminRole(auth.user.role)) return handleCORS(NextResponse.json({ count: 0 }))
 
       const result = await prisma.$queryRaw`
         SELECT COUNT(*)::int AS count FROM deposit_requests WHERE status = 'PENDING'::"DepositStatus"

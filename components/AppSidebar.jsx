@@ -78,6 +78,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const [pendingDeposits, setPendingDeposits] = useState(0)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
   useEffect(() => {
     setThemeMounted(true)
@@ -105,7 +106,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
 
   // Poll for pending deposit count (admins only)
   useEffect(() => {
-    if (user?.role !== 'ADMIN') return
+    if (!isAdmin) return
     const fetchCount = async () => {
       try {
         const res = await fetch('/api/admin/deposits/count')
@@ -118,7 +119,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     fetchCount()
     const interval = setInterval(fetchCount, 60000)
     return () => clearInterval(interval)
-  }, [user?.role])
+  }, [isAdmin, user?.role])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -240,7 +241,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               >
                 <MessageCircle className="h-4 w-4 flex-shrink-0" />
               </button>
-              {user?.role === 'ADMIN' && (
+              {isAdmin && (
                 <Link
                   href="/admin"
                   title="Admin"
@@ -304,7 +305,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </CollapsibleContent>
               </Collapsible>
 
-              {user?.role === 'ADMIN' && (
+              {isAdmin && (
                 <Link
                   href="/admin"
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
@@ -328,8 +329,8 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
 
         {/* Footer */}
         <div className="p-3 border-t border-sidebar-border">
-          {!collapsed && user?.role === 'ADMIN' && (
-            <div className="text-xs text-amber-400 mb-2 px-1">● ADMIN</div>
+          {!collapsed && isAdmin && (
+            <div className="text-xs text-amber-400 mb-2 px-1">● {user?.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : 'ADMIN'}</div>
           )}
 
           <Button

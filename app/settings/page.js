@@ -144,11 +144,13 @@ export default function SettingsPage() {
                 <Label className="text-slate-400 text-sm">Account Role</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    user?.role === 'ADMIN'
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    user?.role === 'SUPER_ADMIN'
+                      ? 'bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20'
+                      : user?.role === 'ADMIN'
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   }`}>
-                    {user?.role === 'ADMIN' ? '● ADMIN' : '● USER'}
+                    {user?.role === 'SUPER_ADMIN' ? '● SUPER ADMIN' : user?.role === 'ADMIN' ? '● ADMIN' : '● USER'}
                   </span>
                 </div>
               </div>

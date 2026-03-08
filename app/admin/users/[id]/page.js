@@ -41,6 +41,7 @@ export default function UserShadowPage() {
   const [newBalance, setNewBalance] = useState('')
   const [adjustReason, setAdjustReason] = useState('')
   const [adjustLoading, setAdjustLoading] = useState(false)
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function UserShadowPage() {
       const res = await fetch('/api/auth/me')
       if (!res.ok) { router.push('/'); return }
       const data = await res.json()
-      if (data.user?.role !== 'ADMIN') { router.push('/dashboard'); return }
+      if (data.user?.role !== 'ADMIN' && data.user?.role !== 'SUPER_ADMIN') { router.push('/dashboard'); return }
       setUser(data.user)
     } catch { router.push('/') }
     finally { setLoading(false) }
@@ -151,7 +152,7 @@ export default function UserShadowPage() {
     </div>
   )
 
-  if (user?.role !== 'ADMIN') return null
+  if (!isAdmin) return null
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex">
