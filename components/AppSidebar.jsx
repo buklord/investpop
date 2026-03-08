@@ -244,7 +244,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
               {isAdmin && (
                 <Link
                   href="/admin"
-                  title="Admin"
+                  title={user?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}
                   className={`flex items-center justify-center px-2 py-2.5 rounded-lg transition-colors relative ${
                     pathname.startsWith('/admin')
                       ? 'bg-amber-600/20 text-amber-400'
@@ -315,7 +315,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   }`}
                 >
                   <Shield className="h-4 w-4 flex-shrink-0" />
-                  <span className="text-sm">Admin</span>
+                  <span className="text-sm">{user?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}</span>
                   {pendingDeposits > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                       {pendingDeposits > 9 ? '9+' : pendingDeposits}
