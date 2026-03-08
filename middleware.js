@@ -27,7 +27,7 @@ export async function middleware(request) {
   try {
     const { payload } = await jwtVerify(sessionCookie.value, SECRET_KEY)
 
-    if (payload.role !== 'ADMIN') {
+    if (payload.role !== 'ADMIN' && payload.role !== 'SUPER_ADMIN') {
       // Logged in but not admin → dashboard
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
