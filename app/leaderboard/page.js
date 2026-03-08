@@ -32,7 +32,7 @@ export default function LeaderboardPage() {
 
   const loadBoard = async () => {
     try {
-      const res = await fetch('/api/leaderboard?limit=50')
+      const res = await fetch('/api/leaderboard?limit=5')
       if (!res.ok) return
       const data = await res.json()
       setEntries(Array.isArray(data.leaderboard) ? data.leaderboard : [])
@@ -64,53 +64,64 @@ export default function LeaderboardPage() {
           </Button>
         </div>
 
-        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-400" /> Simulated Leaderboard
+                <Trophy className="h-6 w-6 text-amber-400" /> Top Traders
               </h1>
-              <p className="text-muted-foreground text-sm">Ranked by simulated account performance.</p>
+              <p className="text-muted-foreground text-sm">Top 5 traders by realized profit.</p>
             </div>
-            <Button variant="ghost" onClick={loadBoard} className="hidden lg:inline-flex">
+            <Button variant="ghost" onClick={loadBoard} className="hidden lg:inline-flex text-muted-foreground hover:text-foreground">
               <RefreshCw className="h-4 w-4 mr-2" /> Refresh
             </Button>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-base">Top Traders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px]">
-                  <thead>
-                    <tr className="text-xs text-muted-foreground border-b border-border">
-                      <th className="text-left py-2">Rank</th>
-                      <th className="text-left py-2">Trader</th>
-                      <th className="text-right py-2">Balance</th>
-                      <th className="text-right py-2">Return</th>
-                      <th className="text-right py-2">Trades</th>
-                      <th className="text-right py-2">Realized P&L</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((e) => (
-                      <tr key={e.userId} className={`border-b border-border/60 ${e.isMe ? 'bg-emerald-500/5' : ''}`}>
-                        <td className="py-2 text-sm font-semibold">#{e.rank}</td>
-                        <td className="py-2 text-sm">{e.handle}{e.isMe ? ' (You)' : ''}</td>
-                        <td className="py-2 text-sm text-right">{money(e.balance)}</td>
-                        <td className={`py-2 text-sm text-right ${(e.returnPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {(e.returnPct || 0) >= 0 ? '+' : ''}{Number(e.returnPct || 0).toFixed(2)}%
-                        </td>
-                        <td className="py-2 text-sm text-right">{e.trades}</td>
-                        <td className={`py-2 text-sm text-right ${(e.realizedPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {(e.realizedPnl || 0) >= 0 ? '+' : ''}{money(e.realizedPnl)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <Card className="bg-card border-border shadow-lg">
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {entries.map((e, idx) => {
+                  const isProfit = (e.realizedPnl || 0) >= 0
+                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : ''
+                  
+                  return (
+                    <div 
+                      key={e.userId} 
+                      className={`flex items-center justify-between p-4 sm:p-5 transition-colors ${
+                        e.isMe ? 'bg-emerald-500/5 border-l-4 border-emerald-500' : 'hover:bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                        <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/20 flex-shrink-0">
+                          <span className="text-base sm:text-lg font-bold text-amber-400">
+                            {medal || `#${e.rank}`}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm sm:text-base font-semibold text-foreground truncate">
+                            {e.handle.split('@')[0]}{e.isMe ? ' (You)' : ''}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Rank #{e.rank}</div>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-4">
+                        <div className={`text-base sm:text-lg font-bold ${
+                          isProfit ? 'text-emerald-400' : 'text-red-400'
+                        }`}>
+                          {isProfit ? '+' : ''}{money(e.realizedPnl)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Profit</div>
+                      </div>
+                    </div>
+                  )
+                })}
+                
+                {entries.length === 0 && (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p>No trading data yet. Start trading to appear on the leaderboard!</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
