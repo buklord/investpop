@@ -2477,7 +2477,7 @@ async function handleRoute(request, context) {
       }
 
       const targetRows = await prisma.$queryRaw`
-        SELECT id, email, role FROM users WHERE email = ${email} LIMIT 1
+        SELECT id, email, role FROM users WHERE LOWER(email) = ${email} LIMIT 1
       `
       const target = targetRows?.[0]
       if (!target) {
