@@ -104,22 +104,26 @@ const MASTER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || process.env.ADMIN_EM
 const DEFAULT_DEPOSIT_CONFIG = {
   BTC: process.env.DEPOSIT_BTC_ADDRESS || 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
   USDT: process.env.DEPOSIT_USDT_ADDRESS || '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4',
+  USDC: process.env.DEPOSIT_USDC_ADDRESS || '0x0000000000000000000000000000000000000000',
   BTC_BARCODE_URL: process.env.DEPOSIT_BTC_BARCODE_URL || '',
-  USDT_BARCODE_URL: process.env.DEPOSIT_USDT_BARCODE_URL || ''
+  USDT_BARCODE_URL: process.env.DEPOSIT_USDT_BARCODE_URL || '',
+  USDC_BARCODE_URL: process.env.DEPOSIT_USDC_BARCODE_URL || ''
 }
 
 async function getDepositConfig() {
   const fallback = {
     BTC: DEFAULT_DEPOSIT_CONFIG.BTC,
     USDT: DEFAULT_DEPOSIT_CONFIG.USDT,
+    USDC: DEFAULT_DEPOSIT_CONFIG.USDC,
     BTC_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.BTC_BARCODE_URL,
-    USDT_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL
+    USDT_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL,
+    USDC_BARCODE_URL: DEFAULT_DEPOSIT_CONFIG.USDC_BARCODE_URL
   }
 
   try {
     const rows = await prisma.$queryRaw`
       SELECT key, value FROM system_settings
-      WHERE key IN ('deposit_btc_address', 'deposit_usdt_address', 'deposit_btc_barcode_url', 'deposit_usdt_barcode_url')
+      WHERE key IN ('deposit_btc_address', 'deposit_usdt_address', 'deposit_usdc_address', 'deposit_btc_barcode_url', 'deposit_usdt_barcode_url', 'deposit_usdc_barcode_url')
     `
     for (const row of rows || []) {
       const key = String(row.key || '')
@@ -127,8 +131,10 @@ async function getDepositConfig() {
       if (!value) continue
       if (key === 'deposit_btc_address') fallback.BTC = value
       if (key === 'deposit_usdt_address') fallback.USDT = value
+      if (key === 'deposit_usdc_address') fallback.USDC = value
       if (key === 'deposit_btc_barcode_url') fallback.BTC_BARCODE_URL = value
       if (key === 'deposit_usdt_barcode_url') fallback.USDT_BARCODE_URL = value
+      if (key === 'deposit_usdc_barcode_url') fallback.USDC_BARCODE_URL = value
     }
   } catch (_) {}
 
@@ -356,8 +362,10 @@ async function ensureSchemaExtensions() {
       ('market_session_message', ''),
       ('deposit_btc_address', '${DEFAULT_DEPOSIT_CONFIG.BTC}'),
       ('deposit_usdt_address', '${DEFAULT_DEPOSIT_CONFIG.USDT}'),
+      ('deposit_usdc_address', '${DEFAULT_DEPOSIT_CONFIG.USDC}'),
       ('deposit_btc_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.BTC_BARCODE_URL}'),
-      ('deposit_usdt_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL}')
+      ('deposit_usdt_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.USDT_BARCODE_URL}'),
+      ('deposit_usdc_barcode_url', '${DEFAULT_DEPOSIT_CONFIG.USDC_BARCODE_URL}')
     ON CONFLICT (key) DO NOTHING`, 'system_settings seed')
 
   // ── Deposit, notifications, KYC ───────────────────────────────────────────
@@ -2321,8 +2329,10 @@ async function handleRoute(request, context) {
         WHERE key IN (
           'deposit_btc_address',
           'deposit_usdt_address',
+          'deposit_usdc_address',
           'deposit_btc_barcode_url',
-          'deposit_usdt_barcode_url'
+          'deposit_usdt_barcode_url',
+          'deposit_usdc_barcode_url'
         )
       `
       const result = {}
@@ -2384,11 +2394,13 @@ async function handleRoute(request, context) {
       const body = await request.json()
       const btcAddress = String(body.btcAddress || '').trim()
       const usdtAddress = String(body.usdtAddress || '').trim()
+      const usdcAddress = String(body.usdcAddress || '').trim()
       const btcBarcodeUrl = String(body.btcBarcodeUrl || '').trim()
       const usdtBarcodeUrl = String(body.usdtBarcodeUrl || '').trim()
+      const usdcBarcodeUrl = String(body.usdcBarcodeUrl || '').trim()
 
-      if (!btcAddress || !usdtAddress) {
-        return handleCORS(NextResponse.json({ error: 'BTC and USDT addresses are required' }, { status: 400 }))
+      if (!btcAddress || !usdtAddress || !usdcAddress) {
+        return handleCORS(NextResponse.json({ error: 'BTC, USDT, and USDC addresses are required' }, { status: 400 }))
       }
 
       await prisma.$executeRaw`
@@ -2400,6 +2412,10 @@ async function handleRoute(request, context) {
         ON CONFLICT (key) DO UPDATE SET value = ${usdtAddress}, updated_at = NOW()
       `
       await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_usdc_address', ${usdcAddress}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${usdcAddress}, updated_at = NOW()
+      `
+      await prisma.$executeRaw`
         INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_btc_barcode_url', ${btcBarcodeUrl}, NOW())
         ON CONFLICT (key) DO UPDATE SET value = ${btcBarcodeUrl}, updated_at = NOW()
       `
@@ -2407,12 +2423,16 @@ async function handleRoute(request, context) {
         INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_usdt_barcode_url', ${usdtBarcodeUrl}, NOW())
         ON CONFLICT (key) DO UPDATE SET value = ${usdtBarcodeUrl}, updated_at = NOW()
       `
+      await prisma.$executeRaw`
+        INSERT INTO system_settings (key, value, updated_at) VALUES ('deposit_usdc_barcode_url', ${usdcBarcodeUrl}, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${usdcBarcodeUrl}, updated_at = NOW()
+      `
 
       const auditId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
         VALUES (${auditId}, ${superAdmin.user.userId}, 'SUPER_ADMIN_UPDATE_DEPOSIT_CONFIG', NULL,
-                ${JSON.stringify({ btcAddress, usdtAddress, btcBarcodeUrl, usdtBarcodeUrl })}::jsonb, NOW())
+                ${JSON.stringify({ btcAddress, usdtAddress, usdcAddress, btcBarcodeUrl, usdtBarcodeUrl, usdcBarcodeUrl })}::jsonb, NOW())
       `
 
       return handleCORS(NextResponse.json({ message: 'Deposit config updated' }))
@@ -2850,7 +2870,8 @@ async function handleRoute(request, context) {
       return handleCORS(NextResponse.json({
         methods: {
           BTC: { address: cfg.BTC, barcodeUrl: cfg.BTC_BARCODE_URL },
-          USDT: { address: cfg.USDT, barcodeUrl: cfg.USDT_BARCODE_URL }
+          USDT: { address: cfg.USDT, barcodeUrl: cfg.USDT_BARCODE_URL },
+          USDC: { address: cfg.USDC, barcodeUrl: cfg.USDC_BARCODE_URL }
         }
       }))
     }
@@ -2866,7 +2887,7 @@ async function handleRoute(request, context) {
       if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) < 10) {
         return handleCORS(NextResponse.json({ error: 'Amount must be at least $10' }, { status: 400 }))
       }
-      const validMethods = ['BTC', 'USDT']
+      const validMethods = ['BTC', 'USDT', 'USDC']
       const chosenMethod = validMethods.includes(payMethod) ? payMethod : 'BTC'
       const depositConfig = await getDepositConfig()
       const address = depositConfig[chosenMethod]

@@ -40,6 +40,16 @@ const PAYMENT_METHODS = [
     activeBg: 'bg-green-500/20 border-green-500',
     address: '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4',
     network: 'ERC-20 (Ethereum)'
+  },
+  {
+    id: 'USDC',
+    label: 'USD Coin (USDC)',
+    icon: '$',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10 border-blue-500/30',
+    activeBg: 'bg-blue-500/20 border-blue-500',
+    address: '0x0000000000000000000000000000000000000000',
+    network: 'ERC-20 (Ethereum)'
   }
 ]
 
@@ -228,7 +238,7 @@ export default function DepositPage() {
                 {/* Payment method */}
                 <div>
                   <label className="text-muted-foreground text-sm mb-2 block">Payment Method</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     {PAYMENT_METHODS.map(m => (
                       <button key={m.id} onClick={() => setMethod(m.id)}
                         className={`p-4 rounded-xl border transition-all text-left ${

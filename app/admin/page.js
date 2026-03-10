@@ -123,8 +123,10 @@ export default function AdminPage() {
 
   const [saBtcAddress, setSaBtcAddress] = useState('')
   const [saUsdtAddress, setSaUsdtAddress] = useState('')
+  const [saUsdcAddress, setSaUsdcAddress] = useState('')
   const [saBtcBarcode, setSaBtcBarcode] = useState('')
   const [saUsdtBarcode, setSaUsdtBarcode] = useState('')
+  const [saUsdcBarcode, setSaUsdcBarcode] = useState('')
   const [saConfigLoading, setSaConfigLoading] = useState(false)
   const [saConfigMsg, setSaConfigMsg] = useState(null)
 
@@ -339,8 +341,10 @@ export default function AdminPage() {
           const s = (await saRes.json()).settings || {}
           setSaBtcAddress(s.deposit_btc_address || '')
           setSaUsdtAddress(s.deposit_usdt_address || '')
+          setSaUsdcAddress(s.deposit_usdc_address || '')
           setSaBtcBarcode(s.deposit_btc_barcode_url || '')
           setSaUsdtBarcode(s.deposit_usdt_barcode_url || '')
+          setSaUsdcBarcode(s.deposit_usdc_barcode_url || '')
         }
       }
     } catch (err) {
@@ -478,8 +482,10 @@ export default function AdminPage() {
         body: JSON.stringify({
           btcAddress: saBtcAddress,
           usdtAddress: saUsdtAddress,
+          usdcAddress: saUsdcAddress,
           btcBarcodeUrl: saBtcBarcode,
-          usdtBarcodeUrl: saUsdtBarcode
+          usdtBarcodeUrl: saUsdtBarcode,
+          usdcBarcodeUrl: saUsdcBarcode
         })
       })
       const data = await res.json()
@@ -1726,14 +1732,95 @@ export default function AdminPage() {
 
               <Card className="bg-[#161b22] border-blue-500/30">
                 <CardHeader>
-                  <CardTitle className="text-white text-base">Deposit Address & Barcode Settings</CardTitle>
+                  <CardTitle className="text-white text-base">Deposit Address & QR Code Settings</CardTitle>
+                  <p className="text-sm text-slate-400 mt-1">Upload QR code images or enter image URLs</p>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleSuperDepositConfig} className="space-y-3">
-                    <Input value={saBtcAddress} onChange={e => setSaBtcAddress(e.target.value)} placeholder="BTC deposit address" required className="bg-slate-800 border-slate-700 text-white" />
-                    <Input value={saUsdtAddress} onChange={e => setSaUsdtAddress(e.target.value)} placeholder="USDT deposit address" required className="bg-slate-800 border-slate-700 text-white" />
-                    <Input value={saBtcBarcode} onChange={e => setSaBtcBarcode(e.target.value)} placeholder="BTC custom barcode image URL (optional)" className="bg-slate-800 border-slate-700 text-white" />
-                    <Input value={saUsdtBarcode} onChange={e => setSaUsdtBarcode(e.target.value)} placeholder="USDT custom barcode image URL (optional)" className="bg-slate-800 border-slate-700 text-white" />
+                  <form onSubmit={handleSuperDepositConfig} className="space-y-4">
+                    {/* BTC Section */}
+                    <div className="space-y-2 pb-3 border-b border-slate-700">
+                      <label className="text-sm font-medium text-slate-300">Bitcoin (BTC)</label>
+                      <Input value={saBtcAddress} onChange={e => setSaBtcAddress(e.target.value)} placeholder="BTC deposit address" required className="bg-slate-800 border-slate-700 text-white" />
+                      <div className="space-y-2">
+                        <Input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onloadend = () => setSaBtcBarcode(reader.result)
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="bg-slate-800 border-slate-700 text-white"
+                        />
+                        <Input value={saBtcBarcode} onChange={e => setSaBtcBarcode(e.target.value)} placeholder="Or paste BTC QR code image URL / data URI" className="bg-slate-800 border-slate-700 text-white text-xs" />
+                        {saBtcBarcode && (
+                          <div className="flex items-center gap-2 text-xs text-green-400">
+                            <CheckCircle className="h-3 w-3" />
+                            QR code set
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* USDT Section */}
+                    <div className="space-y-2 pb-3 border-b border-slate-700">
+                      <label className="text-sm font-medium text-slate-300">Tether (USDT)</label>
+                      <Input value={saUsdtAddress} onChange={e => setSaUsdtAddress(e.target.value)} placeholder="USDT deposit address" required className="bg-slate-800 border-slate-700 text-white" />
+                      <div className="space-y-2">
+                        <Input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onloadend = () => setSaUsdtBarcode(reader.result)
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="bg-slate-800 border-slate-700 text-white"
+                        />
+                        <Input value={saUsdtBarcode} onChange={e => setSaUsdtBarcode(e.target.value)} placeholder="Or paste USDT QR code image URL / data URI" className="bg-slate-800 border-slate-700 text-white text-xs" />
+                        {saUsdtBarcode && (
+                          <div className="flex items-center gap-2 text-xs text-green-400">
+                            <CheckCircle className="h-3 w-3" />
+                            QR code set
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* USDC Section */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-300">USD Coin (USDC)</label>
+                      <Input value={saUsdcAddress} onChange={e => setSaUsdcAddress(e.target.value)} placeholder="USDC deposit address" required className="bg-slate-800 border-slate-700 text-white" />
+                      <div className="space-y-2">
+                        <Input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onloadend = () => setSaUsdcBarcode(reader.result)
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="bg-slate-800 border-slate-700 text-white"
+                        />
+                        <Input value={saUsdcBarcode} onChange={e => setSaUsdcBarcode(e.target.value)} placeholder="Or paste USDC QR code image URL / data URI" className="bg-slate-800 border-slate-700 text-white text-xs" />
+                        {saUsdcBarcode && (
+                          <div className="flex items-center gap-2 text-xs text-green-400">
+                            <CheckCircle className="h-3 w-3" />
+                            QR code set
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <Msg msg={saConfigMsg} />
                     <Button type="submit" disabled={saConfigLoading} className="bg-blue-600 hover:bg-blue-700 text-white w-full">
                       {saConfigLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
