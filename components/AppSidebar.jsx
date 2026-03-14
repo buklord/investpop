@@ -142,9 +142,19 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     : '—'
 
   const email = user?.email || ''
-  const displayName = email
-    ? email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-    : 'Account'
+  
+  // Use firstName/lastName if available, otherwise derive from email
+  const displayName = (() => {
+    const first = user?.firstName
+    const last = user?.lastName
+    if (first || last) {
+      return [first, last].filter(Boolean).join(' ')
+    }
+    // Fall back to formatted email username
+    return email
+      ? email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      : 'Account'
+  })()
 
   const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
 
