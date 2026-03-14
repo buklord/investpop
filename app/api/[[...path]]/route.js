@@ -267,6 +267,7 @@ async function ensureSchemaExtensions() {
       user_id TEXT NOT NULL,
       asset_id TEXT NOT NULL,
       symbol VARCHAR(20) NOT NULL DEFAULT '',
+      account_type VARCHAR(10),
       side VARCHAR(10) NOT NULL DEFAULT 'LONG',
       quantity DOUBLE PRECISION NOT NULL,
       entry_price DOUBLE PRECISION NOT NULL,
@@ -283,6 +284,7 @@ async function ensureSchemaExtensions() {
       closed_at TIMESTAMPTZ,
       leader_position_id TEXT
     )`, 'trading_positions table')
+  await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS account_type VARCHAR(10)`, 'trading_positions account_type column')
   await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS leader_position_id TEXT`, 'trading_positions leader_position_id column')
   await run(`CREATE INDEX IF NOT EXISTS tp_leader_position_idx ON trading_positions (leader_position_id) WHERE leader_position_id IS NOT NULL`, 'trading_positions leader_position_id index')
   await run(`
