@@ -2241,7 +2241,8 @@ async function handleRoute(request, context) {
       const history = await prisma.$queryRaw`
         SELECT 
           cth.*,
-          u.email as leader_email
+          u.email as leader_email,
+          SPLIT_PART(u.email, '@', 1) as leader_username
         FROM copy_trade_history cth
         LEFT JOIN users u ON u.id = cth.leader_id
         WHERE cth.follower_id = ${auth.user.userId}

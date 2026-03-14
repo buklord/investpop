@@ -1,15 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
-import { Users, TrendingUp, Copy, Pause, Play, XCircle, BarChart3, Activity } from 'lucide-react'
+import { Users, TrendingUp, Copy, Pause, Play, XCircle, BarChart3, Activity, Menu, RefreshCw, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function CopyTradingPage() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { toast } = useToast()
   const [leaders, setLeaders] = useState([])
   const [following, setFollowing] = useState([])
@@ -18,12 +23,36 @@ export default function CopyTradingPage() {
   const [loading, setLoading] = useState(true)
   const [selectedLeader, setSelectedLeader] = useState(null)
   const [copyRatio, setCopyRatio] = useState(1.0)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    loadData()
+    checkAuth()
   }, [])
 
+  useEffect(() => {
+    if (user) {
+      loadData()
+    }
+  }, [user])
+
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      if (!res.ok) {
+        router.push('/')
+        return
+      }
+      const data = await res.json()
+      setUser(data.user)
+    } catch (err) {
+      router.push('/')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const loadData = async () => {
+    setRefreshing(true)
     try {
       const [leadersRes, followingRes, statsRes, historyRes] = await Promise.all([
         fetch('/api/copy-trading/leaders'),
@@ -54,7 +83,7 @@ export default function CopyTradingPage() {
     } catch (err) {
       console.error('Failed to load copy trading data:', err)
     } finally {
-      setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -158,24 +187,58 @@ export default function CopyTradingPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Copy Trading</h1>
-          <p className="text-muted-foreground">
-            Automatically copy trades from expert traders
-          </p>
+    <div className="min-h-screen bg-[#0d1117] flex">
+      <AppSidebar
+        currentPage="/copy-trading"
+        user={user}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
+      
+      <div className="flex-1 min-w-0">
+        {/* Mobile header */}
+        <div className="lg:hidden bg-[#161b22] border-b border-slate-800 p-4 flex items-center justify-between">
+          <button onClick={() => setSidebarOpen(true)} className="text-white">
+            <Menu className="h-6 w-6" />
+          </button>
+          <span className="font-bold text-white">Copy Trading</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadData}
+            disabled={refreshing}
+            className="text-slate-400"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
-      </div>
+        
+        <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Copy Trading</h1>
+              <p className="text-slate-400">
+                Automatically copy trades from expert traders
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadData}
+              disabled={refreshing}
+              className="hidden lg:flex"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
 
       {/* Stats Overview */}
       {stats && (
@@ -233,11 +296,11 @@ export default function CopyTradingPage() {
 
         {/* Available Leaders Tab */}
         <TabsContent value="leaders" className="space-y-4">
-          <Card>
+          <Card className="bg-[#161b22] border-slate-800">
             <CardHeader>
-              <CardTitle>Expert Traders</CardTitle>
+              <CardTitle className="text-white">Expert Traders</CardTitle>
               <CardDescription>
-                Browse and follow expert traders (Admins and Super Admins)
+                Browse and follow experienced traders
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -252,32 +315,28 @@ export default function CopyTradingPage() {
                     const isFollowing = following.some(f => f.leader_id === leader.id)
                     
                     return (
-                      <Card key={leader.id} className="bg-muted/50">
+                      <Card key={leader.id} className="bg-slate-900/50 border-slate-700">
                         <CardContent className="pt-6">
                           <div className="flex items-start justify-between">
                             <div className="space-y-2 flex-1">
                               <div className="flex items-center gap-2">
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <Activity className="h-5 w-5 text-primary" />
+                                <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                  <Activity className="h-5 w-5 text-emerald-400" />
                                 </div>
                                 <div>
-                                  <h3 className="font-semibold">{leader.email}</h3>
-                                  <Badge variant="secondary">{leader.role}</Badge>
+                                  <h3 className="font-semibold text-white">{leader.username || leader.email.split('@')[0]}</h3>
+                                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active Leader</Badge>
                                 </div>
                               </div>
                               
-                              <div className="grid grid-cols-3 gap-4 mt-4">
+                              <div className="grid grid-cols-2 gap-4 mt-4">
                                 <div>
-                                  <p className="text-sm text-muted-foreground">Followers</p>
-                                  <p className="text-lg font-semibold">{leader.follower_count || 0}</p>
+                                  <p className="text-sm text-slate-400">Followers</p>
+                                  <p className="text-lg font-semibold text-white">{leader.follower_count || 0}</p>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-muted-foreground">Total Volume</p>
-                                  <p className="text-lg font-semibold">{formatCurrency(leader.total_volume || 0)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">Rating</p>
-                                  <p className="text-lg font-semibold">{(leader.rating || 0).toFixed(1)} ⭐</p>
+                                  <p className="text-sm text-slate-400">Total Volume</p>
+                                  <p className="text-lg font-semibold text-white">{formatCurrency(leader.total_volume || 0)}</p>
                                 </div>
                               </div>
                             </div>
@@ -340,9 +399,9 @@ export default function CopyTradingPage() {
 
         {/* My Following Tab */}
         <TabsContent value="following" className="space-y-4">
-          <Card>
+          <Card className="bg-[#161b22] border-slate-800">
             <CardHeader>
-              <CardTitle>Active Connections</CardTitle>
+              <CardTitle className="text-white">Active Connections</CardTitle>
               <CardDescription>
                 Manage your copy trading connections
               </CardDescription>
@@ -359,16 +418,16 @@ export default function CopyTradingPage() {
               ) : (
                 <div className="space-y-4">
                   {following.map((connection) => (
-                    <Card key={connection.id} className="bg-muted/50">
+                    <Card key={connection.id} className="bg-slate-900/50 border-slate-700">
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                <Activity className="h-5 w-5 text-primary" />
+                              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                <Activity className="h-5 w-5 text-emerald-400" />
                               </div>
                               <div>
-                                <h3 className="font-semibold">{connection.leader_email}</h3>
+                                <h3 className="font-semibold text-white">{connection.leader_username || connection.leader_email.split('@')[0]}</h3>
                                 <div className="flex gap-2 mt-1">
                                   <Badge variant={connection.status === 'ACTIVE' ? 'default' : 'secondary'}>
                                     {connection.status}
@@ -378,25 +437,19 @@ export default function CopyTradingPage() {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-4 gap-4 mt-4">
+                            <div className="grid grid-cols-3 gap-4 mt-4">
                               <div>
-                                <p className="text-sm text-muted-foreground">Trades Copied</p>
-                                <p className="text-lg font-semibold">{connection.total_trades_copied || 0}</p>
+                                <p className="text-sm text-slate-400">Trades Copied</p>
+                                <p className="text-lg font-semibold text-white">{connection.total_trades_copied || 0}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Volume</p>
-                                <p className="text-lg font-semibold">{formatCurrency(connection.total_copied_volume || 0)}</p>
+                                <p className="text-sm text-slate-400">Volume</p>
+                                <p className="text-lg font-semibold text-white">{formatCurrency(connection.total_copied_volume || 0)}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-muted-foreground">Profit</p>
-                                <p className={`text-lg font-semibold ${(connection.total_profit_from_copying || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                <p className="text-sm text-slate-400">Profit</p>
+                                <p className={`text-lg font-semibold ${(connection.total_profit_from_copying || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                   {formatCurrency(connection.total_profit_from_copying || 0)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-muted-foreground">Last Copy</p>
-                                <p className="text-sm">
-                                  {connection.last_copy_at ? formatDate(connection.last_copy_at) : 'Never'}
                                 </p>
                               </div>
                             </div>
@@ -442,9 +495,9 @@ export default function CopyTradingPage() {
 
         {/* History Tab */}
         <TabsContent value="history" className="space-y-4">
-          <Card>
+          <Card className="bg-[#161b22] border-slate-800">
             <CardHeader>
-              <CardTitle>Copy Trade History</CardTitle>
+              <CardTitle className="text-white">Copy Trade History</CardTitle>
               <CardDescription>
                 View all trades that were copied to your account
               </CardDescription>
@@ -460,27 +513,27 @@ export default function CopyTradingPage() {
                   {history.map((trade) => (
                     <div
                       key={trade.id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-card"
+                      className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-900/50"
                     >
                       <div className="flex items-center gap-4">
                         <Badge variant={trade.status === 'EXECUTED' ? 'default' : 'destructive'}>
                           {trade.status}
                         </Badge>
                         <div>
-                          <p className="font-medium">
+                          <p className="font-medium text-white">
                             {trade.original_trade_data?.symbol} - {trade.original_trade_data?.action}
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            From: {trade.leader_email}
+                          <p className="text-sm text-slate-400">
+                            From: {trade.leader_username || trade.leader_email.split('@')[0]}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(trade.copied_value)}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-semibold text-white">{formatCurrency(trade.copied_value)}</p>
+                        <p className="text-sm text-slate-400">
                           Qty: {parseFloat(trade.copied_quantity).toFixed(4)}
                         </p>
-                        <p className="text-xs text-muted-foreground">{formatDate(trade.created_at)}</p>
+                        <p className="text-xs text-slate-500">{formatDate(trade.created_at)}</p>
                       </div>
                     </div>
                   ))}
@@ -490,6 +543,8 @@ export default function CopyTradingPage() {
           </Card>
         </TabsContent>
       </Tabs>
+        </div>
+      </div>
     </div>
   )
 }
