@@ -328,6 +328,58 @@ async function ensureSchemaExtensions() {
     ), 0)
     WHERE real_balance = 0
   `, 'sync real_balance from DEPOSIT ledger')
+
+  // ── Copy Trading tables ───────────────────────────────────────────────────
+  // Leaders table - tracks stats for ADMIN/SUPER_ADMIN who can be copied
+  await run(`
+    CREATE TABLE IF NOT EXISTS copy_trading_leaders (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL UNIQUE,
+      total_followers INTEGER NOT NULL DEFAULT 0,
+      total_copied_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+      performance_rating DOUBLE PRECISION NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'copy_trading_leaders table')
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS ctl_user_id_unique ON copy_trading_leaders (user_id)`, 'copy_trading_leaders user_id unique index')
+
+  // Followers table - tracks copy trading relationships
+  await run(`
+    CREATE TABLE IF NOT EXISTS copy_trading_followers (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      follower_id TEXT NOT NULL,
+      leader_id TEXT NOT NULL,
+      copy_ratio DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+      status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+      start_balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_trades_copied INTEGER NOT NULL DEFAULT 0,
+      total_copied_volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_profit_from_copying DOUBLE PRECISION NOT NULL DEFAULT 0,
+      daily_loss DOUBLE PRECISION NOT NULL DEFAULT 0,
+      last_reset_date TIMESTAMPTZ,
+      last_copy_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(follower_id, leader_id)
+    )`, 'copy_trading_followers table')
+  await run(`CREATE INDEX IF NOT EXISTS ctf_follower_idx ON copy_trading_followers (follower_id)`, 'copy_trading_followers follower index')
+  await run(`CREATE INDEX IF NOT EXISTS ctf_leader_idx ON copy_trading_followers (leader_id)`, 'copy_trading_followers leader index')
+
+  // Copy trade history - logs all attempted copy trades
+  await run(`
+    CREATE TABLE IF NOT EXISTS copy_trade_history (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      follower_id TEXT NOT NULL,
+      leader_id TEXT NOT NULL,
+      original_trade_data JSONB NOT NULL,
+      copied_quantity DOUBLE PRECISION NOT NULL,
+      copied_value DOUBLE PRECISION NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'EXECUTED',
+      error_message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'copy_trade_history table')
+  await run(`CREATE INDEX IF NOT EXISTS cth_follower_idx ON copy_trade_history (follower_id, created_at DESC)`, 'copy_trade_history follower index')
+
   await run(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -2027,6 +2079,177 @@ async function handleRoute(request, context) {
       `
 
       return handleCORS(NextResponse.json({ message: 'Removed from watchlist' }))
+    }
+
+    // ============ COPY TRADING ENDPOINTS ============
+
+    // GET /api/copy-trading/leaders - Get available leaders to follow
+    if (route === '/copy-trading/leaders' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const leaders = await CopyTradingService.getAvailableLeaders()
+      return handleCORS(NextResponse.json({ leaders }))
+    }
+
+    // POST /api/copy-trading/follow - Start following a leader
+    if (route === '/copy-trading/follow' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { leaderId, copyRatio = 1.0 } = body
+
+      if (!leaderId) {
+        return handleCORS(NextResponse.json({ error: 'leaderId is required' }, { status: 400 }))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      const result = await service.followLeader(leaderId, parseFloat(copyRatio))
+
+      if (!result.success) {
+        return handleCORS(NextResponse.json({ error: result.error }, { status: 400 }))
+      }
+
+      return handleCORS(NextResponse.json({
+        message: 'Successfully started copying leader',
+        connectionId: result.connectionId
+      }))
+    }
+
+    // POST /api/copy-trading/unfollow - Stop following a leader
+    if (route === '/copy-trading/unfollow' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { leaderId } = body
+
+      if (!leaderId) {
+        return handleCORS(NextResponse.json({ error: 'leaderId is required' }, { status: 400 }))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      await service.unfollowLeader(leaderId)
+
+      return handleCORS(NextResponse.json({ message: 'Successfully stopped copying leader' }))
+    }
+
+    // PATCH /api/copy-trading/status - Update copy trading status (pause/resume)
+    if (route === '/copy-trading/status' && method === 'PATCH') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { leaderId, status } = body
+
+      if (!leaderId || !['ACTIVE', 'PAUSED'].includes(status)) {
+        return handleCORS(NextResponse.json(
+          { error: 'leaderId and status (ACTIVE or PAUSED) are required' },
+          { status: 400 }
+        ))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      const result = await service.updateCopyStatus(leaderId, status)
+
+      if (!result.success) {
+        return handleCORS(NextResponse.json({ error: result.error }, { status: 400 }))
+      }
+
+      return handleCORS(NextResponse.json({
+        message: `Copy trading ${status === 'ACTIVE' ? 'resumed' : 'paused'}`
+      }))
+    }
+
+    // GET /api/copy-trading/following - Get leaders I'm following
+    if (route === '/copy-trading/following' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      const following = await service.getMyFollowing()
+
+      return handleCORS(NextResponse.json({ following }))
+    }
+
+    // GET /api/copy-trading/followers - Get my followers (for leaders)
+    if (route === '/copy-trading/followers' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      // Check if user is admin/super-admin
+      const users = await prisma.$queryRaw`
+        SELECT role FROM users WHERE id = ${auth.user.userId}
+      `
+      const role = users?.[0]?.role
+      if (!['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+        return handleCORS(NextResponse.json(
+          { error: 'Only admins can view their followers' },
+          { status: 403 }
+        ))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      const followers = await service.getMyFollowers()
+
+      return handleCORS(NextResponse.json({ followers }))
+    }
+
+    // GET /api/copy-trading/stats - Get copy trading statistics
+    if (route === '/copy-trading/stats' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+      const service = new CopyTradingService(auth.user.userId)
+      const stats = await service.getCopyTradingStats()
+
+      return handleCORS(NextResponse.json({ stats }))
+    }
+
+    // GET /api/copy-trading/history - Get copy trade history
+    if (route === '/copy-trading/history' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const limit = Math.max(10, Math.min(100, Number(searchParams.get('limit') || 50)))
+
+      const history = await prisma.$queryRaw`
+        SELECT 
+          cth.*,
+          u.email as leader_email
+        FROM copy_trade_history cth
+        LEFT JOIN users u ON u.id = cth.leader_id
+        WHERE cth.follower_id = ${auth.user.userId}
+        ORDER BY cth.created_at DESC
+        LIMIT ${limit}
+      `
+
+      return handleCORS(NextResponse.json({ history }))
     }
 
     // ============ PORTFOLIO ENDPOINTS (Legacy) ============
