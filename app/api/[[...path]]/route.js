@@ -280,8 +280,11 @@ async function ensureSchemaExtensions() {
       margin_used DOUBLE PRECISION NOT NULL DEFAULT 0,
       realized_pnl DOUBLE PRECISION,
       opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      closed_at TIMESTAMPTZ
+      closed_at TIMESTAMPTZ,
+      leader_position_id TEXT
     )`, 'trading_positions table')
+  await run(`ALTER TABLE trading_positions ADD COLUMN IF NOT EXISTS leader_position_id TEXT`, 'trading_positions leader_position_id column')
+  await run(`CREATE INDEX IF NOT EXISTS tp_leader_position_idx ON trading_positions (leader_position_id) WHERE leader_position_id IS NOT NULL`, 'trading_positions leader_position_id index')
   await run(`
     CREATE TABLE IF NOT EXISTS trades (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -2883,6 +2886,23 @@ async function handleRoute(request, context) {
                 ${positionId}, ${JSON.stringify({ symbol: pos.symbol, quantity: pos.quantity, closePrice: currentPrice, realizedPnl, customPrice: !!customClosePrice })}::jsonb, NOW())
       `
 
+      // Trigger copy closes if the user is a leader (ADMIN or SUPER_ADMIN)
+      try {
+        const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+        const profitLossPercent = ((currentPrice - parseFloat(pos.entry_price)) / parseFloat(pos.entry_price)) * 100
+        
+        await CopyTradingService.executeCopyCloses(pos.user_id, {
+          leaderPositionId: positionId,
+          profitLossPercent,
+          symbol: pos.symbol,
+          closeType: 'ADMIN_FORCE_CLOSE'
+        }).catch((err) => {
+          console.warn('[CopyTrading] Failed to trigger copy closes:', err?.message)
+        })
+      } catch (err) {
+        console.warn('[CopyTrading] Copy close trigger error:', err?.message)
+      }
+
       return handleCORS(NextResponse.json({
         message: `Position ${pos.symbol} closed at $${currentPrice.toFixed(2)}`,
         closePrice: currentPrice,
@@ -3626,6 +3646,23 @@ async function handleRoute(request, context) {
         INSERT INTO notifications (id, user_id, message, created_at)
         VALUES (${notifId}, ${pos.user_id}, ${notifMsg}, NOW())
       `
+
+      // Trigger copy closes if the user is a leader (ADMIN or SUPER_ADMIN)
+      try {
+        const { CopyTradingService } = await import('@/lib/services/copyTradingService')
+        const profitLossPercent = inputPercent * (outcome === 'PROFIT' ? 1 : -1)
+        
+        await CopyTradingService.executeCopyCloses(pos.user_id, {
+          leaderPositionId: positionId,
+          profitLossPercent,
+          symbol: pos.symbol,
+          closeType: 'ADMIN_FORCE_SETTLE'
+        }).catch((err) => {
+          console.warn('[CopyTrading] Failed to trigger copy closes:', err?.message)
+        })
+      } catch (err) {
+        console.warn('[CopyTrading] Copy close trigger error:', err?.message)
+      }
 
       return handleCORS(NextResponse.json({
         message: `Position ${pos.symbol} settled as ${outcome} (${inputPercent}%). P&L: $${targetPnl.toFixed(2)}`,

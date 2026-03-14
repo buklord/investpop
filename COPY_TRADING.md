@@ -12,20 +12,31 @@ This implementation follows industry standards from platforms like eToro, MetaTr
 
 1. **Browse Leaders**: View available admin/super-admin traders to copy
 2. **Connect**: Start following a leader with a custom copy ratio (0.1x to 2.0x)
-3. **Auto-Copy**: When the leader trades, your account automatically executes proportional trades
-4. **Monitor**: Track your copy trading performance and history
-5. **Control**: Pause, resume, or stop copying at any time
+3. **Auto-Copy Opens**: When the leader opens a trade, your account automatically opens proportional trades
+4. **Auto-Copy Closes**: When the leader closes a trade, your positions close at the same profit/loss percentage
+5. **Monitor**: Track your copy trading performance and history
+6. **Control**: Pause, resume, or stop copying at any time
 
 ### For Leaders (Admin/Super-Admin Only)
 
 1. **Trade Normally**: Execute trades as usual through the platform
-2. **Auto-Replication**: Your trades are automatically copied to all active followers
-3. **View Followers**: See who is copying your trades
-4. **Performance Tracking**: Monitor your influence and total copied volume
+2. **Auto-Replication**: Your trades (opens and closes) are automatically copied to all active followers
+3. **Synchronized Results**: Followers win and lose together with you on every trade
+4. **View Followers**: See who is copying your trades
+5. **Performance Tracking**: Monitor your influence and total copied volume
 
 ## Key Features
 
-### 1. Proportional Position Sizing
+### 1. Synchronized Trading (Open & Close)
+
+**NEW: Full Trade Synchronization**
+- When a leader opens a trade, all followers' trades open at proportional sizes
+- **When a leader closes a trade, all followers' trades close at the same profit/loss percentage**
+- Example: If leader closes at +5% profit, all followers also close at +5% profit
+- Example: If leader closes at -3% loss, all followers also close at -3% loss
+- This ensures followers win and lose together with their leader on all trades
+
+### 2. Proportional Position Sizing
 
 Trades are scaled based on the **percentage of available capital** used, not absolute amounts.
 
@@ -40,7 +51,7 @@ followerPositionSize = (leaderPositionSize / leaderEquity) × followerEquity × 
 - Follower has $5,000 balance with 1.0x copy ratio
 - Follower buys $500 of BTC (10% of their capital)
 
-### 2. Copy Ratio (Multiplier)
+### 3. Copy Ratio (Multiplier)
 
 Followers can adjust their exposure:
 - **0.1x**: Conservative (copy at 10% size)
@@ -244,6 +255,7 @@ Logs all copy trade attempts (successful and failed).
 
 ### Trade Execution Flow
 
+**Opening Trades:**
 1. **Leader executes trade** → TradeService.executeTrade()
 2. **Trade completes successfully**
 3. **Check if leader is ADMIN/SUPER_ADMIN**
@@ -254,18 +266,45 @@ Logs all copy trade attempts (successful and failed).
    - Apply copy ratio multiplier
    - Enforce max position size limits
    - Execute follower's trade
+   - **Link follower position to leader position** (stores leader_position_id)
    - Log result (success/failure)
 6. **Update statistics**
+
+**Closing Trades (NEW):**
+1. **Leader closes position** → TradeService.executeSell() or Admin force-close
+2. **Position closes successfully**
+3. **Calculate profit/loss percentage** (exit price vs entry price)
+4. **Check if leader is ADMIN/SUPER_ADMIN**
+5. **Trigger copy closes in background** (non-blocking)
+6. **Find all follower positions linked to this leader position**
+7. **For each follower position:**
+   - Calculate target exit price based on same P/L percentage
+   - Execute close at calculated price
+   - Update follower profit stats
+   - Log close result
+8. **All followers close at same profit/loss % as leader**
+
+### Position Linking
+
+Each follower position stores `leader_position_id` to track which leader position it's copying:
+- When leader opens a trade → followers' positions link to that leader position
+- When leader closes that position → system finds all linked follower positions
+- Follower positions close with the exact same profit/loss percentage
 
 ### Code Structure
 
 ```
 /lib/services/
   ├── copyTradingService.js      # Main copy trading logic
-  ├── tradeService.js             # Updated to trigger copy trades
+  │   ├── executeCopyTrades()    # Opens follower trades
+  │   └── executeCopyCloses()    # Closes follower trades (NEW)
+  ├── tradeService.js             # Triggers copy opens & closes
+  │   ├── triggerCopyTrades()    # For opening trades
+  │   └── triggerCopyCloses()    # For closing trades (NEW)
   └── accountService.js           # Account balance management
 
 /app/api/[[...path]]/route.js    # API endpoints + database tables
+
 
 Database tables created in:
   ensureSchemaExtensions() function
