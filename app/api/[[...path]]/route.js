@@ -916,6 +916,7 @@ async function handleRoute(request, context) {
       let role = jwtRole
       let isSuspended = false
       let kycStatus = 'PENDING'
+      let u = null
 
       try {
         const timeoutMs = 350
@@ -928,26 +929,27 @@ async function handleRoute(request, context) {
           `,
           new Promise((_, reject) => setTimeout(() => reject(new Error('db timeout')), timeoutMs))
         ])
-        const u = dbRows?.[0]
+        u = dbRows?.[0]
         if (u) {
           role = u.role || role
           isSuspended = !!u.is_suspended
           kycStatus = u.kyc_status || kycStatus
         }
-        
-        const response = NextResponse.json({
-          user: { 
-            id: auth.user.userId, 
-            email: auth.user.email, 
-            role, 
-            isSuspended, 
-            kycStatus,
-            firstName: u?.first_name || null,
-            lastName: u?.last_name || null
-          },
-          broadcastMessage: '',
-          spreadMultiplier: 1.0
-        })
+      } catch (_) {}
+
+      const response = NextResponse.json({
+        user: { 
+          id: auth.user.userId, 
+          email: auth.user.email, 
+          role, 
+          isSuspended, 
+          kycStatus,
+          firstName: u?.first_name || null,
+          lastName: u?.last_name || null
+        },
+        broadcastMessage: '',
+        spreadMultiplier: 1.0
+      })
 
       // If the DB role changed (e.g., promoted/demoted), re-issue the JWT so
       // middleware + UI reflect the current role.
