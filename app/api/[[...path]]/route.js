@@ -153,10 +153,11 @@ let schemaReady = false
 async function ensureSchemaExtensions() {
   if (schemaReady) return
   // Fast-path: if the schema is already fully migrated (kyc_status column exists
-  // on users and market_prices table exists), skip ALL DDL — no locks, no delay.
+  // on users, market_prices table exists, AND leader_position_id exists on trading_positions), 
+  // skip ALL DDL — no locks, no delay.
   // This is the normal path for every request on an established production DB.
   try {
-    const [colCheck, tableCheck] = await Promise.all([
+    const [colCheck, tableCheck, copyTradeCheck] = await Promise.all([
       prisma.$queryRawUnsafe(
         `SELECT 1 FROM information_schema.columns
          WHERE table_name='users' AND column_name='kyc_status' LIMIT 1`
@@ -164,9 +165,13 @@ async function ensureSchemaExtensions() {
       prisma.$queryRawUnsafe(
         `SELECT 1 FROM information_schema.tables
          WHERE table_name='market_prices' LIMIT 1`
+      ),
+      prisma.$queryRawUnsafe(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_name='trading_positions' AND column_name='leader_position_id' LIMIT 1`
       )
     ])
-    if (colCheck.length > 0 && tableCheck.length > 0) {
+    if (colCheck.length > 0 && tableCheck.length > 0 && copyTradeCheck.length > 0) {
       // Schema is current — nothing to do
       schemaReady = true
       return
