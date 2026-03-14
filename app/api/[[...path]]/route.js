@@ -1759,7 +1759,7 @@ async function handleRoute(request, context) {
       }
 
       const { searchParams } = new URL(request.url)
-      const limit = Math.max(10, Math.min(100, Number(searchParams.get('limit') || 25)))
+      const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit') || 5)))
       const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 10000)
 
       const rows = await prisma.$queryRawUnsafe(
