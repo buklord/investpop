@@ -30,6 +30,11 @@ export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordMsg, setPasswordMsg] = useState(null)
 
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileMsg, setProfileMsg] = useState(null)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -40,10 +45,37 @@ export default function SettingsPage() {
       if (!res.ok) { router.push('/'); return }
       const data = await res.json()
       setUser(data.user)
+      setFirstName(data.user.firstName || '')
+      setLastName(data.user.lastName || '')
     } catch {
       router.push('/')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault()
+    setProfileMsg(null)
+    setProfileLoading(true)
+
+    try {
+      const res = await fetch('/api/settings/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName, lastName })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setProfileMsg({ type: 'success', text: 'Profile updated successfully.' })
+        setUser({ ...user, firstName, lastName })
+      } else {
+        setProfileMsg({ type: 'error', text: data.error || 'Failed to update profile.' })
+      }
+    } catch {
+      setProfileMsg({ type: 'error', text: 'An error occurred. Please try again.' })
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -133,33 +165,84 @@ export default function SettingsPage() {
                 Profile
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-slate-400 text-sm">Email Address</Label>
-                <div className="mt-1 px-3 py-2 bg-slate-800 rounded-md text-white text-sm">
-                  {user?.email}
+            <CardContent>
+              <form onSubmit={handleProfileUpdate} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="firstName" className="text-slate-400 text-sm">First Name</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      value={firstName}
+                      onChange={e => setFirstName(e.target.value)}
+                      className="mt-1 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                      placeholder="Enter your first name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName" className="text-slate-400 text-sm">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      value={lastName}
+                      onChange={e => setLastName(e.target.value)}
+                      className="mt-1 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                      placeholder="Enter your last name"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label className="text-slate-400 text-sm">Account Role</Label>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    user?.role === 'SUPER_ADMIN'
-                      ? 'bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20'
-                      : user?.role === 'ADMIN'
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+
+                <div>
+                  <Label className="text-slate-400 text-sm">Email Address</Label>
+                  <div className="mt-1 px-3 py-2 bg-slate-800 rounded-md text-white text-sm">
+                    {user?.email}
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-slate-400 text-sm">Account Role</Label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      user?.role === 'SUPER_ADMIN'
+                        ? 'bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20'
+                        : user?.role === 'ADMIN'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {user?.role === 'SUPER_ADMIN' ? '● SUPER ADMIN' : user?.role === 'ADMIN' ? '● ADMIN' : '● USER'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-slate-400 text-sm">User ID</Label>
+                  <div className="mt-1 px-3 py-2 bg-slate-800 rounded-md text-slate-500 text-xs font-mono">
+                    {user?.id}
+                  </div>
+                </div>
+
+                {profileMsg && (
+                  <div className={`flex items-center gap-2 text-sm px-4 py-3 rounded-lg ${
+                    profileMsg.type === 'success'
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-red-500/10 text-red-400'
                   }`}>
-                    {user?.role === 'SUPER_ADMIN' ? '● SUPER ADMIN' : user?.role === 'ADMIN' ? '● ADMIN' : '● USER'}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <Label className="text-slate-400 text-sm">User ID</Label>
-                <div className="mt-1 px-3 py-2 bg-slate-800 rounded-md text-slate-500 text-xs font-mono">
-                  {user?.id}
-                </div>
-              </div>
+                    {profileMsg.type === 'success'
+                      ? <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+                    {profileMsg.text}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={profileLoading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {profileLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Update Profile
+                </Button>
+              </form>
             </CardContent>
           </Card>
 

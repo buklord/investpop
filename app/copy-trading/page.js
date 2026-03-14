@@ -176,6 +176,19 @@ export default function CopyTradingPage() {
     }).format(value || 0)
   }
 
+  const formatDisplayName = (user) => {
+    // If first name and/or last name are available, use them
+    if (user.first_name || user.last_name) {
+      return [user.first_name, user.last_name].filter(Boolean).join(' ')
+    }
+    // For following tab, check leader-specific fields
+    if (user.leader_first_name || user.leader_last_name) {
+      return [user.leader_first_name, user.leader_last_name].filter(Boolean).join(' ')
+    }
+    // Fall back to username or email
+    return user.username || user.leader_username || user.email?.split('@')[0] || user.leader_email?.split('@')[0] || 'Unknown'
+  }
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -324,7 +337,7 @@ export default function CopyTradingPage() {
                                   <Activity className="h-5 w-5 text-emerald-400" />
                                 </div>
                                 <div>
-                                  <h3 className="font-semibold text-white">{leader.username || leader.email.split('@')[0]}</h3>
+                                  <h3 className="font-semibold text-white">{formatDisplayName(leader)}</h3>
                                   <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Active Leader</Badge>
                                 </div>
                               </div>
@@ -427,7 +440,7 @@ export default function CopyTradingPage() {
                                 <Activity className="h-5 w-5 text-emerald-400" />
                               </div>
                               <div>
-                                <h3 className="font-semibold text-white">{connection.leader_username || connection.leader_email.split('@')[0]}</h3>
+                                <h3 className="font-semibold text-white">{formatDisplayName(connection)}</h3>
                                 <div className="flex gap-2 mt-1">
                                   <Badge variant={connection.status === 'ACTIVE' ? 'default' : 'secondary'}>
                                     {connection.status}

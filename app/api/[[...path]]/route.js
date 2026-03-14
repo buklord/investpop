@@ -921,7 +921,7 @@ async function handleRoute(request, context) {
         const timeoutMs = 350
         const dbRows = await Promise.race([
           prisma.$queryRaw`
-            SELECT role, is_suspended, kyc_status
+            SELECT role, is_suspended, kyc_status, first_name, last_name
             FROM users
             WHERE id = ${auth.user.userId}
             LIMIT 1
@@ -934,13 +934,20 @@ async function handleRoute(request, context) {
           isSuspended = !!u.is_suspended
           kycStatus = u.kyc_status || kycStatus
         }
-      } catch (_) {}
-
-      const response = NextResponse.json({
-        user: { id: auth.user.userId, email: auth.user.email, role, isSuspended, kycStatus },
-        broadcastMessage: '',
-        spreadMultiplier: 1.0
-      })
+        
+        const response = NextResponse.json({
+          user: { 
+            id: auth.user.userId, 
+            email: auth.user.email, 
+            role, 
+            isSuspended, 
+            kycStatus,
+            firstName: u?.first_name || null,
+            lastName: u?.last_name || null
+          },
+          broadcastMessage: '',
+          spreadMultiplier: 1.0
+        })
 
       // If the DB role changed (e.g., promoted/demoted), re-issue the JWT so
       // middleware + UI reflect the current role.
@@ -953,6 +960,74 @@ async function handleRoute(request, context) {
       }
 
       return handleCORS(noStore(response))
+    }
+
+    // PATCH /api/settings/profile
+    if (route === '/settings/profile' && method === 'PATCH') {
+      const auth = await requireAuth()
+      const body = await request.json()
+      const { firstName, lastName } = body
+
+      await prisma.$executeRaw`
+        UPDATE users 
+        SET first_name = ${firstName || null}, 
+            last_name = ${lastName || null}, 
+            updated_at = NOW() 
+        WHERE id = ${auth.user.userId}
+      `
+
+      return handleCORS(NextResponse.json({ 
+        success: true, 
+        message: 'Profile updated successfully' 
+      }))
+    }
+
+    // POST /api/settings/password
+    if (route === '/settings/password' && method === 'POST') {
+      const auth = await requireAuth()
+      const body = await request.json()
+      const { currentPassword, newPassword } = body
+
+      if (!currentPassword || !newPassword) {
+        return handleCORS(NextResponse.json(
+          { error: 'Current password and new password are required' },
+          { status: 400 }
+        ))
+      }
+
+      // Verify current password
+      const userRows = await prisma.$queryRaw`
+        SELECT password_hash FROM users WHERE id = ${auth.user.userId} LIMIT 1
+      `
+      
+      if (!userRows || userRows.length === 0) {
+        return handleCORS(NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        ))
+      }
+
+      const isValid = await verifyPassword(currentPassword, userRows[0].password_hash)
+      if (!isValid) {
+        return handleCORS(NextResponse.json(
+          { error: 'Current password is incorrect' },
+          { status: 400 }
+        ))
+      }
+
+      // Hash and update new password
+      const newHash = await hashPassword(newPassword)
+      await prisma.$executeRaw`
+        UPDATE users 
+        SET password_hash = ${newHash}, 
+            updated_at = NOW() 
+        WHERE id = ${auth.user.userId}
+      `
+
+      return handleCORS(NextResponse.json({ 
+        success: true, 
+        message: 'Password updated successfully' 
+      }))
     }
 
     // ============ QUOTE ENDPOINT ============
