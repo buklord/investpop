@@ -68,7 +68,8 @@ export default function SettingsPage() {
       const data = await res.json()
       if (res.ok) {
         setProfileMsg({ type: 'success', text: 'Profile updated successfully.' })
-        setUser({ ...user, firstName, lastName })
+        // Re-fetch user data to ensure sidebar gets updated
+        await checkAuth()
       } else {
         setProfileMsg({ type: 'error', text: data.error || 'Failed to update profile.' })
       }
