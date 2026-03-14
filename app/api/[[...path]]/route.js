@@ -2082,6 +2082,10 @@ async function handleRoute(request, context) {
     }
 
     // ============ COPY TRADING ENDPOINTS ============
+    // Ensure copy trading tables exist before processing these routes
+    if (route.startsWith('/copy-trading/')) {
+      await getSchemaInitPromise()
+    }
 
     // GET /api/copy-trading/leaders - Get available leaders to follow
     if (route === '/copy-trading/leaders' && method === 'GET') {
