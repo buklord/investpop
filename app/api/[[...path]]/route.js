@@ -10,6 +10,8 @@ import { AccountService } from '@/lib/services/accountService'
 import { TRADING_CONFIG } from '@/lib/services/tradingConfig'
 import * as MarketSim from '@/lib/marketSimulator'
 import { sendEmail } from '@/lib/email'
+import { addCacheHeaders, getCacheHeaders } from '@/lib/cacheHeaders'
+import { getCached, setCached, getCacheKey, CACHE_DURATIONS, clearUserCache } from '@/lib/cache'
 import {
   welcomeEmail,
   depositDecisionEmail,
@@ -1122,7 +1124,7 @@ async function handleRoute(request, context) {
       `
       const res = NextResponse.json({ assets })
       // Cache: asset catalog changes rarely; keep it fast on repeat page loads.
-      res.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+      addCacheHeaders(res, 'medium')
       return handleCORS(res)
     }
 
@@ -1415,7 +1417,8 @@ async function handleRoute(request, context) {
         tradingMode,
         currency,
       })
-      accountResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      // Cache account data for 15 seconds (allows dashboard refresh after trades)
+      addCacheHeaders(accountResponse, 'minimal')
       return handleCORS(accountResponse)
     }
 
