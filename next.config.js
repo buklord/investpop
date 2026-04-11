@@ -9,26 +9,8 @@ const nextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
   
-  // Response compression
-  headers: async () => {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          {
-            key: 'Content-Encoding',
-            value: 'gzip',
-          },
-        ],
-      },
-    ]
-  },
-  
   // Enable experimental features for speed
-  experimental: {
-    isrMemoryCacheSize: 52 * 1024 * 1024, // 52MB cache
-    turbopack: false, // Use SWC for faster builds
-  },
+  // Note: Some experimental options may not be supported in this version
   
   webpack(config, { dev }) {
     if (dev) {
