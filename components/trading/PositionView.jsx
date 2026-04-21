@@ -214,11 +214,7 @@ export default function PositionView({ positionId, onClose, embedded = false }) 
                     scrolling="no"
                     allow="autoplay; encrypted-media"
                   />
-                  {/* Cover TradingView watermark */}
-                  <div
-                    className="absolute bottom-0 left-0 pointer-events-none"
-                    style={{ width: 92, height: 38, background: '#131722' }}
-                  />
+
                 </>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">

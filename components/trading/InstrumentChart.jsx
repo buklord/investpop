@@ -116,11 +116,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
           scrolling="no"
           allow="autoplay; encrypted-media"
         />
-        {/* Cover the TradingView watermark (bottom-left of chart area) */}
-        <div
-          className="absolute bottom-0 left-0 pointer-events-none"
-          style={{ width: 92, height: 38, background: '#131722' }}
-        />
+
       </div>
 
       {/* ── Timeframe bar ── */}
