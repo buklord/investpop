@@ -176,6 +176,8 @@ export default function HomePage() {
   const [prices, setPrices]                 = useState({})
   const [stats, setStats]                   = useState({ accounts: 0, totalVolume: 0, trades: 0, uptime: 99 })
   const [mobileMenu, setMobileMenu]         = useState(false)
+  const [formHighlight, setFormHighlight]   = useState(false)
+  const emailRef = useRef(null)
 
   const livePositions = useMemo(() => MOCK_POSITIONS.map(pos => {
     const q = prices[pos.symbol]
@@ -241,6 +243,17 @@ export default function HomePage() {
       .then(d => { if (d) setStats(d) })
       .catch(() => {})
   }, [])
+
+  // ── Focus/highlight the sign-up form ──
+  const focusEmailForm = (e) => {
+    e?.preventDefault()
+    document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setFormHighlight(true)
+    setTimeout(() => {
+      emailRef.current?.focus()
+      setTimeout(() => setFormHighlight(false), 1200)
+    }, 350)
+  }
 
   // ── Auth handlers ──
   const handleRegisterStep1 = (e) => {
@@ -361,9 +374,9 @@ export default function HomePage() {
             </div>
             <div className="hidden lg:flex items-center gap-3">
               <button onClick={() => setShowLogin(true)} className="text-white/60 hover:text-white text-sm font-medium transition-colors px-3 py-2">Log In</button>
-              <a href="#hero-form" className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-[0_0_16px_rgba(16,185,129,0.25)]">
+              <button onClick={focusEmailForm} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-[0_0_16px_rgba(16,185,129,0.25)]">
                 Start Free <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+              </button>
             </div>
             <button className="lg:hidden text-white/60" onClick={() => setMobileMenu(!mobileMenu)}>
               {mobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -377,7 +390,7 @@ export default function HomePage() {
             <a href="#accounts" className="block text-white/60 hover:text-white text-sm py-1">Accounts</a>
             <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
               <button onClick={() => { setShowLogin(true); setMobileMenu(false) }} className="w-full text-center text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg">Log In</button>
-              <a href="#hero-form" onClick={() => setMobileMenu(false)} className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg">Start Free</a>
+              <button onClick={(e) => { setMobileMenu(false); focusEmailForm(e) }} className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg">Start Free</button>
             </div>
           </div>
         )}
@@ -431,11 +444,12 @@ export default function HomePage() {
                 </div>
 
                 {/* Inline register form */}
-                <div id="hero-form" className="mt-10 max-w-sm">
+                <div id="hero-form" className={`mt-10 max-w-sm transition-all duration-300 ${formHighlight ? 'ring-2 ring-emerald-500/60 ring-offset-2 ring-offset-background rounded-xl p-3 -mx-3' : ''}`}>
                   {step === 1 ? (
                     <form onSubmit={handleRegisterStep1} className="flex flex-col gap-3">
                       <div className="flex gap-2">
                         <input
+                          ref={emailRef}
                           type="email" required placeholder="your@email.com"
                           value={email} onChange={e => { setEmail(e.target.value); setError('') }}
                           className="flex-1 h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
@@ -528,11 +542,11 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-                    <button onClick={() => document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth' })}
+                    <button onClick={focusEmailForm}
                       className="h-9 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors">
                       ▲ Buy
                     </button>
-                    <button onClick={() => document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth' })}
+                    <button onClick={focusEmailForm}
                       className="h-9 rounded-xl border border-red-500/20 bg-red-500/8 text-red-300 text-xs font-semibold hover:bg-red-500/15 transition-colors">
                       ▼ Sell
                     </button>
@@ -570,7 +584,7 @@ export default function HomePage() {
                 const up   = pct == null || pct >= 0
                 return (
                   <button key={symbol}
-                    onClick={() => document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={focusEmailForm}
                     className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] p-4 text-left transition-all hover:border-emerald-500/20"
                   >
                     <div className="flex items-start justify-between mb-3">

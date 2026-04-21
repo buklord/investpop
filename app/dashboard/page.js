@@ -292,8 +292,13 @@ export default function DashboardPage() {
         body: JSON.stringify({ mode: newMode })
       })
       if (res.ok) {
-        setTradingMode(newMode)
-        await loadData()
+        const data = await res.json()
+        const resolvedMode = data.tradingMode || newMode
+        setTradingMode(resolvedMode)
+        // Optimistically update the balance shown so the UI responds instantly
+        setAccount(prev => prev ? { ...prev, balance: data.balance ?? prev.balance, tradingMode: resolvedMode } : prev)
+        // Reload full data in the background — don't block the toggle on it
+        loadData().catch(() => {})
       }
     } catch (err) { console.error('Failed to switch mode:', err) }
     finally { setSwitchingMode(false) }

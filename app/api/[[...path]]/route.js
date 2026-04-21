@@ -778,7 +778,7 @@ async function handleRoute(request, context) {
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REAL')
+          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
           ON CONFLICT (user_id) DO NOTHING
         `
       } catch (vaErr) {
@@ -883,24 +883,12 @@ async function handleRoute(request, context) {
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${user.id}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REAL')
+          VALUES (${user.id}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
           ON CONFLICT (user_id) DO NOTHING
         `
       } catch (_) {}
 
-      // Default into REAL mode on login so the platform opens in REAL by default.
-      // Best-effort and idempotent.
-      try {
-        await prisma.$executeRaw`
-          UPDATE virtual_accounts
-          SET trading_mode = 'REAL',
-              balance = COALESCE(real_balance, balance),
-              updated_at = NOW()
-          WHERE user_id = ${user.id}
-        `
-      } catch (_) {}
-
-      // Create session — embed role in JWT so middleware can check it without a DB call
+      // Session token is created below
       const token = await createSession(user.id, user.email, user.role || 'USER')
       const cookieOptions = getSessionCookieOptions()
 
