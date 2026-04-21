@@ -820,44 +820,69 @@ export default function DashboardPage() {
                   <p className="text-muted-foreground text-sm font-medium">No trades yet</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
-                  <table className="w-full min-w-[500px]">
-                    <thead>
-                      <tr className="text-muted-foreground text-xs sm:text-sm border-b border-border">
-                        <th className="text-left pb-2 sm:pb-3 pl-4 sm:pl-0 font-medium">Asset</th>
-                        <th className="text-left pb-2 sm:pb-3 font-medium">Side</th>
-                        <th className="text-right pb-2 sm:pb-3 font-medium">Qty</th>
-                        <th className="text-right pb-2 sm:pb-3 font-medium">Price</th>
-                        <th className="text-right pb-2 sm:pb-3 font-medium">Fee</th>
-                        <th className="text-right pb-2 sm:pb-3 pr-4 sm:pr-0 font-medium">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {trades.slice(0, 10).map((trade, idx) => (
-                        <tr key={trade.id} className={`${idx !== trades.slice(0, 10).length - 1 ? 'border-b border-border/60' : ''}`}>
-                          <td className="py-2.5 sm:py-3 pl-4 sm:pl-0">
+                <>
+                  {/* Mobile card list */}
+                  <div className="sm:hidden divide-y divide-border/60">
+                    {trades.slice(0, 10).map((trade) => (
+                      <div key={trade.id} className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 ${
+                            trade.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                          }`}>
+                            {trade.side}
+                          </span>
+                          <div className="min-w-0">
                             <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
-                          </td>
-                          <td className="py-2.5 sm:py-3">
-                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-semibold ${
-                              trade.side === 'BUY' 
-                                ? 'bg-emerald-500/15 text-emerald-400' 
-                                : 'bg-red-500/15 text-red-400'
-                            }`}>
-                              {trade.side}
-                            </span>
-                          </td>
-                          <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{trade.quantity}</td>
-                          <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.price)}</td>
-                          <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
-                          <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-xs pr-4 sm:pr-0">
-                            {new Date(trade.executed_at).toLocaleDateString()}
-                          </td>
+                            <div className="text-xs text-muted-foreground">Qty: {trade.quantity}</div>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="font-medium text-foreground text-sm">{formatCurrency(trade.price)}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(trade.executed_at).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
+                      <thead>
+                        <tr className="text-muted-foreground text-xs sm:text-sm border-b border-border">
+                          <th className="text-left pb-2 sm:pb-3 font-medium">Asset</th>
+                          <th className="text-left pb-2 sm:pb-3 font-medium">Side</th>
+                          <th className="text-right pb-2 sm:pb-3 font-medium">Qty</th>
+                          <th className="text-right pb-2 sm:pb-3 font-medium">Price</th>
+                          <th className="text-right pb-2 sm:pb-3 font-medium">Fee</th>
+                          <th className="text-right pb-2 sm:pb-3 font-medium">Time</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {trades.slice(0, 10).map((trade, idx) => (
+                          <tr key={trade.id} className={`${idx !== trades.slice(0, 10).length - 1 ? 'border-b border-border/60' : ''}`}>
+                            <td className="py-2.5 sm:py-3">
+                              <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
+                            </td>
+                            <td className="py-2.5 sm:py-3">
+                              <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-semibold ${
+                                trade.side === 'BUY' 
+                                  ? 'bg-emerald-500/15 text-emerald-400' 
+                                  : 'bg-red-500/15 text-red-400'
+                              }`}>
+                                {trade.side}
+                              </span>
+                            </td>
+                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{trade.quantity}</td>
+                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.price)}</td>
+                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
+                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-xs">
+                              {new Date(trade.executed_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>

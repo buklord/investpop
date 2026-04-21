@@ -1175,6 +1175,12 @@ async function handleRoute(request, context) {
         { symbol: 'AVAXUSD', name: 'Avalanche',                 type: 'crypto' },
         { symbol: 'DOTUSD',  name: 'Polkadot',                  type: 'crypto' },
         { symbol: 'LTCUSD',  name: 'Litecoin',                  type: 'crypto' },
+        // Commodities (5)
+        { symbol: 'XAUUSD',  name: 'Gold',                      type: 'index' },
+        { symbol: 'XAGUSD',  name: 'Silver',                    type: 'index' },
+        { symbol: 'USOIL',   name: 'Crude Oil WTI',             type: 'index' },
+        { symbol: 'XPTUSD',  name: 'Platinum',                  type: 'index' },
+        { symbol: 'NATGAS',  name: 'Natural Gas',               type: 'index' },
       ]
 
       // Use batch insert with a single query for much better performance

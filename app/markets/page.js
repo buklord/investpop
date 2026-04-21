@@ -97,6 +97,7 @@ export default function MarketsPage() {
 
   const [ticket, setTicket]           = useState(null)
   const [positionId, setPositionId]   = useState(null)
+  const [category, setCategory]       = useState('all')
 
   useEffect(() => { globalThis.__INVESTPOP_ACCOUNT = account }, [account])
 
@@ -117,8 +118,9 @@ export default function MarketsPage() {
   }, [router])
 
   // ── Market polling ────────────────────────────────────────────────────────
+  // Runs immediately on mount in parallel with the auth check above so that
+  // by the time auth resolves the market data is already loaded.
   useEffect(() => {
-    if (loading) return
     let cancelled = false
 
     async function loadInitial() {
@@ -164,7 +166,7 @@ export default function MarketsPage() {
     }, 15000)
 
     return () => { cancelled = true; clearInterval(tickId); clearInterval(acctId) }
-  }, [loading])
+  }, [])
 
   // ── Auto-select first asset ───────────────────────────────────────────────
   useEffect(() => {
@@ -174,14 +176,22 @@ export default function MarketsPage() {
   // Chart data is fetched by InstrumentChart via /api/market/candles/*
 
   // ── Derived ───────────────────────────────────────────────────────────────
+  const COMMODITY_SYMBOLS = useMemo(() => new Set(['XAUUSD', 'XAGUSD', 'USOIL', 'XPTUSD', 'NATGAS']), [])
+
   const filtered = useMemo(() => {
+    let result = assets
+    if (category === 'forex')     result = result.filter(a => a.type === 'forex')
+    else if (category === 'stock')     result = result.filter(a => a.type === 'stock')
+    else if (category === 'crypto')    result = result.filter(a => a.type === 'crypto')
+    else if (category === 'index')     result = result.filter(a => a.type === 'index' && !COMMODITY_SYMBOLS.has(a.symbol))
+    else if (category === 'commodity') result = result.filter(a => COMMODITY_SYMBOLS.has(a.symbol))
     const q = search.trim().toLowerCase()
-    if (!q) return assets
-    return assets.filter(a =>
+    if (q) result = result.filter(a =>
       String(a.symbol).toLowerCase().includes(q) ||
       String(a.name || '').toLowerCase().includes(q)
     )
-  }, [assets, search])
+    return result
+  }, [assets, search, category, COMMODITY_SYMBOLS])
 
   const selectedQuote = useMemo(() => {
     if (!selected?.symbol) return null
@@ -261,15 +271,40 @@ export default function MarketsPage() {
           <div className="text-xs font-mono text-muted-foreground">{headerEquity}</div>
         </div>
 
-        {/* ── Search + balance bar ─────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search markets…"
-            className="max-w-xs bg-background border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
-          />
-          <div className="ml-auto text-sm font-mono text-muted-foreground hidden lg:block">{headerEquity}</div>
+        {/* ── Search + category bar ─────────────────────────────────────── */}
+        <div className="flex-shrink-0 bg-card border-b border-border">
+          <div className="flex items-center gap-3 px-4 py-2">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search markets…"
+              className="max-w-xs bg-background border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
+            />
+            <div className="ml-auto text-sm font-mono text-muted-foreground hidden lg:block">{headerEquity}</div>
+          </div>
+          {/* Category filter pills */}
+          <div className="flex items-center gap-1.5 px-4 pb-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {[
+              { key: 'all',       label: 'All' },
+              { key: 'forex',     label: 'Forex' },
+              { key: 'crypto',    label: 'Crypto' },
+              { key: 'stock',     label: 'Stocks' },
+              { key: 'index',     label: 'Indices' },
+              { key: 'commodity', label: 'Commodities' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setCategory(key)}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  category === key
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Instrument TABLE: takes top 55%, scrollable ──────────────── */}
