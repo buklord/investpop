@@ -381,48 +381,84 @@ export default function PortfolioPage() {
                       <p className="text-slate-500">No closed positions</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-slate-500 text-sm border-b border-slate-800">
-                            <th className="text-left p-4">Asset</th>
-                            <th className="text-right p-4">Quantity</th>
-                            <th className="text-right p-4">Entry Price</th>
-                            <th className="text-right p-4">Realized P&L</th>
-                            <th className="text-right p-4">Closed At</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {closedPositions.map(pos => (
-                            <tr key={pos.id} className="border-b border-slate-800">
-                              <td className="p-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                    pos.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
-                                  }`}>
-                                    {pos.type === 'crypto' ? '₿' : pos.symbol.charAt(0)}
-                                  </div>
-                                  <div>
-                                    <div className="font-medium text-white">{pos.symbol}</div>
-                                    <div className="text-sm text-slate-500">{pos.name}</div>
+                    <>
+                      {/* Mobile cards */}
+                      <div className="md:hidden divide-y divide-slate-800">
+                        {closedPositions.map(pos => {
+                          const pnl = pos.realized_pnl || 0
+                          return (
+                            <div key={pos.id} className="p-4 flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${
+                                  pos.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
+                                }`}>
+                                  {pos.type === 'crypto' ? '₿' : pos.symbol.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-white">{pos.symbol}</div>
+                                  <div className="text-xs text-slate-500 truncate">{pos.name}</div>
+                                  <div className="text-xs text-slate-400 mt-0.5">
+                                    Qty: {pos.quantity} · Entry: {formatCurrency(pos.entry_price)}
                                   </div>
                                 </div>
-                              </td>
-                              <td className="p-4 text-right text-white">{pos.quantity}</td>
-                              <td className="p-4 text-right text-slate-400">{formatCurrency(pos.entry_price)}</td>
-                              <td className="p-4 text-right">
-                                <div className={`font-medium ${(pos.realized_pnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                  {(pos.realized_pnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.realized_pnl)}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className={`font-semibold ${pnl >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                  {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
                                 </div>
-                              </td>
-                              <td className="p-4 text-right text-slate-400">
-                                {pos.closed_at ? new Date(pos.closed_at).toLocaleDateString() : '—'}
-                              </td>
+                                <div className="text-xs text-slate-400 mt-0.5">
+                                  {pos.closed_at ? new Date(pos.closed_at).toLocaleDateString() : '—'}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Desktop table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="text-slate-500 text-sm border-b border-slate-800">
+                              <th className="text-left p-4">Asset</th>
+                              <th className="text-right p-4">Quantity</th>
+                              <th className="text-right p-4">Entry Price</th>
+                              <th className="text-right p-4">Realized P&L</th>
+                              <th className="text-right p-4">Closed At</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {closedPositions.map(pos => (
+                              <tr key={pos.id} className="border-b border-slate-800">
+                                <td className="p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                      pos.type === 'crypto' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
+                                    }`}>
+                                      {pos.type === 'crypto' ? '₿' : pos.symbol.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-white">{pos.symbol}</div>
+                                      <div className="text-sm text-slate-500">{pos.name}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-right text-white">{pos.quantity}</td>
+                                <td className="p-4 text-right text-slate-400">{formatCurrency(pos.entry_price)}</td>
+                                <td className="p-4 text-right">
+                                  <div className={`font-medium ${(pos.realized_pnl || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {(pos.realized_pnl || 0) >= 0 ? '+' : ''}{formatCurrency(pos.realized_pnl)}
+                                  </div>
+                                </td>
+                                <td className="p-4 text-right text-slate-400">
+                                  {pos.closed_at ? new Date(pos.closed_at).toLocaleDateString() : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
