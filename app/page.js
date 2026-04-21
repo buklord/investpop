@@ -247,7 +247,12 @@ export default function HomePage() {
   // ── Focus/highlight the sign-up form ──
   const focusEmailForm = (e) => {
     e?.preventDefault()
-    document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Scroll so the form is comfortably visible near the top (with nav offset accounted for)
+    const el = document.getElementById('hero-form')
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - 100
+      window.scrollTo({ top: y, behavior: 'smooth' })
+    }
     setFormHighlight(true)
     setTimeout(() => {
       emailRef.current?.focus()
@@ -390,7 +395,7 @@ export default function HomePage() {
             <a href="#accounts" className="block text-white/60 hover:text-white text-sm py-1">Accounts</a>
             <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
               <button onClick={() => { setShowLogin(true); setMobileMenu(false) }} className="w-full text-center text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg">Log In</button>
-              <button onClick={(e) => { setMobileMenu(false); focusEmailForm(e) }} className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg">Start Free</button>
+              <button onClick={(e) => { setMobileMenu(false); setTimeout(() => focusEmailForm(e), 300) }} className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg">Start Free</button>
             </div>
           </div>
         )}
@@ -735,7 +740,7 @@ export default function HomePage() {
                 <div className="space-y-2">
                   <Link href="/markets"                className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
                   <button onClick={() => setShowLogin(true)} className="block text-white/40 hover:text-white text-xs transition-colors">Log In</button>
-                  <a href="#hero-form"                  className="block text-white/40 hover:text-white text-xs transition-colors">Register</a>
+                  <button onClick={focusEmailForm} className="block text-white/40 hover:text-white text-xs transition-colors">Register</button>
                 </div>
               </div>
               <div>
@@ -805,7 +810,7 @@ export default function HomePage() {
             </form>
             <p className="text-center text-xs text-white/25 mt-4">
               No account?{' '}
-              <button onClick={() => { setShowLogin(false); document.getElementById('hero-form')?.scrollIntoView({ behavior: 'smooth' }) }}
+              <button onClick={(e) => { setShowLogin(false); setTimeout(() => focusEmailForm(e), 200) }}
                 className="text-emerald-400 hover:text-emerald-300 underline">Create one free</button>
             </p>
           </div>
