@@ -690,6 +690,29 @@ async function handleRoute(request, context) {
       }))
     }
 
+    // ============ PUBLIC STATS (no auth required) ============
+    // GET /api/stats — platform-wide numbers shown on landing page
+    if (route === '/stats' && method === 'GET') {
+      try {
+        const [userCountRows, tradeVolumeRows, closedTradeRows] = await Promise.all([
+          prisma.$queryRaw`SELECT COUNT(*) AS cnt FROM users WHERE role = 'USER'`,
+          prisma.$queryRaw`
+            SELECT COALESCE(SUM(ABS(quantity * entry_price)), 0) AS total_volume
+            FROM positions
+          `,
+          prisma.$queryRaw`SELECT COUNT(*) AS cnt FROM positions WHERE status = 'CLOSED'`,
+        ])
+        const accounts    = Number(userCountRows[0]?.cnt  ?? 0)
+        const totalVolume = Number(tradeVolumeRows[0]?.total_volume ?? 0)
+        const trades      = Number(closedTradeRows[0]?.cnt ?? 0)
+        const res = NextResponse.json({ accounts, totalVolume, trades, uptime: 99 })
+        res.headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+        return handleCORS(res)
+      } catch (e) {
+        return handleCORS(NextResponse.json({ accounts: 0, totalVolume: 0, trades: 0, uptime: 99 }))
+      }
+    }
+
     // ============ AUTH ENDPOINTS ============
     
     // Register - POST /api/auth/register
