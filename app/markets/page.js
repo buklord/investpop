@@ -126,7 +126,8 @@ export default function MarketsPage() {
     async function loadInitial() {
       if (!cancelled) setMarketLoading(true)
       try {
-        fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
+        // Await seed so new assets (commodities etc.) are in DB before we fetch the list
+        try { await fetch('/api/assets/seed', { method: 'POST' }) } catch {}
         const [acctRes, assetsRes, pricesRes] = await Promise.all([
           fetch('/api/account', { cache: 'no-store' }),
           fetch('/api/assets', { cache: 'force-cache' }),
@@ -283,7 +284,7 @@ export default function MarketsPage() {
             <div className="ml-auto text-sm font-mono text-muted-foreground hidden lg:block">{headerEquity}</div>
           </div>
           {/* Category filter pills */}
-          <div className="flex items-center gap-1.5 px-4 pb-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex items-center gap-1.5 px-4 pb-2 overflow-x-auto w-full min-w-0" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
             {[
               { key: 'all',       label: 'All' },
               { key: 'forex',     label: 'Forex' },

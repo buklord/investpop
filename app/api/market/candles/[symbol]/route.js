@@ -68,7 +68,12 @@ function generateCandles({ symbol, tfSecs, limit }) {
     const high = Math.max(open, close) + wick
     const low = Math.max(0.000001, Math.min(open, close) - wick)
 
-    candles.push({ time: t, open, high, low, close })
+    // Pseudo-random volume correlated with candle body size (bigger moves = more volume)
+    const bodyPct = Math.abs(close - open) / open
+    const volNoise = 0.4 + unitRand(`${sym}:${tfSecs}:${t}:vol`) * 0.6
+    const value = Math.round(base * (1000 + bodyPct * 50000) * volNoise)
+
+    candles.push({ time: t, open, high, low, close, value })
   }
 
   return candles

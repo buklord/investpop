@@ -823,25 +823,34 @@ export default function DashboardPage() {
                 <>
                   {/* Mobile card list */}
                   <div className="sm:hidden divide-y divide-border/60">
-                    {trades.slice(0, 10).map((trade) => (
-                      <div key={trade.id} className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 ${
-                            trade.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-                          }`}>
-                            {trade.side}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
-                            <div className="text-xs text-muted-foreground">Qty: {trade.quantity}</div>
+                    {trades.slice(0, 10).map((trade) => {
+                      const pnl = trade.position_status === 'CLOSED' ? Number(trade.realized_pnl || 0) : null
+                      return (
+                        <div key={trade.id} className="flex items-center justify-between py-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 ${
+                              trade.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                            }`}>
+                              {trade.side}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
+                              <div className="text-xs text-muted-foreground">Qty: {trade.quantity}</div>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            {pnl !== null ? (
+                              <div className={`font-semibold text-sm ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                              </div>
+                            ) : (
+                              <div className="font-medium text-foreground text-sm">{formatCurrency(trade.price)}</div>
+                            )}
+                            <div className="text-xs text-muted-foreground">{new Date(trade.executed_at).toLocaleDateString()}</div>
                           </div>
                         </div>
-                        <div className="text-right flex-shrink-0 ml-2">
-                          <div className="font-medium text-foreground text-sm">{formatCurrency(trade.price)}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(trade.executed_at).toLocaleDateString()}</div>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                   {/* Desktop table */}
                   <div className="hidden sm:block overflow-x-auto">
@@ -852,33 +861,41 @@ export default function DashboardPage() {
                           <th className="text-left pb-2 sm:pb-3 font-medium">Side</th>
                           <th className="text-right pb-2 sm:pb-3 font-medium">Qty</th>
                           <th className="text-right pb-2 sm:pb-3 font-medium">Price</th>
-                          <th className="text-right pb-2 sm:pb-3 font-medium">Fee</th>
+                          <th className="text-right pb-2 sm:pb-3 font-medium">P&L / Fee</th>
                           <th className="text-right pb-2 sm:pb-3 font-medium">Time</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {trades.slice(0, 10).map((trade, idx) => (
-                          <tr key={trade.id} className={`${idx !== trades.slice(0, 10).length - 1 ? 'border-b border-border/60' : ''}`}>
-                            <td className="py-2.5 sm:py-3">
-                              <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
-                            </td>
-                            <td className="py-2.5 sm:py-3">
-                              <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-semibold ${
-                                trade.side === 'BUY' 
-                                  ? 'bg-emerald-500/15 text-emerald-400' 
-                                  : 'bg-red-500/15 text-red-400'
-                              }`}>
-                                {trade.side}
-                              </span>
-                            </td>
-                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{trade.quantity}</td>
-                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.price)}</td>
-                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.fee_amount || 0)}</td>
-                            <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-xs">
-                              {new Date(trade.executed_at).toLocaleDateString()}
-                            </td>
-                          </tr>
-                        ))}
+                        {trades.slice(0, 10).map((trade, idx) => {
+                          const pnl = trade.position_status === 'CLOSED' ? Number(trade.realized_pnl || 0) : null
+                          return (
+                            <tr key={trade.id} className={`${idx !== trades.slice(0, 10).length - 1 ? 'border-b border-border/60' : ''}`}>
+                              <td className="py-2.5 sm:py-3">
+                                <div className="font-medium text-foreground text-sm">{trade.symbol}</div>
+                              </td>
+                              <td className="py-2.5 sm:py-3">
+                                <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs font-semibold ${
+                                  trade.side === 'BUY' 
+                                    ? 'bg-emerald-500/15 text-emerald-400' 
+                                    : 'bg-red-500/15 text-red-400'
+                                }`}>
+                                  {trade.side}
+                                </span>
+                              </td>
+                              <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{trade.quantity}</td>
+                              <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-sm">{formatCurrency(trade.price)}</td>
+                              <td className="py-2.5 sm:py-3 text-right text-sm font-medium">
+                                {pnl !== null
+                                  ? <span className={pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>{pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</span>
+                                  : <span className="text-muted-foreground">{formatCurrency(trade.fee_amount || 0)}</span>
+                                }
+                              </td>
+                              <td className="py-2.5 sm:py-3 text-right text-muted-foreground text-xs">
+                                {new Date(trade.executed_at).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
