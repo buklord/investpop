@@ -21,7 +21,7 @@ function getBasePrice(symbol) {
 function unitRand(key) {
   let h = 2166136261
   for (let i = 0; i < key.length; i++) {
-    h ^= key.charCodeAt(i)
+    h
     h = Math.imul(h, 16777619)
   }
   // xorshift32 mix

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -77,6 +78,12 @@ export default function DashboardPage() {
   // Trading mode toggle
   const [tradingMode, setTradingMode] = useState('REAL')
   const [switchingMode, setSwitchingMode] = useState(false)
+
+  // Watchlist add functionality
+  const [showAddWatchlist, setShowAddWatchlist] = useState(false)
+  const [watchlistSearch, setWatchlistSearch] = useState('')
+  const [availableAssets, setAvailableAssets] = useState([])
+  const [addingToWatchlist, setAddingToWatchlist] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -224,6 +231,56 @@ export default function DashboardPage() {
     setRefreshing(true)
     await loadData()
     setRefreshing(false)
+  }
+
+  const loadAvailableAssets = async () => {
+    try {
+      const res = await fetch('/api/assets?_t=' + Date.now())
+      if (res.ok) {
+        const data = await res.json()
+        setAvailableAssets(data.assets || [])
+      }
+    } catch (err) {
+      console.error('Failed to load available assets:', err)
+    }
+  }
+
+  const addToWatchlist = async (assetId) => {
+    setAddingToWatchlist(true)
+    try {
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId })
+      })
+      if (res.ok) {
+        // Refresh watchlist data with cache buster
+        const watchlistRes = await fetch('/api/watchlist?_t=' + Date.now())
+        if (watchlistRes.ok) {
+          const watchlistData = await watchlistRes.json()
+          const newWatchlist = watchlistData.watchlist || []
+          setWatchlist(newWatchlist)
+          
+          // Fetch quotes for newly added items
+          const newSymbols = newWatchlist
+            .filter(item => !quotes[item.symbol])
+            .map(item => `${item.symbol},${item.type}`)
+          
+          if (newSymbols.length > 0) {
+            fetchQuotesParallel(newSymbols)
+          }
+        }
+        setShowAddWatchlist(false)
+        setWatchlistSearch('')
+      } else {
+        const error = await res.json()
+        console.error('Failed to add to watchlist:', error.error)
+      }
+    } catch (err) {
+      console.error('Failed to add to watchlist:', err)
+    } finally {
+      setAddingToWatchlist(false)
+    }
   }
 
   const switchMode = async (newMode) => {
@@ -611,13 +668,75 @@ export default function DashboardPage() {
               <div className="py-4 sm:py-5 px-4 sm:px-6 border-b border-border">
                 <div className="flex items-center justify-between">
                   <h2 className="text-foreground font-semibold text-base sm:text-lg">Watchlist</h2>
-                  <Link href="/markets">
-                    <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 text-xs sm:text-sm h-auto p-0 flex items-center gap-1">
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </Button>
-                  </Link>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setShowAddWatchlist(!showAddWatchlist)
+                      if (!showAddWatchlist) {
+                        loadAvailableAssets()
+                        setWatchlistSearch('')
+                      }
+                    }}
+                    className="text-blue-400 hover:text-blue-300 text-xs sm:text-sm h-auto p-0 flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </Button>
                 </div>
+                {showAddWatchlist && (
+                  <div className="mt-3 space-y-2">
+                    <Input
+                      value={watchlistSearch}
+                      onChange={(e) => setWatchlistSearch(e.target.value)}
+                      placeholder="Search assets..."
+                      className="bg-background border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
+                    />
+                    {availableAssets.length === 0 ? (
+                      <div className="px-2 py-2 text-sm text-muted-foreground">Loading assets...</div>
+                    ) : (
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {(() => {
+                          const filtered = availableAssets.filter(asset =>
+                            !watchlist.some(w => w.asset_id === asset.id) &&
+                            (!watchlistSearch || 
+                              asset.symbol.toLowerCase().includes(watchlistSearch.toLowerCase()) ||
+                              asset.name.toLowerCase().includes(watchlistSearch.toLowerCase()))
+                          )
+                          
+                          return filtered.slice(0, 8).map(asset => (
+                            <button
+                              key={asset.id}
+                              onClick={() => addToWatchlist(asset.id)}
+                              disabled={addingToWatchlist}
+                              className="w-full text-left px-2 py-1 text-sm hover:bg-muted/50 rounded flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-medium">{asset.symbol}</span>
+                                <span className="text-muted-foreground ml-2 text-xs">{asset.name}</span>
+                              </div>
+                              {addingToWatchlist ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3" />
+                              )}
+                            </button>
+                          ))
+                        })()}
+                        {(!watchlistSearch && availableAssets.filter(asset => !watchlist.some(w => w.asset_id === asset.id)).length === 0) && (
+                          <div className="px-2 py-1 text-sm text-muted-foreground">All assets are already in watchlist</div>
+                        )}
+                        {(watchlistSearch && availableAssets.filter(asset => 
+                          !watchlist.some(w => w.asset_id === asset.id) &&
+                          (asset.symbol.toLowerCase().includes(watchlistSearch.toLowerCase()) ||
+                           asset.name.toLowerCase().includes(watchlistSearch.toLowerCase()))
+                        ).length === 0) && (
+                          <div className="px-2 py-1 text-sm text-muted-foreground">No assets found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="py-4 sm:py-5 px-4 sm:px-6">
                 {dataLoading ? (

@@ -71,7 +71,16 @@ export default function WalletPage() {
       const data = await res.json()
       if (res.ok) {
         setSuccessMsg(`$${data.amount?.toLocaleString()} demo funds added to your practice account!`)
-        await loadData()
+        // Add cache-busting param to force fresh data
+        const [accountRes, ledgerRes] = await Promise.all([
+          fetch('/api/account?_t=' + Date.now()),
+          fetch('/api/ledger?_t=' + Date.now())
+        ])
+        const accountData = await accountRes.json()
+        const ledgerData = await ledgerRes.json()
+        setAccount(accountData)
+        setLedger(ledgerData.entries || [])
+        setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'REAL')
       } else {
         setSuccessMsg(data.error || 'Failed to request funds.')
       }

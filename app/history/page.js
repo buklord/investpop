@@ -191,7 +191,7 @@ export default function HistoryPage() {
   const grossProfit = wins.reduce((s, p) => s + (p.realized_pnl || 0), 0)
   const grossLoss = Math.abs(losses.reduce((s, p) => s + (p.realized_pnl || 0), 0))
   const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0
-  const startingBalance = 10000
+  const startingBalance = 100000
   const currentBalance = account?.balance || startingBalance
   const accountGrowth = ((currentBalance - startingBalance) / startingBalance) * 100
 

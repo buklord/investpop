@@ -1850,7 +1850,7 @@ async function handleRoute(request, context) {
 
       const { searchParams } = new URL(request.url)
       const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit') || 5)))
-      const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 10000)
+      const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 100000)
 
       const rows = await prisma.$queryRawUnsafe(
         `SELECT
@@ -2522,7 +2522,7 @@ async function handleRoute(request, context) {
         return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       }
 
-      const DEMO_AMOUNT = 10000
+      const DEMO_AMOUNT = 100000
 
       // Add funds to demo wallet (and to active balance if currently in DEMO mode)
       await prisma.$executeRaw`
@@ -3728,7 +3728,7 @@ async function handleRoute(request, context) {
 
       // Notify user that their trade was settled
       const notifId = uuidv4()
-      const notifMsg = `Trade ${pos.symbol} has been settled by the liquidity provider. ${outcome === 'PROFIT' ? `Profit of $${targetPnl.toFixed(2)} credited.` : `Loss of $${Math.abs(targetPnl).toFixed(2)} applied.`}`
+      const notifMsg = `Trade ${pos.symbol} has settled in ${outcome === 'PROFIT' ? `profit` : `loss`}. ${outcome === 'PROFIT' ? `Profit of $${targetPnl.toFixed(2)} credited.` : `Loss of $${Math.abs(targetPnl).toFixed(2)} applied.`}`
       await prisma.$executeRaw`
         INSERT INTO notifications (id, user_id, message, created_at)
         VALUES (${notifId}, ${pos.user_id}, ${notifMsg}, NOW())
