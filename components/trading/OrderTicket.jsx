@@ -1,17 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import { getPipSize, formatPrice, pipsToPriceDelta } from '@/lib/trading/pips'
-import {
-  estimateGrossPnl,
-  estimateBalancePct,
-  formatMoneyApprox,
-  formatPctApprox,
-} from '@/lib/trading/pl'
+import { estimateGrossPnl, formatMoneyApprox } from '@/lib/trading/pl'
+
+const QUICK_SIZES = [0.1, 0.5, 1, 2, 5]
 
 function clampNumber(value, { min = -Infinity, max = Infinity } = {}) {
   const n = Number(value)
@@ -21,508 +14,353 @@ function clampNumber(value, { min = -Infinity, max = Infinity } = {}) {
 
 function reducer(state, action) {
   switch (action.type) {
-    case 'setSide':
-      return { ...state, side: action.value }
-    case 'setSize':
-      return { ...state, size: action.value }
-    case 'setMarketRangeEnabled':
-      return { ...state, marketRange: { ...state.marketRange, enabled: action.value } }
-    case 'setMarketRangePips':
-      return { ...state, marketRange: { ...state.marketRange, pips: action.value } }
-    case 'setTpEnabled':
-      return { ...state, tp: { ...state.tp, enabled: action.value } }
-    case 'setTpPips':
-      return { ...state, tp: { ...state.tp, pips: action.value } }
-    case 'setSlEnabled':
-      return { ...state, sl: { ...state.sl, enabled: action.value } }
-    case 'setSlPips':
-      return { ...state, sl: { ...state.sl, pips: action.value } }
-    case 'setTrailingEnabled':
-      return { ...state, trailing: { ...state.trailing, enabled: action.value } }
-    case 'setJournalTag':
-      return { ...state, journalTag: action.value }
-    case 'setJournalMood':
-      return { ...state, journalMood: action.value }
-    case 'setComment':
-      return { ...state, comment: action.value }
-    default:
-      return state
+    case 'setSide':    return { ...state, side: action.value }
+    case 'setSize':    return { ...state, size: action.value }
+    case 'setTpPips':  return { ...state, tpPips: action.value }
+    case 'setSlPips':  return { ...state, slPips: action.value }
+    case 'toggleTp':   return { ...state, tpOn: !state.tpOn }
+    case 'toggleSl':   return { ...state, slOn: !state.slOn }
+    default:           return state
   }
 }
 
-function getSizeLabel(type) {
-  return type === 'forex' ? 'Stakes' : 'Quantity (Lots)'
+function initState({ side }) {
+  return { side, size: '', tpPips: 20, slPips: 20, tpOn: true, slOn: true }
 }
 
-function createInitialState({ side, entryRefPrice }) {
-  return {
-    side,
-    entryRefPrice,
-    size: '',
-    marketRange: { enabled: false, pips: 5 },
-    tp: { enabled: true, pips: 20 },
-    sl: { enabled: true, pips: 20 },
-    triggerBasis: 'TRADE',
-    trailing: { enabled: false },
-    journalTag: '',
-    journalMood: '',
-    comment: '',
-  }
-}
-
-export default function OrderTicket({
-  instrument,
-  initialSide,
-  entryRefPrice,
-  onCancel,
-  onExecuted,
-  embedded = false,
-}) {
-  const [state, dispatch] = useReducer(
-    reducer,
-    { side: initialSide, entryRefPrice },
-    () => createInitialState({ side: initialSide, entryRefPrice })
+function PipsControl({ value, onChange, disabled }) {
+  const v = Number(value) || 0
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        disabled={disabled || v <= 1}
+        onClick={() => onChange(Math.max(1, v - 1))}
+        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-bold disabled:opacity-30 transition-colors"
+      >−</button>
+      <input
+        type="number"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled}
+        className="w-14 h-7 rounded-md bg-white/5 border border-white/10 text-center text-sm font-mono text-white focus:outline-none focus:border-blue-500/60 disabled:opacity-30"
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(v + 1)}
+        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-bold disabled:opacity-30 transition-colors"
+      >+</button>
+    </div>
   )
+}
 
-  const [quote, setQuote] = useState(null)
-  const [session, setSession] = useState({ isOpen: true, sessionMessage: '' })
+export default function OrderTicket({ instrument, initialSide, entryRefPrice, onCancel, onExecuted, embedded = false }) {
+  const [state, dispatch] = useReducer(reducer, { side: initialSide }, initState)
+  const [quote, setQuote]       = useState(null)
+  const [session, setSession]   = useState({ isOpen: true, sessionMessage: '' })
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [success, setSuccess]   = useState(false)
 
   const symbolId = instrument?.symbol
-  const pipSize = useMemo(
-    () => getPipSize({ symbolId, type: instrument?.type }),
-    [symbolId, instrument?.type]
-  )
+  const pipSize  = useMemo(() => getPipSize({ symbolId, type: instrument?.type }), [symbolId, instrument?.type])
 
-  const refreshQuote = useCallback(async () => {
+  // ── Live quote + session ──────────────────────────────────────────────────
+  const refresh = useCallback(async () => {
     if (!symbolId) return
     try {
-      const res = await fetch('/api/market/quote/' + encodeURIComponent(symbolId))
-      if (!res.ok) return
-      const data = await res.json()
-      setQuote(data)
+      const [qRes, sRes] = await Promise.all([
+        fetch('/api/market/quote/' + encodeURIComponent(symbolId)),
+        fetch('/api/market/session'),
+      ])
+      if (qRes.ok) setQuote(await qRes.json())
+      if (sRes.ok) {
+        const s = await sRes.json()
+        setSession({ isOpen: !!s.isOpen, sessionMessage: s.sessionMessage || '' })
+      }
     } catch {}
   }, [symbolId])
 
-  const refreshSession = useCallback(async () => {
-    try {
-      const res = await fetch('/api/market/session')
-      if (!res.ok) return
-      const data = await res.json()
-      setSession({
-        isOpen: !!data.isOpen,
-        sessionMessage: data.sessionMessage || '',
-      })
-    } catch {}
-  }, [])
-
   useEffect(() => {
-    refreshQuote()
-    refreshSession()
-    const id = setInterval(() => {
-      refreshQuote()
-      refreshSession()
-    }, 2000)
+    refresh()
+    const id = setInterval(refresh, 2000)
     return () => clearInterval(id)
-  }, [refreshQuote, refreshSession])
+  }, [refresh])
 
-  const derived = useMemo(() => {
-    const bid = Number(quote?.bid)
-    const ask = Number(quote?.ask)
+  // ── Derived prices ────────────────────────────────────────────────────────
+  const bid   = Number(quote?.bid)
+  const ask   = Number(quote?.ask)
+  const entry = state.side === 'BUY' ? ask : bid
+  const high  = Number(quote?.high)
+  const low   = Number(quote?.low)
 
-    const entryMarket = state.side === 'BUY' ? ask : bid
+  const tpPrice = useMemo(() => {
+    if (!state.tpOn || !Number.isFinite(entry)) return null
+    const delta = pipsToPriceDelta(Number(state.tpPips) || 0, pipSize)
+    return state.side === 'BUY' ? entry + delta : entry - delta
+  }, [entry, pipSize, state.side, state.tpOn, state.tpPips])
 
-    const entry = entryMarket
+  const slPrice = useMemo(() => {
+    if (!state.slOn || !Number.isFinite(entry)) return null
+    const delta = pipsToPriceDelta(Number(state.slPips) || 0, pipSize)
+    return state.side === 'BUY' ? entry - delta : entry + delta
+  }, [entry, pipSize, state.side, state.slOn, state.slPips])
 
-    const tpPrice =
-      state.tp.enabled && Number.isFinite(entry)
-        ? (state.side === 'BUY'
-          ? entry + pipsToPriceDelta(state.tp.pips, pipSize)
-          : entry - pipsToPriceDelta(state.tp.pips, pipSize))
-        : null
+  const account = useMemo(() => globalThis?.__INVESTPOP_ACCOUNT || null, [])
 
-    const slPrice =
-      state.sl.enabled && Number.isFinite(entry)
-        ? (state.side === 'BUY'
-          ? entry - pipsToPriceDelta(state.sl.pips, pipSize)
-          : entry + pipsToPriceDelta(state.sl.pips, pipSize))
-        : null
+  const size = clampNumber(state.size, { min: 0 }) || 0
 
-    return {
-      bid,
-      ask,
-      entry,
-      tpPrice,
-      slPrice,
-    }
-  }, [quote?.bid, quote?.ask, pipSize, state.side, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
+  const tpDollar = useMemo(() => {
+    if (!state.tpOn || !size) return null
+    return estimateGrossPnl({ distancePips: Number(state.tpPips) || 0, pipValuePerUnit: 1, size })
+  }, [size, state.tpOn, state.tpPips])
 
-  const account = useMemo(() => {
-    // OrderTicket doesn’t fetch account itself; the parent can set window.__account if desired.
-    // Fallback: we can still estimate pct if equity is available on window.
-    const a = globalThis?.__INVESTPOP_ACCOUNT
-    return a && typeof a === 'object' ? a : null
-  }, [])
+  const slDollar = useMemo(() => {
+    if (!state.slOn || !size) return null
+    const g = estimateGrossPnl({ distancePips: Number(state.slPips) || 0, pipValuePerUnit: 1, size })
+    return g != null ? -Math.abs(g) : null
+  }, [size, state.slOn, state.slPips])
 
-  const pipValuePerUnit = 1
+  const rr = useMemo(() => {
+    const tp = Number(state.tpPips) || 0
+    const sl = Number(state.slPips) || 1
+    if (!state.tpOn || !state.slOn || sl === 0) return null
+    const ratio = tp / sl
+    return ratio.toFixed(2)
+  }, [state.slOn, state.slPips, state.tpOn, state.tpPips])
 
-  const tpEst = useMemo(() => {
-    if (!state.tp.enabled) return null
-    const size = clampNumber(state.size, { min: 0 })
-    if (!size) return null
-    const gross = estimateGrossPnl({
-      distancePips: clampNumber(state.tp.pips, { min: 0 }) || 0,
-      pipValuePerUnit,
-      size,
-    })
-    if (gross == null) return null
-    const pct = estimateBalancePct({ grossPnl: gross, equity: account?.equity })
-    return { gross, pct }
-  }, [account?.equity, state.size, state.tp.enabled, state.tp.pips])
+  // ── Validation ────────────────────────────────────────────────────────────
+  const error = useMemo(() => {
+    if (!size || size <= 0) return 'Size must be greater than 0'
+    if (!session.isOpen) return session.sessionMessage || 'Market is closed'
+    if (state.tpOn && Number(state.tpPips) <= 0) return 'TP pips must be positive'
+    if (state.slOn && Number(state.slPips) <= 0) return 'SL pips must be positive'
+    return null
+  }, [session.isOpen, session.sessionMessage, size, state.slOn, state.slPips, state.tpOn, state.tpPips])
 
-  const slEst = useMemo(() => {
-    if (!state.sl.enabled) return null
-    const size = clampNumber(state.size, { min: 0 })
-    if (!size) return null
-    const grossAbs = estimateGrossPnl({
-      distancePips: clampNumber(state.sl.pips, { min: 0 }) || 0,
-      pipValuePerUnit,
-      size,
-    })
-    if (grossAbs == null) return null
-    const gross = -Math.abs(grossAbs)
-    const pct = estimateBalancePct({ grossPnl: gross, equity: account?.equity })
-    return { gross, pct }
-  }, [account?.equity, state.size, state.sl.enabled, state.sl.pips])
-
-  const validation = useMemo(() => {
-    const errors = []
-
-    const size = clampNumber(state.size, { min: 0 })
-    if (!size || size <= 0) errors.push('Size must be greater than 0')
-
-    if (!session.isOpen) {
-      errors.push('Market is closed for market orders')
-    }
-
-    if (state.tp.enabled && (!clampNumber(state.tp.pips, { min: 0 }) || Number(state.tp.pips) <= 0)) {
-      errors.push('TP pips must be positive')
-    }
-    if (state.sl.enabled && (!clampNumber(state.sl.pips, { min: 0 }) || Number(state.sl.pips) <= 0)) {
-      errors.push('SL pips must be positive')
-    }
-
-    if (state.marketRange.enabled) {
-      const tol = pipsToPriceDelta(state.marketRange.pips, pipSize)
-      const ref = Number(state.entryRefPrice)
-      if (Number.isFinite(ref) && tol > 0) {
-        if (state.side === 'BUY') {
-          const currentAsk = Number(quote?.ask)
-          if (Number.isFinite(currentAsk) && currentAsk > ref + tol) {
-            errors.push('Market moved beyond market range tolerance')
-          }
-        } else {
-          const currentBid = Number(quote?.bid)
-          if (Number.isFinite(currentBid) && currentBid < ref - tol) {
-            errors.push('Market moved beyond market range tolerance')
-          }
-        }
-      }
-    }
-
-    return { isValid: errors.length === 0, errors }
-  }, [pipSize, quote?.ask, quote?.bid, session.isOpen, state.entryRefPrice, state.marketRange.enabled, state.marketRange.pips, state.side, state.size, state.sl.enabled, state.sl.pips, state.tp.enabled, state.tp.pips])
-
+  // ── Submit ────────────────────────────────────────────────────────────────
   const placeOrder = useCallback(async () => {
+    if (error) { setSubmitError(error); return }
     setSubmitError('')
-
-    if (!validation.isValid) {
-      setSubmitError(validation.errors[0] || 'Invalid order')
-      return
-    }
-
     setSubmitting(true)
     try {
-      const size = Number(state.size)
-
-      const payload = {
-        symbol: instrument.symbol,
-        type: instrument.type,
-        action: state.side,
-        quantity: size,
-        takeProfit: state.tp.enabled ? derived.tpPrice : null,
-        stopLoss: state.sl.enabled ? derived.slPrice : null,
-        journalTag: String(state.journalTag || '').trim() || undefined,
-        journalMood: String(state.journalMood || '').trim() || undefined,
-        journalNote: String(state.comment || '').trim() || undefined,
-      }
-
       const res = await fetch('/api/trade', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          symbol: instrument.symbol,
+          type: instrument.type,
+          action: state.side,
+          quantity: size,
+          takeProfit: state.tpOn ? tpPrice : null,
+          stopLoss:   state.slOn ? slPrice : null,
+        }),
       })
-
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || 'Failed to execute trade')
-
-      if (onExecuted) onExecuted({ type: 'MARKET', trade: data.trade, instrument })
+      setSuccess(true)
+      setTimeout(() => { if (onExecuted) onExecuted({ type: 'MARKET', trade: data.trade, instrument }) }, 900)
     } catch (e) {
       setSubmitError(e?.message || 'Failed to place order')
     } finally {
       setSubmitting(false)
     }
-  }, [
-    derived.slPrice,
-    derived.tpPrice,
-    instrument,
-    onExecuted,
-    state.comment,
-    state.journalMood,
-    state.journalTag,
-    state.side,
-    state.size,
-    state.sl.enabled,
-    state.tp.enabled,
-    validation.errors,
-    validation.isValid,
-  ])
+  }, [error, instrument, onExecuted, size, slPrice, state.side, state.slOn, state.tpOn, tpPrice])
 
-  const showClosedBanner = !session.isOpen
-  const disablePlace = submitting || !validation.isValid
+  const isBuy = state.side === 'BUY'
 
   return (
-    <div
-      className={
-        embedded
-          ? 'dark bg-background text-foreground h-full flex flex-col'
-          : 'fixed inset-0 z-50 dark bg-background text-foreground'
-      }
-    >
-      <div className="h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
-          <div className="text-base font-semibold">Place order</div>
-          <div className="w-14" />
+    <div className={embedded ? 'dark bg-[#0d1117] text-foreground h-full flex flex-col' : 'fixed inset-0 z-50 dark bg-[#0d1117] text-foreground flex flex-col'}>
+
+      {/* ── Top bar ── */}
+      <div className="flex items-center justify-between px-4 pt-5 pb-3 flex-shrink-0">
+        <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Cancel</button>
+        <div className="flex flex-col items-center">
+          <span className="text-white font-bold text-base tracking-wide">{instrument?.symbol}</span>
+          <span className="text-slate-500 text-[11px]">{instrument?.name}</span>
         </div>
+        <div className="w-12" />
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto px-4 py-4 space-y-4">
-          <div className="rounded-lg bg-card border border-border p-2">
-            <div className="text-sm font-semibold text-foreground text-center">Market Order</div>
-          </div>
+      <div className="flex-1 overflow-auto px-4 pb-6 space-y-4">
 
-          {/* Market status banner */}
-          {showClosedBanner && (
-            <div className="rounded-md bg-orange-500/20 text-orange-200 px-3 py-2 text-sm">
-              {session.sessionMessage || 'The market is closed. Only pending orders are accepted.'}
-            </div>
-          )}
-
-          {/* Quote block */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'setSide', value: 'SELL' })}
-                className={
-                  "flex-1 mr-2 rounded-md border px-3 py-2 text-left transition-colors hover:bg-orange-500/5 " +
-                  (state.side === 'SELL' ? 'border-orange-500/50' : 'border-border')
-                }
-              >
-                <div className="text-xs text-muted-foreground">SELL</div>
-                <div className="text-lg font-mono">{formatPrice(derived.bid, pipSize)}</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'setSide', value: 'BUY' })}
-                className={
-                  "flex-1 ml-2 rounded-md border px-3 py-2 text-left transition-colors hover:bg-emerald-500/5 " +
-                  (state.side === 'BUY' ? 'border-emerald-500/50' : 'border-border')
-                }
-              >
-                <div className="text-xs text-muted-foreground">BUY</div>
-                <div className="text-lg font-mono">{formatPrice(derived.ask, pipSize)}</div>
-              </button>
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground flex items-center justify-between">
-              <div>H: <span className="font-mono text-foreground">{formatPrice(quote?.high, pipSize)}</span></div>
-              <div>L: <span className="font-mono text-foreground">{formatPrice(quote?.low, pipSize)}</span></div>
-              <div>S: <span className="font-mono text-foreground">{formatPrice((derived.ask ?? 0) - (derived.bid ?? 0), pipSize)}</span></div>
-            </div>
-          </div>
-
-          {/* Size */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-foreground">{getSizeLabel(instrument?.type)}</div>
-              <div className="text-sm text-foreground">{instrument?.symbol}</div>
-            </div>
-            <Input
-              value={state.size}
-              onChange={(e) => dispatch({ type: 'setSize', value: e.target.value })}
-              inputMode="decimal"
-              className="font-mono"
-              placeholder="1"
-            />
-          </div>
-
-          {/* Market range */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-foreground">Market range</div>
-              <Switch checked={state.marketRange.enabled} onCheckedChange={(v) => dispatch({ type: 'setMarketRangeEnabled', value: v })} />
-            </div>
-            {state.marketRange.enabled && (
-              <div className="mt-3">
-                <div className="text-sm text-foreground mb-1">Pips</div>
-                <Input
-                  value={state.marketRange.pips}
-                  onChange={(e) => dispatch({ type: 'setMarketRangePips', value: e.target.value })}
-                  inputMode="decimal"
-                  className="font-mono"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Take profit */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-foreground">Take profit</div>
-              <Switch checked={state.tp.enabled} onCheckedChange={(v) => dispatch({ type: 'setTpEnabled', value: v })} />
-            </div>
-            {state.tp.enabled && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-foreground">Pips</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="h-8 w-10 rounded bg-muted hover:bg-muted/80"
-                      onClick={() => dispatch({ type: 'setTpPips', value: Math.max(0, Number(state.tp.pips || 0) - 1) })}
-                      type="button"
-                    >−</button>
-                    <Input
-                      value={state.tp.pips}
-                      onChange={(e) => dispatch({ type: 'setTpPips', value: e.target.value })}
-                      inputMode="decimal"
-                      className="h-8 w-24 font-mono text-center"
-                    />
-                    <button
-                      className="h-8 w-10 rounded bg-muted hover:bg-muted/80"
-                      onClick={() => dispatch({ type: 'setTpPips', value: Number(state.tp.pips || 0) + 1 })}
-                      type="button"
-                    >+</button>
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground">Price <span className="font-mono text-foreground">~ {formatPrice(derived.tpPrice, pipSize)}</span></div>
-                {tpEst && (
-                  <div className="text-xs text-muted-foreground">Balance: ~ {formatPctApprox(tpEst.pct)} ; Gross profit: ~ {formatMoneyApprox(tpEst.gross, account?.currency)}</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Stop loss */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-foreground">Stop loss</div>
-              <Switch checked={state.sl.enabled} onCheckedChange={(v) => dispatch({ type: 'setSlEnabled', value: v })} />
-            </div>
-            {state.sl.enabled && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-foreground">Pips</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="h-8 w-10 rounded bg-muted hover:bg-muted/80"
-                      onClick={() => dispatch({ type: 'setSlPips', value: Math.max(0, Number(state.sl.pips || 0) - 1) })}
-                      type="button"
-                    >−</button>
-                    <Input
-                      value={state.sl.pips}
-                      onChange={(e) => dispatch({ type: 'setSlPips', value: e.target.value })}
-                      inputMode="decimal"
-                      className="h-8 w-24 font-mono text-center"
-                    />
-                    <button
-                      className="h-8 w-10 rounded bg-muted hover:bg-muted/80"
-                      onClick={() => dispatch({ type: 'setSlPips', value: Number(state.sl.pips || 0) + 1 })}
-                      type="button"
-                    >+</button>
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground">Price <span className="font-mono text-foreground">~ {formatPrice(derived.slPrice, pipSize)}</span></div>
-                {slEst && (
-                  <div className="text-xs text-muted-foreground">Balance: ~ {formatPctApprox(slEst.pct)} ; Gross profit: ~ {formatMoneyApprox(slEst.gross, account?.currency)}</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Trigger basis */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-foreground">Trigger</div>
-              <div className="text-sm text-foreground">{state.triggerBasis === 'TRADE' ? 'Trade' : state.triggerBasis}</div>
-            </div>
-          </div>
-
-          {/* Trailing stop */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-foreground">Trailing stop loss</div>
-              <Switch checked={state.trailing.enabled} onCheckedChange={(v) => dispatch({ type: 'setTrailingEnabled', value: v })} />
-            </div>
-          </div>
-
-          {/* Journal (optional) */}
-          <div className="rounded-lg bg-card border border-border p-3">
-            <div className="text-sm text-foreground mb-2">Journal (optional)</div>
-            <div className="grid sm:grid-cols-2 gap-2 mb-2">
-              <Input
-                value={state.journalTag}
-                onChange={(e) => dispatch({ type: 'setJournalTag', value: e.target.value.slice(0, 50) })}
-                placeholder="Setup tag (e.g. breakout)"
-              />
-              <Input
-                value={state.journalMood}
-                onChange={(e) => dispatch({ type: 'setJournalMood', value: e.target.value.slice(0, 30) })}
-                placeholder="Mood (e.g. calm)"
-              />
-            </div>
-            <Input
-              value={state.comment}
-              onChange={(e) => dispatch({ type: 'setComment', value: e.target.value.slice(0, 300) })}
-              placeholder="Quick note about your trade idea"
-            />
-            <div className="mt-1 text-right text-xs text-muted-foreground">{String(state.comment || '').length}/300</div>
-          </div>
-
-          {submitError && (
-            <div className="rounded-md bg-red-500/10 text-red-300 px-3 py-2 text-sm">
-              {submitError}
-            </div>
-          )}
-
-          {!validation.isValid && !submitError && (
-            <div className="rounded-md bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
-              {validation.errors[0]}
-            </div>
-          )}
-
-          <Separator />
-
-          <Button
-            onClick={placeOrder}
-            disabled={disablePlace}
-            className="w-full h-12 text-base font-semibold disabled:opacity-40"
+        {/* ── SELL / BUY big toggle ── */}
+        <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+          {/* SELL */}
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'setSide', value: 'SELL' })}
+            className={[
+              'flex flex-col items-center py-3.5 rounded-xl transition-all duration-200',
+              !isBuy
+                ? 'bg-orange-500/20 border border-orange-500/40 shadow-[0_0_16px_rgba(249,115,22,0.15)]'
+                : 'border border-transparent hover:bg-white/[0.04]',
+            ].join(' ')}
           >
-            {submitting ? 'Placing…' : 'Place order'}
-          </Button>
+            <span className={`text-[11px] font-bold uppercase tracking-widest mb-0.5 ${!isBuy ? 'text-orange-400' : 'text-slate-500'}`}>Sell</span>
+            <span className={`text-xl font-mono font-semibold ${!isBuy ? 'text-orange-300' : 'text-slate-400'}`}>
+              {Number.isFinite(bid) ? formatPrice(bid, pipSize) : '—'}
+            </span>
+          </button>
+          {/* BUY */}
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'setSide', value: 'BUY' })}
+            className={[
+              'flex flex-col items-center py-3.5 rounded-xl transition-all duration-200',
+              isBuy
+                ? 'bg-emerald-500/20 border border-emerald-500/40 shadow-[0_0_16px_rgba(16,185,129,0.15)]'
+                : 'border border-transparent hover:bg-white/[0.04]',
+            ].join(' ')}
+          >
+            <span className={`text-[11px] font-bold uppercase tracking-widest mb-0.5 ${isBuy ? 'text-emerald-400' : 'text-slate-500'}`}>Buy</span>
+            <span className={`text-xl font-mono font-semibold ${isBuy ? 'text-emerald-300' : 'text-slate-400'}`}>
+              {Number.isFinite(ask) ? formatPrice(ask, pipSize) : '—'}
+            </span>
+          </button>
         </div>
+
+        {/* High / Low / Spread row */}
+        <div className="flex items-center justify-between px-1 text-[11px] font-mono text-slate-500">
+          <span>H <span className="text-slate-400">{Number.isFinite(high) ? formatPrice(high, pipSize) : '—'}</span></span>
+          <span>L <span className="text-slate-400">{Number.isFinite(low)  ? formatPrice(low,  pipSize) : '—'}</span></span>
+          <span>Spread <span className="text-slate-400">{Number.isFinite(bid) && Number.isFinite(ask) ? formatPrice(Math.abs(ask - bid), pipSize) : '—'}</span></span>
+        </div>
+
+        {/* ── Amount ── */}
+        <div className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-white">Amount</span>
+            <span className="text-xs text-slate-500 font-mono">{instrument?.symbol}</span>
+          </div>
+
+          {/* Quick chips */}
+          <div className="flex gap-2">
+            {QUICK_SIZES.map(q => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => dispatch({ type: 'setSize', value: String(q) })}
+                className={[
+                  'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                  String(state.size) === String(q)
+                    ? (isBuy ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40' : 'bg-orange-500/25 text-orange-300 border border-orange-500/40')
+                    : 'bg-white/[0.06] text-slate-400 hover:bg-white/[0.10] border border-transparent',
+                ].join(' ')}
+              >{q}</button>
+            ))}
+          </div>
+
+          {/* Manual input */}
+          <input
+            type="number"
+            value={state.size}
+            onChange={e => dispatch({ type: 'setSize', value: e.target.value })}
+            inputMode="decimal"
+            placeholder="Custom amount…"
+            className="w-full h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] px-3 text-sm font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50"
+          />
+        </div>
+
+        {/* ── TP / SL card ── */}
+        <div className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-white">Risk / Reward</span>
+            {rr && (
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                R:R {rr}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Take Profit */}
+            <div className={['rounded-xl p-3 border transition-colors', state.tpOn ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.03] border-white/[0.06]'].join(' ')}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold uppercase tracking-wider ${state.tpOn ? 'text-emerald-400' : 'text-slate-500'}`}>TP</span>
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'toggleTp' })}
+                  className={['w-8 h-4 rounded-full transition-colors relative', state.tpOn ? 'bg-emerald-500' : 'bg-white/20'].join(' ')}
+                >
+                  <span className={['absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all', state.tpOn ? 'right-0.5' : 'left-0.5'].join(' ')} />
+                </button>
+              </div>
+              <PipsControl value={state.tpPips} onChange={v => dispatch({ type: 'setTpPips', value: v })} disabled={!state.tpOn} />
+              <div className="mt-2 text-[11px] font-mono space-y-0.5">
+                <div className="text-slate-500">~ {tpPrice != null ? formatPrice(tpPrice, pipSize) : '—'}</div>
+                {tpDollar != null && <div className="text-emerald-400 font-semibold">+{formatMoneyApprox(tpDollar, account?.currency)}</div>}
+              </div>
+            </div>
+
+            {/* Stop Loss */}
+            <div className={['rounded-xl p-3 border transition-colors', state.slOn ? 'bg-red-500/10 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'].join(' ')}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold uppercase tracking-wider ${state.slOn ? 'text-red-400' : 'text-slate-500'}`}>SL</span>
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'toggleSl' })}
+                  className={['w-8 h-4 rounded-full transition-colors relative', state.slOn ? 'bg-red-500' : 'bg-white/20'].join(' ')}
+                >
+                  <span className={['absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all', state.slOn ? 'right-0.5' : 'left-0.5'].join(' ')} />
+                </button>
+              </div>
+              <PipsControl value={state.slPips} onChange={v => dispatch({ type: 'setSlPips', value: v })} disabled={!state.slOn} />
+              <div className="mt-2 text-[11px] font-mono space-y-0.5">
+                <div className="text-slate-500">~ {slPrice != null ? formatPrice(slPrice, pipSize) : '—'}</div>
+                {slDollar != null && <div className="text-red-400 font-semibold">{formatMoneyApprox(slDollar, account?.currency)}</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Market closed banner ── */}
+        {!session.isOpen && (
+          <div className="rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-200 px-4 py-3 text-sm">
+            {session.sessionMessage || 'Market is closed'}
+          </div>
+        )}
+
+        {/* ── Error ── */}
+        {(submitError || (!submitError && error && size > 0)) && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 text-sm">
+            {submitError || error}
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Place order button (sticky bottom) ── */}
+      <div className="px-4 pb-6 pt-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={placeOrder}
+          disabled={submitting || !!error || success}
+          className={[
+            'w-full h-14 rounded-2xl text-base font-bold tracking-wide transition-all duration-200 relative overflow-hidden',
+            success
+              ? 'bg-emerald-500 text-white'
+              : isBuy
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-white disabled:bg-emerald-500/30 disabled:text-emerald-500/50'
+                : 'bg-orange-500 hover:bg-orange-400 text-white disabled:bg-orange-500/30 disabled:text-orange-500/50',
+            'disabled:cursor-not-allowed shadow-lg',
+          ].join(' ')}
+        >
+          {success
+            ? '✓ Order placed!'
+            : submitting
+              ? 'Placing…'
+              : Number.isFinite(entry)
+                ? `${isBuy ? 'Buy' : 'Sell'} ${instrument?.symbol} @ ${formatPrice(entry, pipSize)}`
+                : `${isBuy ? 'Buy' : 'Sell'} ${instrument?.symbol ?? ''}`
+          }
+        </button>
+        {size > 0 && !error && Number.isFinite(entry) && (
+          <div className="mt-2 text-center text-xs text-slate-500">
+            {size} × {formatPrice(entry, pipSize)} · Market execution
+          </div>
+        )}
       </div>
     </div>
   )
