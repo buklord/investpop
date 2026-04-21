@@ -130,8 +130,8 @@ export default function MarketsPage() {
         try { await fetch('/api/assets/seed', { method: 'POST' }) } catch {}
         const [acctRes, assetsRes, pricesRes] = await Promise.all([
           fetch('/api/account', { cache: 'no-store' }),
-          fetch('/api/assets', { cache: 'force-cache' }),
-          fetch('/api/market/prices', { cache: 'force-cache' }),
+          fetch('/api/assets', { cache: 'no-store' }),
+          fetch('/api/market/prices', { cache: 'no-store' }),
         ])
         if (!cancelled && acctRes.ok)   setAccount(await acctRes.json())
         if (!cancelled && assetsRes.ok) {

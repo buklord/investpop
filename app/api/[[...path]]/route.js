@@ -1123,8 +1123,8 @@ async function handleRoute(request, context) {
         SELECT id, symbol, name, type, created_at FROM assets ORDER BY type, symbol
       `
       const res = NextResponse.json({ assets })
-      // Cache: asset catalog changes rarely; keep it fast on repeat page loads.
-      addCacheHeaders(res, 'medium')
+      // No-store so commodity seeds are always reflected immediately.
+      addCacheHeaders(res, 'none')
       return handleCORS(res)
     }
 
