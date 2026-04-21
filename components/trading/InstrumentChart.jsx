@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatPrice, getPipSize } from '@/lib/trading/pips'
 import { TrendingUp, TrendingDown } from 'lucide-react'
+import * as LightweightCharts from 'lightweight-charts'
 
 // ── Timeframe config ─────────────────────────────────────────────────────────
 const TIMEFRAMES = [
-  { label: '1m', secs: 60 },
-  { label: '5m', secs: 300 },
-  { label: '1H', secs: 3600 },
-  { label: '5H', secs: 18000 },
-  { label: '1D', secs: 86400 },
-  { label: '1W', secs: 604800 },
+  { label: '1m',  secs: 60 },
+  { label: '5m',  secs: 300 },
+  { label: '15m', secs: 900 },
+  { label: '1H',  secs: 3600 },
+  { label: '4H',  secs: 14400 },
+  { label: '1D',  secs: 86400 },
+  { label: '1W',  secs: 604800 },
 ]
 
 function computeEMA(candles, period) {
@@ -30,7 +32,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
   const [chartReady, setChartReady]     = useState(false)
   const [chartInitDone, setChartInitDone] = useState(false)
   const [candles, setCandles]           = useState([])
-  const [limit, setLimit]               = useState(300)
+  const [limit, setLimit]               = useState(150)
   const [candlesLoading, setCandlesLoading] = useState(false)
   const [ohlc, setOhlc]                 = useState(null)
 
@@ -114,7 +116,7 @@ export default function InstrumentChart({ instrument, quote, onBuy, onSell }) {
 
     async function init() {
       const { createChart, CandlestickSeries, CrosshairMode, LineStyle, HistogramSeries, LineSeries } =
-        await import('lightweight-charts')
+        LightweightCharts
       if (cancelled || !containerRef.current) return
 
       const el = containerRef.current

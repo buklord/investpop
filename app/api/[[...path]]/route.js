@@ -1188,7 +1188,7 @@ async function handleRoute(request, context) {
       await prisma.$executeRawUnsafe(`
         INSERT INTO assets (id, symbol, name, type, created_at)
         VALUES ${values}
-        ON CONFLICT (symbol) DO NOTHING
+        ON CONFLICT (symbol) DO UPDATE SET name=EXCLUDED.name, type=EXCLUDED.type
       `)
 
       return handleCORS(NextResponse.json({ message: 'Assets seeded successfully' }))
