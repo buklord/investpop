@@ -230,7 +230,7 @@ export default function WalletPage() {
                   ) : (
                     <Plus className="h-4 w-4 mr-2" />
                   )}
-                  Reset +$10,000 Demo Funds
+                  Reset +$100,000 Demo Funds
                 </Button>
               </CardContent>
             </Card>
