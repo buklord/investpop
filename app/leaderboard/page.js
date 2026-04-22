@@ -98,7 +98,7 @@ export default function LeaderboardPage() {
   const loadBoard = useCallback(async (p) => {
     setRefreshing(true)
     try {
-      const res = await fetch(`/api/leaderboard?limit=20&period=${p}`)
+      const res = await fetch(`/api/leaderboard?limit=8&period=${p}`)
       if (!res.ok) return
       const data = await res.json()
       setEntries(Array.isArray(data.leaderboard) ? data.leaderboard : [])

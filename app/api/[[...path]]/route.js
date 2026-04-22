@@ -1883,7 +1883,7 @@ async function handleRoute(request, context) {
       }
 
       const { searchParams } = new URL(request.url)
-      const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit') || 20)))
+      const limit = Math.max(1, Math.min(8, Number(searchParams.get('limit') || 8)))
       const period = ['today', 'week', 'month', 'all'].includes(searchParams.get('period'))
         ? searchParams.get('period') : 'all'
       const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 100000)
