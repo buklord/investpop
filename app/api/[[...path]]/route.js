@@ -1872,7 +1872,7 @@ async function handleRoute(request, context) {
       }))
     }
 
-    // GET /api/leaderboard - basic simulated leaderboard
+    // GET /api/leaderboard - skill-based leaderboard with period filter
     if (route === '/leaderboard' && method === 'GET') {
       const auth = await requireAuth()
       if (auth.error) {
@@ -1883,42 +1883,97 @@ async function handleRoute(request, context) {
       }
 
       const { searchParams } = new URL(request.url)
-      const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit') || 5)))
+      const limit = Math.max(5, Math.min(100, Number(searchParams.get('limit') || 20)))
+      const period = ['today', 'week', 'month', 'all'].includes(searchParams.get('period'))
+        ? searchParams.get('period') : 'all'
       const starting = Number(TRADING_CONFIG.STARTING_BALANCE || 100000)
+
+      // Compute period start — validated server-side, safe to inline
+      const now = new Date()
+      let periodStart
+      if (period === 'today') {
+        periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+      } else if (period === 'week') {
+        const d = new Date(now); d.setDate(d.getDate() - 7); periodStart = d.toISOString()
+      } else if (period === 'month') {
+        periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      } else {
+        periodStart = new Date('2000-01-01').toISOString()
+      }
+
+      const orderBy = period === 'all'
+        ? 'COALESCE(va.real_balance, va.balance, 0) DESC, COALESCE(ps.period_pnl, 0) DESC'
+        : 'COALESCE(ps.period_pnl, 0) DESC, COALESCE(ps.win_rate, 0) DESC'
 
       const rows = await prisma.$queryRawUnsafe(
         `SELECT
            u.id,
            u.email,
-           COALESCE(va.real_balance, va.balance, 0) AS balance,
-           COALESCE((SELECT COUNT(*) FROM trades t WHERE t.user_id = u.id), 0)::int AS trades,
-           COALESCE((SELECT SUM(tp.realized_pnl) FROM trading_positions tp WHERE tp.user_id = u.id AND tp.status = 'CLOSED'), 0) AS realized_pnl
+           u.first_name,
+           u.last_name,
+           u.role,
+           COALESCE(va.real_balance, va.balance, 0)          AS balance,
+           COALESCE(ps.period_trades, 0)::int                AS period_trades,
+           COALESCE(ps.period_pnl, 0)                        AS period_pnl,
+           COALESCE(ps.win_rate, 0)                          AS win_rate,
+           COALESCE(ps.avg_win, 0)                           AS avg_win,
+           COALESCE(ps.avg_loss, 0)                          AS avg_loss,
+           COALESCE(ctf.follower_count, 0)::int              AS follower_count
          FROM users u
          LEFT JOIN virtual_accounts va ON va.user_id = u.id
-         WHERE COALESCE(u.role, 'USER') NOT IN ('ADMIN', 'SUPER_ADMIN')
-         ORDER BY COALESCE(va.real_balance, va.balance, 0) DESC
-         LIMIT $1`,
-        limit
+         LEFT JOIN (
+           SELECT
+             user_id,
+             COUNT(*)::int                                                             AS period_trades,
+             SUM(realized_pnl)                                                        AS period_pnl,
+             AVG(CASE WHEN realized_pnl > 0 THEN 1.0 ELSE 0.0 END)                   AS win_rate,
+             COALESCE(AVG(CASE WHEN realized_pnl > 0 THEN realized_pnl END), 0)       AS avg_win,
+             COALESCE(ABS(AVG(CASE WHEN realized_pnl < 0 THEN realized_pnl END)), 0)  AS avg_loss
+           FROM trading_positions
+           WHERE status = 'CLOSED'
+             AND closed_at >= $1::timestamptz
+           GROUP BY user_id
+         ) ps ON ps.user_id = u.id
+         LEFT JOIN (
+           SELECT leader_id, COUNT(*)::int AS follower_count
+           FROM copy_trading_followers
+           WHERE status = 'ACTIVE'
+           GROUP BY leader_id
+         ) ctf ON ctf.leader_id = u.id
+         WHERE u.is_suspended = FALSE
+           AND COALESCE(u.role, 'USER') NOT IN ('ADMIN', 'SUPER_ADMIN')
+         ORDER BY ${orderBy}
+         LIMIT $2`,
+        periodStart, limit
       )
 
       const leaderboard = rows.map((r, idx) => {
-        const balance = Number(r.balance || 0)
-        const returnPct = starting > 0 ? ((balance - starting) / starting) * 100 : 0
-        const rawEmail = String(r.email || '')
-        const handle = rawEmail.includes('@') ? rawEmail.split('@')[0] : `user${idx + 1}`
+        const balance    = Number(r.balance || 0)
+        const returnPct  = starting > 0 ? ((balance - starting) / starting) * 100 : 0
+        const rawEmail   = String(r.email || '')
+        const handle     = r.first_name || r.last_name
+          ? [r.first_name, r.last_name].filter(Boolean).join(' ')
+          : rawEmail.includes('@') ? rawEmail.split('@')[0] : `user${idx + 1}`
+        const avgWin  = Number(r.avg_win  || 0)
+        const avgLoss = Number(r.avg_loss || 0)
+        const avgRR   = avgLoss > 0 ? +(avgWin / avgLoss).toFixed(2) : null
         return {
-          rank: idx + 1,
-          userId: r.id,
+          rank:          idx + 1,
+          userId:        r.id,
           handle,
           balance,
           returnPct,
-          trades: Number(r.trades || 0),
-          realizedPnl: Number(r.realized_pnl || 0),
-          isMe: String(r.id) === String(auth.user.userId),
+          periodTrades:  Number(r.period_trades || 0),
+          periodPnl:     Number(r.period_pnl    || 0),
+          winRate:       Number(r.win_rate        || 0),
+          avgRR,
+          followerCount: Number(r.follower_count  || 0),
+          isMe:          String(r.id) === String(auth.user.userId),
+          isFollowable:  String(r.id) !== String(auth.user.userId),
         }
       })
 
-      return handleCORS(NextResponse.json({ leaderboard, startingBalance: starting }))
+      return handleCORS(NextResponse.json({ leaderboard, period, startingBalance: starting }))
     }
 
     // GET /api/journal - current user's trade journal entries
