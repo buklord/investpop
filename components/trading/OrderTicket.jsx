@@ -24,8 +24,24 @@ function reducer(state, action) {
   }
 }
 
+function loadTradingDefaults() {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem('trading_defaults')
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
 function initState({ side }) {
-  return { side, size: '', tpPips: 20, slPips: 20, tpOn: true, slOn: true }
+  const def = loadTradingDefaults()
+  return {
+    side,
+    size:   def.lotSize != null ? String(def.lotSize) : '',
+    tpPips: def.tpPips  != null ? Number(def.tpPips)  : 20,
+    slPips: def.slPips  != null ? Number(def.slPips)  : 20,
+    tpOn: true,
+    slOn: true,
+  }
 }
 
 function PipsControl({ value, onChange, disabled }) {

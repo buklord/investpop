@@ -238,6 +238,8 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)`, 'phone_number column')
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)`, 'country column')
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth DATE`, 'date_of_birth column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trading_defaults JSONB DEFAULT '{}'::jsonb`, 'trading_defaults column')
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs JSONB DEFAULT '{}'::jsonb`, 'notification_prefs column')
 
   // ── Virtual accounts (the most critical table) ────────────────────────────
   await run(`
@@ -1060,6 +1062,57 @@ async function handleRoute(request, context) {
         success: true, 
         message: 'Password updated successfully' 
       }))
+    }
+
+    // GET /api/settings/trading
+    if (route === '/settings/trading' && method === 'GET') {
+      const auth = await requireAuth()
+      const rows = await prisma.$queryRaw`
+        SELECT trading_defaults FROM users WHERE id = ${auth.user.userId} LIMIT 1
+      `
+      const defaults = rows?.[0]?.trading_defaults || {}
+      return handleCORS(NextResponse.json({ defaults }))
+    }
+
+    // PATCH /api/settings/trading
+    if (route === '/settings/trading' && method === 'PATCH') {
+      const auth = await requireAuth()
+      const body = await request.json()
+      const { lotSize, slPips, tpPips, riskPercent } = body
+      const defaults = {
+        lotSize: lotSize != null ? Number(lotSize) : null,
+        slPips:  slPips  != null ? Number(slPips)  : null,
+        tpPips:  tpPips  != null ? Number(tpPips)  : null,
+        riskPercent: riskPercent != null ? Number(riskPercent) : null,
+      }
+      await prisma.$executeRaw`
+        UPDATE users SET trading_defaults = ${JSON.stringify(defaults)}::jsonb
+        WHERE id = ${auth.user.userId}
+      `
+      return handleCORS(NextResponse.json({ success: true, defaults }))
+    }
+
+    // GET /api/settings/notifications
+    if (route === '/settings/notifications' && method === 'GET') {
+      const auth = await requireAuth()
+      const rows = await prisma.$queryRaw`
+        SELECT notification_prefs FROM users WHERE id = ${auth.user.userId} LIMIT 1
+      `
+      const prefs = rows?.[0]?.notification_prefs || {}
+      return handleCORS(NextResponse.json({ prefs }))
+    }
+
+    // PATCH /api/settings/notifications
+    if (route === '/settings/notifications' && method === 'PATCH') {
+      const auth = await requireAuth()
+      const body = await request.json()
+      const { positionClosed, priceAlert, copyTradeExecuted, dailySummaryEmail } = body
+      const prefs = { positionClosed, priceAlert, copyTradeExecuted, dailySummaryEmail }
+      await prisma.$executeRaw`
+        UPDATE users SET notification_prefs = ${JSON.stringify(prefs)}::jsonb
+        WHERE id = ${auth.user.userId}
+      `
+      return handleCORS(NextResponse.json({ success: true, prefs }))
     }
 
     // ============ QUOTE ENDPOINT ============
