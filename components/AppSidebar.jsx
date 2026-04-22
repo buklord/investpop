@@ -79,6 +79,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const [pendingDeposits, setPendingDeposits] = useState(0)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
+  const [alertCount, setAlertCount] = useState(0)
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
   useEffect(() => {
@@ -104,6 +105,20 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     // Re-fetch whenever pathname changes (user navigated to a new page)
     return () => { cancelled = true }
   }, [pathname, accountProp])
+
+  // Fetch active price alert count
+  useEffect(() => {
+    if (!user) return
+    const fetchAlerts = async () => {
+      try {
+        const res = await fetch('/api/alerts/active-count')
+        if (res.ok) setAlertCount((await res.json()).count || 0)
+      } catch (_) {}
+    }
+    fetchAlerts()
+    const id = setInterval(fetchAlerts, 30000)
+    return () => clearInterval(id)
+  }, [user])
 
   // Poll for pending deposit count (admins only)
   useEffect(() => {
@@ -157,11 +172,11 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
 
   const isActive = (href) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
 
-  const NavLink = ({ href, label, icon: Icon }) => (
+  const NavLink = ({ href, label, icon: Icon, badge = 0 }) => (
     <Link
       href={href}
       title={collapsed ? label : undefined}
-      className={`flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg transition-colors ${
+      className={`relative flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg transition-colors ${
         isActive(href)
           ? 'bg-emerald-600/20 text-emerald-400'
           : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -169,7 +184,15 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
       onClick={() => setSidebarOpen(false)}
     >
       <Icon className="h-4 w-4 flex-shrink-0" />
-      {!collapsed && <span className="text-sm">{label}</span>}
+      {!collapsed && <span className="flex-1 text-sm">{label}</span>}
+      {badge > 0 && !collapsed && (
+        <span className="ml-auto bg-amber-500 text-black text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+      {badge > 0 && collapsed && (
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full" />
+      )}
     </Link>
   )
 
@@ -243,7 +266,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
           {collapsed ? (
             <div className="space-y-0.5">
               {navGroups.flatMap(g => g.items).map((item) => (
-                <NavLink key={item.href} {...item} />
+                <NavLink key={item.href} {...item} badge={item.href === '/markets' ? alertCount : 0} />
               ))}
               <button
                 onClick={openTawk}
@@ -287,7 +310,7 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-0.5">
                     {group.items.map((item) => (
-                      <NavLink key={item.href} {...item} />
+                      <NavLink key={item.href} {...item} badge={item.href === '/markets' ? alertCount : 0} />
                     ))}
                   </CollapsibleContent>
                 </Collapsible>

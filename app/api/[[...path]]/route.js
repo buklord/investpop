@@ -576,6 +576,18 @@ async function ensureSchemaExtensions() {
     INSERT INTO market_sim_settings (id, volatility, trend_bias, spread_pips)
     VALUES (1, 0.3, 'NEUTRAL', 2)
     ON CONFLICT (id) DO NOTHING`, 'market_sim_settings seed')
+  await run(`
+    CREATE TABLE IF NOT EXISTS price_alerts (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      symbol VARCHAR(20) NOT NULL,
+      type VARCHAR(10) NOT NULL,
+      price DOUBLE PRECISION NOT NULL,
+      triggered BOOLEAN NOT NULL DEFAULT FALSE,
+      triggered_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'price_alerts table')
+  await run(`CREATE INDEX IF NOT EXISTS idx_price_alerts_user ON price_alerts (user_id, triggered)`, 'price_alerts index')
 
   // ALTER TYPE cannot run inside a transaction — separate try/catch is critical
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
@@ -1113,6 +1125,58 @@ async function handleRoute(request, context) {
         WHERE id = ${auth.user.userId}
       `
       return handleCORS(NextResponse.json({ success: true, prefs }))
+    }
+
+    // ── Price alerts ──────────────────────────────────────────────────────────
+
+    // GET /api/alerts/active-count  — must come before /alerts/:id
+    if (route === '/alerts/active-count' && method === 'GET') {
+      const auth = await requireAuth()
+      const rows = await prisma.$queryRaw`
+        SELECT COUNT(*)::int AS count FROM price_alerts
+        WHERE user_id = ${auth.user.userId} AND triggered = FALSE
+      `
+      return handleCORS(NextResponse.json({ count: Number(rows[0]?.count || 0) }))
+    }
+
+    // GET /api/alerts
+    if (route === '/alerts' && method === 'GET') {
+      const auth = await requireAuth()
+      const rows = await prisma.$queryRaw`
+        SELECT id, symbol, type, price, created_at FROM price_alerts
+        WHERE user_id = ${auth.user.userId} AND triggered = FALSE
+        ORDER BY created_at DESC
+      `
+      return handleCORS(NextResponse.json({ alerts: rows }))
+    }
+
+    // POST /api/alerts
+    if (route === '/alerts' && method === 'POST') {
+      const auth = await requireAuth()
+      const body = await request.json()
+      const { symbol, type, price } = body
+      if (!symbol || !type || !price) {
+        return handleCORS(NextResponse.json({ error: 'Missing fields' }, { status: 400 }))
+      }
+      if (!['above', 'below'].includes(type)) {
+        return handleCORS(NextResponse.json({ error: 'Invalid type' }, { status: 400 }))
+      }
+      await prisma.$executeRaw`
+        INSERT INTO price_alerts (id, user_id, symbol, type, price)
+        VALUES (gen_random_uuid()::text, ${auth.user.userId}, ${String(symbol)}, ${type}, ${Number(price)})
+      `
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
+    // DELETE /api/alerts/:id
+    if (route.startsWith('/alerts/') && method === 'DELETE') {
+      const auth = await requireAuth()
+      const alertId = route.replace('/alerts/', '')
+      if (!alertId) return handleCORS(NextResponse.json({ error: 'Missing id' }, { status: 400 }))
+      await prisma.$executeRaw`
+        DELETE FROM price_alerts WHERE id = ${alertId} AND user_id = ${auth.user.userId}
+      `
+      return handleCORS(NextResponse.json({ success: true }))
     }
 
     // ============ QUOTE ENDPOINT ============
