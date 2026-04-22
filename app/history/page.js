@@ -103,26 +103,27 @@ function EquityCurveChart({ snapshots }) {
 
 // ─── Win/Loss streak ribbon ────────────────────────────────────────────────────
 function StreakRibbon({ positions }) {
+  // ALL hooks must be called before any early return
+  const [tooltip, setTooltip] = useState(null)
+
   const entries = useMemo(() =>
     [...positions]
       .sort((a, b) => new Date(a.closed_at || 0) - new Date(b.closed_at || 0))
       .map(p => ({ id: p.id, win: (p.realized_pnl || 0) > 0, pnl: p.realized_pnl || 0, symbol: p.symbol }))
   , [positions])
 
+  const { streaks, maxStreak } = useMemo(() => {
+    const streaks = []; let cur = null
+    for (const e of entries) {
+      if (!cur || cur.win !== e.win) { cur = { win: e.win, start: streaks.reduce((s, x) => s + x.len, 0), len: 1 }; streaks.push(cur) }
+      else cur.len++
+    }
+    return { streaks, maxStreak: streaks.length > 0 ? Math.max(...streaks.map(s => s.len)) : 0 }
+  }, [entries])
+
   if (entries.length === 0) return (
     <div className="flex items-center justify-center h-16 text-slate-600 text-sm">No closed trades yet</div>
   )
-
-  // Detect streaks
-  const streaks = []
-  let cur = null
-  for (const e of entries) {
-    if (!cur || cur.win !== e.win) { cur = { win: e.win, start: streaks.reduce((s, x) => s + x.len, 0), len: 1 }; streaks.push(cur) }
-    else cur.len++
-  }
-  const maxStreak = Math.max(...streaks.map(s => s.len))
-
-  const [tooltip, setTooltip] = useState(null)
 
   return (
     <div>
