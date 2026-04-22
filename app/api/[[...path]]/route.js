@@ -392,6 +392,23 @@ async function ensureSchemaExtensions() {
     )`, 'copy_trade_history table')
   await run(`CREATE INDEX IF NOT EXISTS cth_follower_idx ON copy_trade_history (follower_id, created_at DESC)`, 'copy_trade_history follower index')
 
+  // Add max_daily_loss column (absolute $ limit per leader connection)
+  await run(`ALTER TABLE copy_trading_followers ADD COLUMN IF NOT EXISTS max_daily_loss DOUBLE PRECISION`, 'copy_trading_followers max_daily_loss column')
+
+  // Platform-wide copy trade event feed
+  await run(`
+    CREATE TABLE IF NOT EXISTS copy_trade_events (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      leader_id TEXT NOT NULL,
+      action VARCHAR(20) NOT NULL,
+      symbol TEXT NOT NULL,
+      side VARCHAR(10),
+      quantity DOUBLE PRECISION,
+      follower_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'copy_trade_events table')
+  await run(`CREATE INDEX IF NOT EXISTS cte_created_idx ON copy_trade_events (created_at DESC)`, 'copy_trade_events created_at index')
+
   await run(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -2362,6 +2379,108 @@ async function handleRoute(request, context) {
       `
 
       return handleCORS(NextResponse.json({ history }))
+    }
+
+    // GET /api/copy-trading/feed - Platform-wide activity stream of copy events
+    if (route === '/copy-trading/feed' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const { searchParams } = new URL(request.url)
+      const limit = Math.max(10, Math.min(100, Number(searchParams.get('limit') || 30)))
+
+      const events = await prisma.$queryRaw`
+        SELECT
+          cte.id,
+          cte.action,
+          cte.symbol,
+          cte.side,
+          cte.quantity,
+          cte.follower_count,
+          cte.created_at,
+          u.first_name,
+          u.last_name,
+          SPLIT_PART(u.email, '@', 1) as username
+        FROM copy_trade_events cte
+        LEFT JOIN users u ON u.id = cte.leader_id
+        ORDER BY cte.created_at DESC
+        LIMIT ${limit}
+      `
+
+      return handleCORS(NextResponse.json({ events }))
+    }
+
+    // PATCH /api/copy-trading/guardrails - Set max daily loss limit per leader connection
+    if (route === '/copy-trading/guardrails' && method === 'PATCH') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      const body = await request.json()
+      const { leaderId, maxDailyLoss } = body
+
+      if (!leaderId) {
+        return handleCORS(NextResponse.json({ error: 'leaderId is required' }, { status: 400 }))
+      }
+
+      // null clears the limit; otherwise must be a positive number
+      const limit = maxDailyLoss === null ? null : parseFloat(maxDailyLoss)
+      if (limit !== null && (isNaN(limit) || limit <= 0)) {
+        return handleCORS(NextResponse.json({ error: 'maxDailyLoss must be a positive number or null' }, { status: 400 }))
+      }
+
+      const updated = await prisma.$executeRaw`
+        UPDATE copy_trading_followers
+        SET max_daily_loss = ${limit}, updated_at = NOW()
+        WHERE follower_id = ${auth.user.userId} AND leader_id = ${leaderId}
+      `
+
+      if (updated === 0) {
+        return handleCORS(NextResponse.json({ error: 'Connection not found' }, { status: 404 }))
+      }
+
+      return handleCORS(NextResponse.json({ message: 'Guardrail updated', maxDailyLoss: limit }))
+    }
+
+    // GET /api/copy-trading/attribution - Self-directed vs copied P&L breakdown
+    if (route === '/copy-trading/attribution' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) {
+        return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      }
+
+      // Closed positions: split by whether leader_position_id is set (= copied)
+      const breakdown = await prisma.$queryRaw`
+        SELECT
+          CASE WHEN leader_position_id IS NOT NULL THEN 'copied' ELSE 'self' END as source,
+          COUNT(*)::int as trade_count,
+          COALESCE(SUM(realized_pnl), 0) as total_pnl,
+          COALESCE(AVG(realized_pnl), 0) as avg_pnl
+        FROM trading_positions
+        WHERE user_id = ${auth.user.userId}
+          AND status = 'CLOSED'
+        GROUP BY source
+      `
+
+      // Monthly breakdown for chart (last 6 months)
+      const monthly = await prisma.$queryRaw`
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', closed_at), 'Mon YYYY') as month,
+          DATE_TRUNC('month', closed_at) as month_date,
+          CASE WHEN leader_position_id IS NOT NULL THEN 'copied' ELSE 'self' END as source,
+          COALESCE(SUM(realized_pnl), 0) as pnl
+        FROM trading_positions
+        WHERE user_id = ${auth.user.userId}
+          AND status = 'CLOSED'
+          AND closed_at >= NOW() - INTERVAL '6 months'
+        GROUP BY month, month_date, source
+        ORDER BY month_date ASC
+      `
+
+      return handleCORS(NextResponse.json({ breakdown, monthly }))
     }
 
     // ============ PORTFOLIO ENDPOINTS (Legacy) ============
