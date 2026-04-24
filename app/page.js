@@ -182,11 +182,6 @@ export default function HomePage() {
   const [step, setStep]                       = useState(1)
   const [error, setError]                     = useState('')
   const [submitting, setSubmitting]           = useState(false)
-  const [showLogin, setShowLogin]             = useState(false)
-  const [loginEmail, setLoginEmail]           = useState('')
-  const [loginPassword, setLoginPassword]     = useState('')
-  const [loginError, setLoginError]           = useState('')
-  const [loginSubmitting, setLoginSubmitting] = useState(false)
   const [prices, setPrices]                   = useState({})
   const [mobileMenu, setMobileMenu]           = useState(false)
   const [formHighlight, setFormHighlight]     = useState(false)
@@ -296,29 +291,6 @@ export default function HomePage() {
     } finally { setSubmitting(false) }
   }
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setLoginError(''); setLoginSubmitting(true)
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 90000)
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-        signal: ctrl.signal,
-      })
-      clearTimeout(t)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setLoginError(data.error || 'Login failed.'); return }
-      setUser(data.user)
-      router.push('/dashboard')
-    } catch (err) {
-      clearTimeout(t)
-      setLoginError(err?.name === 'AbortError' ? 'Server timeout — try again.' : 'Network error.')
-    } finally { setLoginSubmitting(false) }
-  }
-
   const openTawk = () => {
     if (typeof window === 'undefined') return
     let attempts = 0
@@ -384,10 +356,10 @@ export default function HomePage() {
               <a href="#faq"          className="text-white/50 hover:text-white transition-colors text-sm">FAQ</a>
             </div>
             <div className="hidden lg:flex items-center gap-3">
-              <button
-                onClick={() => setShowLogin(true)}
+              <Link
+                href="/login"
                 className="text-white/60 hover:text-white text-sm font-medium transition-colors px-3 py-2"
-              >Log in</button>
+              >Log in</Link>
               <button
                 onClick={focusEmailForm}
                 className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
@@ -410,10 +382,10 @@ export default function HomePage() {
             <a href="#accounts"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Accounts</a>
             <a href="#faq"          className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>FAQ</a>
             <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
-              <button
-                onClick={() => { setShowLogin(true); setMobileMenu(false) }}
-                className="w-full text-center text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg"
-              >Log in</button>
+              <Link
+                href="/login"
+                className="w-full text-center block text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg"
+              >Log in</Link>
               <button
                 onClick={(e) => { setMobileMenu(false); setTimeout(() => focusEmailForm(e), 300) }}
                 className="w-full text-center bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg"
@@ -539,12 +511,12 @@ export default function HomePage() {
                           <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" /> Creating your account&hellip;</>
                         ) : <>Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
                       </button>
-                      <p className="text-white/20 text-xs text-center">By registering you agree to our Terms of Service and Risk Disclosure.</p>
+                      <p className="text-white/20 text-xs text-center">By registering you agree to our{' '}<Link href="/terms" className="underline hover:text-white/40">Terms of Service</Link>{' '}and{' '}<Link href="/risk-disclosure" className="underline hover:text-white/40">Risk Disclosure</Link>.</p>
                     </form>
                   )}
                   <p className="mt-3 text-xs text-white/25">
                     Already have an account?{' '}
-                    <button onClick={() => setShowLogin(true)} className="text-emerald-400 hover:text-emerald-300 underline">Log in</button>
+                    <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline">Log in</Link>
                   </p>
                 </div>
               </div>
@@ -780,6 +752,119 @@ export default function HomePage() {
                   <div className="text-white/40 text-sm leading-relaxed">{desc}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── PRODUCT VISUALS ── */}
+        <section className="py-20 border-b border-border/40 bg-white/[0.01]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="max-w-xl mb-12">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Inside the platform</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">What you get when you sign up</h2>
+              <p className="mt-3 text-white/40 text-base">A realistic trading environment from day one — no configuration needed.</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-5">
+
+              {/* Order ticket mockup */}
+              <div className="rounded-2xl border border-white/[0.08] bg-[#0d1117]/60 overflow-hidden">
+                <div className="px-4 pt-4 pb-2 border-b border-white/[0.06]">
+                  <span className="text-[10px] text-white/25 font-semibold uppercase tracking-widest">Order Entry</span>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <div className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Instrument</div>
+                    <div className="h-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex items-center px-3 gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400" aria-hidden="true" />
+                      <span className="text-white text-sm font-semibold">XAUUSD</span>
+                      <span className="text-white/30 text-xs ml-auto">Gold &middot; Commodity</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Lot size</div>
+                      <div className="h-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex items-center px-3 text-white text-sm">1.00</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Leverage</div>
+                      <div className="h-10 rounded-lg bg-white/[0.05] border border-white/[0.08] flex items-center px-3 text-white text-sm">1:100</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Stop loss</div>
+                      <div className="h-10 rounded-lg bg-red-500/[0.07] border border-red-500/20 flex items-center px-3 text-red-300 text-sm">2 290.00</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-white/30 mb-1.5 uppercase tracking-wider">Take profit</div>
+                      <div className="h-10 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/20 flex items-center px-3 text-emerald-300 text-sm">2 360.00</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button onClick={focusEmailForm} className="h-11 rounded-xl bg-emerald-500 text-white text-sm font-semibold">&#9650; Buy 2 318.40</button>
+                    <button onClick={focusEmailForm} className="h-11 rounded-xl bg-red-500/80 text-white text-sm font-semibold">&#9660; Sell 2 317.80</button>
+                  </div>
+                </div>
+                <div className="px-5 pb-4">
+                  <p className="text-white/25 text-xs">Demo account &mdash; virtual funds only</p>
+                </div>
+              </div>
+
+              {/* AI Trade Coach mockup */}
+              <div className="flex flex-col gap-5">
+                <div className="rounded-2xl border border-white/[0.08] bg-[#0d1117]/60 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[10px] text-white/25 font-semibold uppercase tracking-widest">AI Trade Coach</span>
+                    <span className="text-[10px] text-white/20">Trade closed</span>
+                  </div>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-emerald-400 font-extrabold text-xl">B+</span>
+                    </div>
+                    <div>
+                      <div className="text-white font-semibold text-sm">EURUSD &middot; Sell &middot; 2 lots</div>
+                      <div className="text-emerald-400 text-sm font-semibold">+$284.00</div>
+                      <div className="text-white/30 text-xs">Closed at 1.0847</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Entry timing', score: 82, color: 'bg-emerald-500' },
+                      { label: 'Risk management', score: 75, color: 'bg-amber-400' },
+                      { label: 'Exit discipline', score: 68, color: 'bg-amber-400' },
+                    ].map(({ label, score, color }) => (
+                      <div key={label} className="flex items-center gap-3">
+                        <span className="text-white/35 text-xs w-32 flex-shrink-0">{label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
+                        </div>
+                        <span className="text-white/40 text-xs w-7 text-right">{score}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-white/30 text-xs mt-4 leading-relaxed">
+                    Good entry on the downtrend. Consider tightening the stop loss to reduce drawdown on future similar setups.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/[0.08] bg-[#0d1117]/60 p-5">
+                  <div className="text-[10px] text-white/25 font-semibold uppercase tracking-widest mb-3">Account Overview</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Balance',  value: '$100,284.00', color: 'text-white' },
+                      { label: 'Equity',   value: '$100,411.50', color: 'text-emerald-400' },
+                      { label: 'Open P&L', value: '+$127.50',    color: 'text-emerald-400' },
+                      { label: 'Account',  value: 'Demo',        color: 'text-amber-400' },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="rounded-xl bg-white/[0.03] border border-white/[0.05] px-3 py-2.5">
+                        <div className="text-[10px] text-white/25 mb-1">{label}</div>
+                        <div className={`text-sm font-semibold tabular-nums ${color}`}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
@@ -1023,7 +1108,7 @@ export default function HomePage() {
               <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Platform</div>
               <div className="space-y-2.5">
                 <Link href="/markets"                     className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
-                <button onClick={() => setShowLogin(true)} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Log in</button>
+                <Link href="/login"                      className="block text-white/40 hover:text-white text-xs transition-colors">Log in</Link>
                 <button onClick={focusEmailForm}           className="block text-white/40 hover:text-white text-xs transition-colors text-left">Register</button>
                 <a href="#how-it-works"                    className="block text-white/40 hover:text-white text-xs transition-colors">How it works</a>
                 <a href="#faq"                             className="block text-white/40 hover:text-white text-xs transition-colors">FAQ</a>
@@ -1032,10 +1117,9 @@ export default function HomePage() {
             <div>
               <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Legal</div>
               <div className="space-y-2.5">
-                {/* TODO: Replace with <Link> once legal pages are created */}
-                <span className="block text-white/25 text-xs">Risk Disclosure</span>
-                <span className="block text-white/25 text-xs">Privacy Policy</span>
-                <span className="block text-white/25 text-xs">Terms of Service</span>
+                <Link href="/risk-disclosure"  className="block text-white/40 hover:text-white text-xs transition-colors">Risk Disclosure</Link>
+                <Link href="/privacy-policy"   className="block text-white/40 hover:text-white text-xs transition-colors">Privacy Policy</Link>
+                <Link href="/terms"            className="block text-white/40 hover:text-white text-xs transition-colors">Terms of Service</Link>
                 <button onClick={openTawk} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Support / Contact</button>
               </div>
             </div>
@@ -1068,75 +1152,6 @@ export default function HomePage() {
         <span className="text-sm font-semibold hidden sm:inline">Support</span>
       </button>
 
-      {/* ── Login modal ── */}
-      {showLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Log in to Kartomtrades">
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowLogin(false)} aria-hidden="true" />
-          <div className="relative w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#0d1117] p-6 shadow-2xl">
-            <button
-              onClick={() => setShowLogin(false)}
-              aria-label="Close"
-              className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2.5 mb-6">
-              <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-black text-sm leading-none">K</span>
-              </div>
-              <span className="text-white font-bold">Welcome back</span>
-            </div>
-            <form onSubmit={handleLogin} className="flex flex-col gap-3">
-              <div>
-                <label className="text-xs text-white/30 block mb-1.5" htmlFor="login-email">Email</label>
-                <input
-                  id="login-email"
-                  type="email"
-                  required
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  value={loginEmail}
-                  onChange={e => { setLoginEmail(e.target.value); setLoginError('') }}
-                  className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.10] text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-emerald-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-white/30 block mb-1.5" htmlFor="login-password">Password</label>
-                <input
-                  id="login-password"
-                  type="password"
-                  required
-                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
-                  autoComplete="current-password"
-                  value={loginPassword}
-                  onChange={e => { setLoginPassword(e.target.value); setLoginError('') }}
-                  className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.10] text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-emerald-500/50"
-                />
-              </div>
-              {loginError && (
-                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{loginError}</p>
-              )}
-              <button
-                type="submit"
-                disabled={loginSubmitting}
-                className="h-11 mt-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                {loginSubmitting
-                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" aria-hidden="true" /> Signing in&hellip;</>
-                  : 'Sign in'
-                }
-              </button>
-            </form>
-            <p className="text-center text-xs text-white/25 mt-4">
-              No account?{' '}
-              <button
-                onClick={(e) => { setShowLogin(false); setTimeout(() => focusEmailForm(e), 200) }}
-                className="text-emerald-400 hover:text-emerald-300 underline"
-              >Create one free</button>
-            </p>
-          </div>
-        </div>
-      )}
 
       <style jsx global>{`
         @keyframes ticker {
