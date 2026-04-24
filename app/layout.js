@@ -3,8 +3,33 @@ import Script from 'next/script'
 import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata = {
-  title: 'Kartomtrades - Live Trading Platform',
-  description: 'A professional trading platform for stocks and crypto',
+  metadataBase: new URL('https://www.kartomtrades.com'),
+  title: {
+    default: 'Kartomtrades — Practice Trading with Live Market Data',
+    template: '%s | Kartomtrades',
+  },
+  description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. Demo-first trading platform with live market prices, TradingView charts, and 100% first deposit bonus.',
+  keywords: ['trading platform', 'demo trading', 'forex trading', 'crypto trading', 'practice trading', 'virtual trading', 'Kartomtrades'],
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://www.kartomtrades.com',
+    siteName: 'Kartomtrades',
+    title: 'Kartomtrades — Practice Trading with Live Market Data',
+    description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. 100% first deposit bonus.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Kartomtrades — Practice Trading with Live Market Data',
+    description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. 100% first deposit bonus.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: 'https://www.kartomtrades.com',
+  },
 }
 
 // Tawk.to — set NEXT_PUBLIC_TAWK_SRC to the full embed URL from your Tawk dashboard
