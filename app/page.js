@@ -66,6 +66,282 @@ function EquityCurve({ animate = true }) {
   const pct = (((latest - points[0]) / points[0]) * 100).toFixed(1)
 
   return (
+    <div className="relative">
+      <div className="flex items-end justify-between mb-2 px-1">
+        <div>
+          <div className="text-xs text-white/40 font-medium mb-0.5">Portfolio Value</div>
+          <div className="text-2xl font-bold text-white tabular-nums">
+            ${Math.round(latest).toLocaleString()}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-emerald-400 font-bold">+{pct}%</div>
+          <div className="text-xs text-white/30">this session</div>
+        </div>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-[100px]">
+        <defs>
+          <linearGradient id="curveGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#curveGrad)" />
+        <path d={linePath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.length > 0 && (
+          <g>
+            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="5" fill="#10b981" opacity="0.3" />
+            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="3" fill="#10b981" />
+          </g>
+        )}
+      </svg>
+    </div>
+  )
+}
+
+// ─── FAQ content ─────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  {
+    q: 'Is the demo account free?',
+    a: 'Yes. Your demo account is completely free and comes pre-loaded with $100,000 in virtual funds. No payment, no card, no time limit.',
+  },
+  {
+    q: 'Do I need a credit card to start?',
+    a: 'No. You can create an account and start trading the demo immediately with no card required. A deposit is only needed if you choose to open a live account later.',
+  },
+  {
+    q: 'How does the live account work?',
+    a: 'To open a live account, you need to complete identity verification (KYC) and make a deposit. Live accounts use real funds, with real profit and loss. Withdrawals go through an admin review workflow.',
+  },
+  {
+    q: 'What markets can I trade?',
+    a: 'Kartomtrades gives you access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
+  },
+  {
+    q: 'How does copy trading work?',
+    a: 'Copy trading lets you follow other traders on the platform and automatically mirror their positions in your account. You control the allocation and can stop copying at any time.',
+  },
+  {
+    q: 'What is AI Trade Coach?',
+    a: 'After each closed trade, the AI Trade Coach reviews your entry, exit, and risk management decisions, then gives you a score and specific feedback to help you improve over time.',
+  },
+  {
+    q: 'Do I need verification before trading live?',
+    a: 'Yes. Identity verification (KYC) is required before you can fund or trade a live account. This is a mandatory step to protect all users on the platform. The demo account does not require any verification.',
+  },
+  {
+    q: 'Is this platform suitable for beginners?',
+    a: 'Yes. The demo account is specifically designed for traders who want to build confidence before risking real money. You can practice in live market conditions without any financial risk.',
+  },
+]
+
+// ─── Static ticker fallback ───────────────────────────────────────────────
+const STATIC_TICKER = [
+  { symbol: 'BTC/USD', price: '67,842.50', change: '+2.14%', up: true },
+  { symbol: 'ETH/USD', price: '3,541.20',  change: '+1.87%', up: true },
+  { symbol: 'XAU/USD', price: '2,318.40',  change: '-0.32%', up: false },
+  { symbol: 'EUR/USD', price: '1.0872',    change: '+0.08%', up: true },
+  { symbol: 'US100',   price: '18,204.00', change: '+0.64%', up: true },
+  { symbol: 'US30',    price: '38,971.50', change: '-0.12%', up: false },
+  { symbol: 'OIL/USD', price: '83.21',     change: '+0.95%', up: true },
+  { symbol: 'GBP/USD', price: '1.2691',    change: '-0.04%', up: false },
+  { symbol: 'SPX500',  price: '5,218.70',  change: '+0.41%', up: true },
+  { symbol: 'TSLA',    price: '178.50',    change: '+3.21%', up: true },
+]
+
+const DISPLAY_SYMBOLS = ['BTCUSD','ETHUSD','XAUUSD','EURUSD','US100','US30','USOIL','GBPUSD','SPX500','AAPL']
+
+function formatTickerPrice(val, symbol) {
+  if (!val) return '--'
+  const n = Number(val)
+  if (!Number.isFinite(n)) return '--'
+  if (n > 10000) return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (n > 100)   return n.toFixed(2)
+  return n.toFixed(4)
+}
+
+const SYMBOL_DISPLAY = {
+  BTCUSD: 'BTC/USD', ETHUSD: 'ETH/USD', XAUUSD: 'XAU/USD',
+  EURUSD: 'EUR/USD', USOIL: 'OIL/USD', GBPUSD: 'GBP/USD',
+}
+
+const MOCK_POSITIONS = [
+  { symbol: 'XAUUSD', side: 'BUY',  lots: 1.00, entry: 2315.20 },
+  { symbol: 'BTCUSD', side: 'BUY',  lots: 0.10, entry: 66100   },
+  { symbol: 'EURUSD', side: 'SELL', lots: 2.00, entry: 1.0890  },
+]
+
+export default function HomePage() {
+  const router = useRouter()
+
+  const [user, setUser]                       = useState(null)
+  const [authLoading, setAuthLoading]         = useState(true)
+  const [email, setEmail]                     = useState('')
+  const [password, setPassword]               = useState('')
+  const [firstName, setFirstName]             = useState('')
+  const [step, setStep]                       = useState(1)
+  const [error, setError]                     = useState('')
+  const [submitting, setSubmitting]           = useState(false)
+  const [showLogin, setShowLogin]             = useState(false)
+  const [loginEmail, setLoginEmail]           = useState('')
+  const [loginPassword, setLoginPassword]     = useState('')
+  const [loginError, setLoginError]           = useState('')
+  const [loginSubmitting, setLoginSubmitting] = useState(false)
+  const [prices, setPrices]                   = useState({})
+  const [mobileMenu, setMobileMenu]           = useState(false)
+  const [formHighlight, setFormHighlight]     = useState(false)
+  const emailRef = useRef(null)
+
+  const livePositions = useMemo(() => MOCK_POSITIONS.map(pos => {
+    const q = prices[pos.symbol]
+    const mid = q ? Number(q.mid) : null
+    let pnl = null
+    if (mid) {
+      const diff = pos.side === 'BUY' ? mid - pos.entry : pos.entry - mid
+      const mult = pos.symbol === 'XAUUSD' ? 100 : pos.symbol === 'BTCUSD' ? 1 : 100000
+      pnl = diff * pos.lots * mult
+    }
+    return { ...pos, pnl }
+  }), [prices])
+
+  const tickerItems = useMemo(() => {
+    const live = DISPLAY_SYMBOLS.map(sym => {
+      const q = prices[sym]
+      if (!q) return null
+      const mid  = Number(q.mid)
+      const high = Number(q.high)
+      const change = high > 0 ? ((mid - high) / high * 100) : 0
+      return {
+        symbol: SYMBOL_DISPLAY[sym] || sym,
+        price: formatTickerPrice(mid, sym),
+        change: `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
+        up: change >= 0,
+      }
+    }).filter(Boolean)
+    return live.length >= 5 ? live : STATIC_TICKER
+  }, [prices])
+
+  // ── Effects ──
+  useEffect(() => {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 8000)
+    fetch('/api/auth/me', { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.user) setUser(d.user) })
+      .catch(() => {})
+      .finally(() => { clearTimeout(t); setAuthLoading(false) })
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [])
+
+  useEffect(() => { if (user) router.push('/dashboard') }, [user, router])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/market/prices', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.prices) setPrices(d.prices) })
+      .catch(() => {})
+    const id = setInterval(() => {
+      fetch('/api/market/tick', { method: 'POST' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (!cancelled && d?.prices) setPrices(d.prices) })
+        .catch(() => {})
+    }, 2000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  // ── Focus/highlight the sign-up form ──
+  const focusEmailForm = (e) => {
+    e?.preventDefault()
+    const el = document.getElementById('hero-form')
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - 100
+      window.scrollTo({ top: y, behavior: 'smooth' })
+    }
+    setFormHighlight(true)
+    setTimeout(() => {
+      emailRef.current?.focus()
+      setTimeout(() => setFormHighlight(false), 1200)
+    }, 350)
+  }
+
+  // ── Auth handlers ──
+  const handleRegisterStep1 = (e) => {
+    e.preventDefault()
+    if (!email || !email.includes('@')) { setError('Enter a valid email address.'); return }
+    setError(''); setStep(2)
+  }
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault()
+    if (!password || password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    setError(''); setSubmitting(true)
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 90000)
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, firstName }),
+        signal: ctrl.signal,
+      })
+      clearTimeout(t)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(data.error || 'Registration failed.'); return }
+      setUser(data.user)
+      router.push('/markets')
+    } catch (err) {
+      clearTimeout(t)
+      setError(err?.name === 'AbortError' ? 'Server is waking up — please try again in a moment.' : 'Network error. Check your connection.')
+    } finally { setSubmitting(false) }
+  }
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    setLoginError(''); setLoginSubmitting(true)
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 90000)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        signal: ctrl.signal,
+      })
+      clearTimeout(t)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setLoginError(data.error || 'Login failed.'); return }
+      setUser(data.user)
+      router.push('/dashboard')
+    } catch (err) {
+      clearTimeout(t)
+      setLoginError(err?.name === 'AbortError' ? 'Server timeout — try again.' : 'Network error.')
+    } finally { setLoginSubmitting(false) }
+  }
+
+  const openTawk = () => {
+    if (typeof window === 'undefined') return
+    let attempts = 0
+    const tryOpen = () => {
+      if (window.Tawk_API?.maximize) { window.Tawk_API.maximize() }
+      else if (attempts < 10) { attempts++; setTimeout(tryOpen, 400) }
+    }
+    tryOpen()
+  }
+
+  if (authLoading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="animate-pulse text-foreground/40 text-sm">Loading…</div>
+    </div>
+  )
+
+  if (user) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="animate-pulse text-foreground/40 text-sm">Redirecting…</div>
+    </div>
+  )
+
+  return (
     <div className="min-h-screen bg-background text-foreground">
 
       {/* ── Live ticker ── */}
@@ -231,7 +507,7 @@ function EquityCurve({ animate = true }) {
                   ) : (
                     <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
                       <div className="text-xs text-white/40 flex items-center gap-2 mb-1">
-                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-[10px]" aria-hidden="true">✓</span>
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-[10px]" aria-hidden="true">&#10003;</span>
                         {email}
                         <button type="button" onClick={() => setStep(1)} className="text-white/30 hover:text-white/60 ml-auto text-xs underline">change</button>
                       </div>
@@ -260,7 +536,7 @@ function EquityCurve({ animate = true }) {
                         className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
                       >
                         {submitting ? (
-                          <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" /> Creating your account…</>
+                          <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" /> Creating your account&hellip;</>
                         ) : <>Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
                       </button>
                       <p className="text-white/20 text-xs text-center">By registering you agree to our Terms of Service and Risk Disclosure.</p>
@@ -283,7 +559,7 @@ function EquityCurve({ animate = true }) {
                         <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                         <div className="w-3 h-3 rounded-full bg-emerald-500/60" />
                       </div>
-                      <span className="text-xs text-white/30 ml-1">Portfolio · Demo Account</span>
+                      <span className="text-xs text-white/30 ml-1">Portfolio &middot; Demo Account</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
                       <Activity className="w-3 h-3" aria-hidden="true" /> Live
@@ -319,14 +595,14 @@ function EquityCurve({ animate = true }) {
                   </div>
                   <div className="px-4 pb-4 grid grid-cols-2 gap-2">
                     <button onClick={focusEmailForm} className="h-9 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors">
-                      ▲ Buy
+                      &#9650; Buy
                     </button>
                     <button onClick={focusEmailForm} className="h-9 rounded-xl border border-red-500/20 bg-red-500/[0.08] text-red-300 text-xs font-semibold hover:bg-red-500/15 transition-colors">
-                      ▼ Sell
+                      &#9660; Sell
                     </button>
                   </div>
                 </div>
-                <p className="text-center text-[11px] text-white/20 mt-3">Simulated demo account — no real funds at risk</p>
+                <p className="text-center text-[11px] text-white/20 mt-3">Simulated demo account &mdash; no real funds at risk</p>
               </div>
 
             </div>
@@ -369,25 +645,25 @@ function EquityCurve({ animate = true }) {
                   step: '01',
                   title: 'Create your free demo account',
                   body: 'Sign up with just an email address. No card, no deposit, no wait. Your account is ready in seconds with $100,000 in virtual funds.',
-                  icon: <UserCheck className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                  Icon: UserCheck,
                 },
                 {
                   step: '02',
                   title: 'Practice with virtual funds at live prices',
                   body: 'Trade Forex, crypto, stocks, indices, and commodities at real market prices. Use stop loss, take profit, copy trading, and the AI trade coach to build real skills.',
-                  icon: <TrendingUp className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                  Icon: TrendingUp,
                 },
                 {
                   step: '03',
                   title: 'Upgrade to a live account after verification',
                   body: "When you're ready, complete identity verification and make a deposit. Same terminal, same interface. No new learning curve.",
-                  icon: <Shield className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                  Icon: Shield,
                 },
-              ].map(({ step, title, body, icon }) => (
+              ].map(({ step, title, body, Icon }) => (
                 <div key={step} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-7">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                      {icon}
+                      <Icon className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                     </div>
                     <span className="text-[11px] font-bold text-white/20 tracking-widest uppercase">Step {step}</span>
                   </div>
@@ -498,7 +774,7 @@ function EquityCurve({ animate = true }) {
               ].map(({ Icon, title, desc, color }) => (
                 <div key={title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-white/[0.11] transition-colors">
                   <div className={`w-9 h-9 rounded-xl border flex items-center justify-center mb-4 ${color}`}>
-                    <Icon className="w-4.5 h-4.5" aria-hidden="true" />
+                    <Icon className="w-5 h-5" aria-hidden="true" />
                   </div>
                   <div className="text-white font-semibold mb-2">{title}</div>
                   <div className="text-white/40 text-sm leading-relaxed">{desc}</div>
@@ -528,7 +804,7 @@ function EquityCurve({ animate = true }) {
                   </div>
                   <div>
                     <div className="text-white font-semibold">Demo account</div>
-                    <div className="text-white/30 text-xs">Start immediately — no deposit</div>
+                    <div className="text-white/30 text-xs">Start immediately &mdash; no deposit</div>
                   </div>
                 </div>
                 <div className="text-3xl font-extrabold text-white mb-1 tabular-nums">$100,000</div>
@@ -746,7 +1022,7 @@ function EquityCurve({ animate = true }) {
             <div>
               <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Platform</div>
               <div className="space-y-2.5">
-                <Link href="/markets"                  className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
+                <Link href="/markets"                     className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
                 <button onClick={() => setShowLogin(true)} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Log in</button>
                 <button onClick={focusEmailForm}           className="block text-white/40 hover:text-white text-xs transition-colors text-left">Register</button>
                 <a href="#how-it-works"                    className="block text-white/40 hover:text-white text-xs transition-colors">How it works</a>
@@ -756,10 +1032,10 @@ function EquityCurve({ animate = true }) {
             <div>
               <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Legal</div>
               <div className="space-y-2.5">
-                {/* TODO: Replace spans with <Link> once legal pages are created */}
-                <span className="block text-white/25 text-xs select-none">Risk Disclosure</span>
-                <span className="block text-white/25 text-xs select-none">Privacy Policy</span>
-                <span className="block text-white/25 text-xs select-none">Terms of Service</span>
+                {/* TODO: Replace with <Link> once legal pages are created */}
+                <span className="block text-white/25 text-xs">Risk Disclosure</span>
+                <span className="block text-white/25 text-xs">Privacy Policy</span>
+                <span className="block text-white/25 text-xs">Terms of Service</span>
                 <button onClick={openTawk} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Support / Contact</button>
               </div>
             </div>
@@ -777,7 +1053,7 @@ function EquityCurve({ animate = true }) {
               Past performance of any trading strategy or instrument is not a reliable indicator of future results.
               This platform does not provide financial advice.
             </p>
-            <p className="text-white/15 text-xs">© {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
+            <p className="text-white/15 text-xs">&copy; {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -830,7 +1106,7 @@ function EquityCurve({ animate = true }) {
                   id="login-password"
                   type="password"
                   required
-                  placeholder="••••••••"
+                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
                   autoComplete="current-password"
                   value={loginPassword}
                   onChange={e => { setLoginPassword(e.target.value); setLoginError('') }}
@@ -846,7 +1122,7 @@ function EquityCurve({ animate = true }) {
                 className="h-11 mt-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
               >
                 {loginSubmitting
-                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" aria-hidden="true" /> Signing in…</>
+                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" aria-hidden="true" /> Signing in&hellip;</>
                   : 'Sign in'
                 }
               </button>
