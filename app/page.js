@@ -386,10 +386,11 @@ export default function HomePage() {
                 href="/login"
                 className="w-full text-center block text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg"
               >Log in</Link>
-              <button
-                onClick={(e) => { setMobileMenu(false); setTimeout(() => focusEmailForm(e), 300) }}
-                className="w-full text-center bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg"
-              >Start free demo</button>
+              <Link
+                href="/register"
+                className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+                onClick={() => setMobileMenu(false)}
+              >Start free demo</Link>
             </div>
           </div>
         )}
@@ -412,9 +413,9 @@ export default function HomePage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
                     Demo-first trading platform
                   </div>
-                  <div className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded-full px-3 py-1.5">
-                    <span aria-hidden="true">&#127873;</span>
-                    100% bonus on your first deposit
+                  <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/[0.05] text-white/40 border border-white/[0.09] rounded-full px-3 py-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" aria-hidden="true" />
+                    No card required
                   </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
@@ -446,7 +447,7 @@ export default function HomePage() {
 
                 {/* Trust microcopy */}
                 <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {['No card required', 'Instant account', '100% first deposit bonus'].map((item) => (
+                  {['No card required', 'Instant account', 'Live market conditions'].map((item) => (
                     <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/35">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60 flex-shrink-0" aria-hidden="true" />
                       {item}
@@ -597,7 +598,7 @@ export default function HomePage() {
                 { icon: <LineChart className="w-4 h-4" aria-hidden="true" />,  label: 'TradingView charts' },
                 { icon: <UserCheck className="w-4 h-4" aria-hidden="true" />,  label: 'KYC before live account' },
                 { icon: <Shield    className="w-4 h-4" aria-hidden="true" />,  label: 'Crypto deposits supported' },
-                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: '100% first deposit bonus' },
+                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: 'Free to start, no deposit needed' },
               ].map(({ icon, label }) => (
                 <div key={label} className="flex items-center gap-2 text-white/40 text-sm">
                   <span className="text-emerald-500/60">{icon}</span>
@@ -1139,7 +1140,7 @@ export default function HomePage() {
               <div className="space-y-2.5">
                 <Link href="/markets"                     className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
                 <Link href="/login"                      className="block text-white/40 hover:text-white text-xs transition-colors">Log in</Link>
-                <button onClick={focusEmailForm}           className="block text-white/40 hover:text-white text-xs transition-colors text-left">Register</button>
+                <Link href="/register"                     className="block text-white/40 hover:text-white text-xs transition-colors">Register</Link>
                 <a href="#how-it-works"                    className="block text-white/40 hover:text-white text-xs transition-colors">How it works</a>
                 <a href="#faq"                             className="block text-white/40 hover:text-white text-xs transition-colors">FAQ</a>
               </div>

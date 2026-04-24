@@ -46,14 +46,15 @@ function calcPct(quote) {
   return ((mid - open) / open) * 100
 }
 
+// 6-level scale — small moves (±0.5%) stay near-neutral; strong colors only for big moves
 function heatmapColor(pct) {
-  if (pct == null) return 'bg-white/[0.04] border-white/[0.08] text-white/40'
-  if (pct >=  3) return 'bg-emerald-600/80 border-emerald-600/40 text-white'
-  if (pct >=  1) return 'bg-emerald-500/55 border-emerald-500/30 text-white'
-  if (pct >=  0) return 'bg-emerald-400/25 border-emerald-400/20 text-white/80'
-  if (pct >= -1) return 'bg-red-400/25 border-red-400/20 text-white/80'
-  if (pct >= -3) return 'bg-red-500/55 border-red-500/30 text-white'
-  return 'bg-red-700/75 border-red-700/40 text-white'
+  if (pct == null) return 'bg-white/[0.03] border-white/[0.06] text-white/35'
+  if (pct >=  2)   return 'bg-emerald-500/60 border-emerald-400/35 text-white'
+  if (pct >=  0.5) return 'bg-emerald-500/25 border-emerald-500/20 text-white/90'
+  if (pct >=  0)   return 'bg-emerald-400/[0.10] border-emerald-400/[0.12] text-white/75'
+  if (pct >= -0.5) return 'bg-rose-400/[0.10] border-rose-400/[0.12] text-white/75'
+  if (pct >= -2)   return 'bg-rose-500/25 border-rose-500/20 text-white/90'
+  return             'bg-rose-600/55 border-rose-600/30 text-white'
 }
 
 // ── localStorage pin helpers ────────────────────────────────────────────────
@@ -195,17 +196,17 @@ function HeatmapTile({ asset, quote, selected, onSelect, pinned, onPin, onBell, 
       onClick={() => onSelect(asset)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(asset) }}
       className={[
-        'group relative rounded-xl p-2.5 flex flex-col justify-between cursor-pointer',
-        'transition-all duration-150 border min-h-[84px]',
+        'group relative rounded-xl p-3 flex flex-col justify-between cursor-pointer',
+        'transition-all duration-150 border min-h-[92px]',
         color,
-        active ? 'ring-2 ring-blue-400/80' : '',
+        active ? 'ring-2 ring-blue-400/70' : 'hover:brightness-110',
       ].join(' ')}
     >
-      {/* Top: symbol + actions */}
+      {/* Top: symbol + action icons */}
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
-          <div className="text-[12px] font-bold leading-tight">{asset.symbol}</div>
-          <div className="text-[9px] opacity-55 truncate">{asset.name}</div>
+          <div className="text-[13px] font-bold leading-tight tracking-wide">{asset.symbol}</div>
+          <div className="text-[10px] opacity-45 truncate mt-0.5 leading-none">{asset.name}</div>
         </div>
         <div className="flex gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <button type="button" onClick={e => { e.stopPropagation(); onBell(asset, quote) }}
@@ -219,13 +220,13 @@ function HeatmapTile({ asset, quote, selected, onSelect, pinned, onPin, onBell, 
         </div>
       </div>
 
-      {/* Bottom: price + pct */}
-      <div>
-        <div className="text-[10px] font-mono tabular-nums opacity-70">
+      {/* Bottom: price + percent */}
+      <div className="mt-2">
+        <div className="text-[11px] font-mono tabular-nums opacity-60 leading-none mb-1">
           {Number.isFinite(mid) ? formatPrice(mid, pipSize) : '—'}
         </div>
         {pct != null && (
-          <div className="text-[13px] font-bold tabular-nums leading-tight">
+          <div className="text-[14px] font-extrabold tabular-nums leading-none">
             {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
           </div>
         )}
@@ -238,7 +239,7 @@ function HeatmapTile({ asset, quote, selected, onSelect, pinned, onPin, onBell, 
 function HeatmapView({ assets, prices, selected, onSelect, pins, onPin, onBell, alertSymbols }) {
   return (
     <div className="flex-1 overflow-y-auto p-3">
-      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-1.5">
         {assets.map(asset => (
           <HeatmapTile
             key={asset.id}
