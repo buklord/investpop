@@ -3,16 +3,17 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import MarketSparkline from '@/components/trading/Sparkline'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import {
   Menu, X, ArrowRight, MessageCircle, Shield, Zap, LineChart,
   CheckCircle, Lock, Globe2, Gamepad2, DollarSign, Activity,
-  Users, BarChart3, Copy
+  Copy, ChevronRight, BookOpen, UserCheck, TrendingUp,
+  RefreshCw, Star
 } from 'lucide-react'
 
 // ─── Animated equity curve ────────────────────────────────────────────────
@@ -65,284 +66,12 @@ function EquityCurve({ animate = true }) {
   const pct = (((latest - points[0]) / points[0]) * 100).toFixed(1)
 
   return (
-    <div className="relative">
-      <div className="flex items-end justify-between mb-2 px-1">
-        <div>
-          <div className="text-xs text-white/40 font-medium mb-0.5">Portfolio Value</div>
-          <div className="text-2xl font-bold text-white tabular-nums">
-            ${Math.round(latest).toLocaleString()}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs text-emerald-400 font-bold">+{pct}%</div>
-          <div className="text-xs text-white/30">this session</div>
-        </div>
-      </div>
-      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-[100px]">
-        <defs>
-          <linearGradient id="curveGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#curveGrad)" />
-        <path d={linePath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        {coords.length > 0 && (
-          <g>
-            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="5" fill="#10b981" opacity="0.3" />
-            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="3" fill="#10b981" />
-          </g>
-        )}
-      </svg>
-    </div>
-  )
-}
-
-// ─── Animated counter ─────────────────────────────────────────────────────
-function AnimatedCounter({ target, prefix = '', suffix = '', duration = 1800, decimals = 0 }) {
-  const [val, setVal] = useState(0)
-  const started = useRef(false)
-
-  useEffect(() => {
-    if (started.current || target === 0) return
-    started.current = true
-    const start = Date.now()
-    const tick = () => {
-      const elapsed = Date.now() - start
-      const progress = Math.min(elapsed / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3)
-      setVal(eased * target)
-      if (progress < 1) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  }, [target, duration])
-
-  const formatted = decimals > 0 ? val.toFixed(decimals) : Math.round(val).toLocaleString()
-  return <span>{prefix}{formatted}{suffix}</span>
-}
-
-// ─── Static ticker fallback ───────────────────────────────────────────────
-const STATIC_TICKER = [
-  { symbol: 'BTC/USD', price: '67,842.50', change: '+2.14%', up: true },
-  { symbol: 'ETH/USD', price: '3,541.20',  change: '+1.87%', up: true },
-  { symbol: 'XAU/USD', price: '2,318.40',  change: '-0.32%', up: false },
-  { symbol: 'EUR/USD', price: '1.0872',    change: '+0.08%', up: true },
-  { symbol: 'US100',   price: '18,204.00', change: '+0.64%', up: true },
-  { symbol: 'US30',    price: '38,971.50', change: '-0.12%', up: false },
-  { symbol: 'OIL/USD', price: '83.21',     change: '+0.95%', up: true },
-  { symbol: 'GBP/USD', price: '1.2691',    change: '-0.04%', up: false },
-  { symbol: 'SPX500',  price: '5,218.70',  change: '+0.41%', up: true },
-  { symbol: 'TSLA',    price: '178.50',    change: '+3.21%', up: true },
-]
-
-const DISPLAY_SYMBOLS = ['BTCUSD','ETHUSD','XAUUSD','EURUSD','US100','US30','USOIL','GBPUSD','SPX500','AAPL']
-
-function formatTickerPrice(val, symbol) {
-  if (!val) return '--'
-  const n = Number(val)
-  if (!Number.isFinite(n)) return '--'
-  if (n > 10000) return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  if (n > 100)   return n.toFixed(2)
-  return n.toFixed(4)
-}
-
-const SYMBOL_DISPLAY = {
-  BTCUSD: 'BTC/USD', ETHUSD: 'ETH/USD', XAUUSD: 'XAU/USD',
-  EURUSD: 'EUR/USD', USOIL: 'OIL/USD', GBPUSD: 'GBP/USD',
-}
-
-const MOCK_POSITIONS = [
-  { symbol: 'XAUUSD', side: 'BUY',  lots: 1.00, entry: 2315.20 },
-  { symbol: 'BTCUSD', side: 'BUY',  lots: 0.10, entry: 66100   },
-  { symbol: 'EURUSD', side: 'SELL', lots: 2.00, entry: 1.0890  },
-]
-
-export default function HomePage() {
-  const router = useRouter()
-
-  const [user, setUser]                     = useState(null)
-  const [authLoading, setAuthLoading]       = useState(true)
-  const [email, setEmail]                   = useState('')
-  const [password, setPassword]             = useState('')
-  const [firstName, setFirstName]           = useState('')
-  const [step, setStep]                     = useState(1)
-  const [error, setError]                   = useState('')
-  const [submitting, setSubmitting]         = useState(false)
-  const [showLogin, setShowLogin]           = useState(false)
-  const [loginEmail, setLoginEmail]         = useState('')
-  const [loginPassword, setLoginPassword]   = useState('')
-  const [loginError, setLoginError]         = useState('')
-  const [loginSubmitting, setLoginSubmitting] = useState(false)
-  const [prices, setPrices]                 = useState({})
-  const [stats, setStats]                   = useState({ accounts: 0, totalVolume: 0, trades: 0, uptime: 99 })
-  const [mobileMenu, setMobileMenu]         = useState(false)
-  const [formHighlight, setFormHighlight]   = useState(false)
-  const emailRef = useRef(null)
-
-  const livePositions = useMemo(() => MOCK_POSITIONS.map(pos => {
-    const q = prices[pos.symbol]
-    const mid = q ? Number(q.mid) : null
-    let pnl = null
-    if (mid) {
-      const diff = pos.side === 'BUY' ? mid - pos.entry : pos.entry - mid
-      const mult = pos.symbol === 'XAUUSD' ? 100 : pos.symbol === 'BTCUSD' ? 1 : 100000
-      pnl = diff * pos.lots * mult
-    }
-    return { ...pos, pnl }
-  }), [prices])
-
-  const tickerItems = useMemo(() => {
-    const live = DISPLAY_SYMBOLS.map(sym => {
-      const q = prices[sym]
-      if (!q) return null
-      const mid  = Number(q.mid)
-      const high = Number(q.high)
-      const change = high > 0 ? ((mid - high) / high * 100) : 0
-      return {
-        symbol: SYMBOL_DISPLAY[sym] || sym,
-        price: formatTickerPrice(mid, sym),
-        change: `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`,
-        up: change >= 0,
-      }
-    }).filter(Boolean)
-    return live.length >= 5 ? live : STATIC_TICKER
-  }, [prices])
-
-  // ── Effects ──
-  useEffect(() => {
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 8000)
-    fetch('/api/auth/me', { signal: ctrl.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.user) setUser(d.user) })
-      .catch(() => {})
-      .finally(() => { clearTimeout(t); setAuthLoading(false) })
-    return () => { clearTimeout(t); ctrl.abort() }
-  }, [])
-
-  useEffect(() => { if (user) router.push('/dashboard') }, [user, router])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/market/prices', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled && d?.prices) setPrices(d.prices) })
-      .catch(() => {})
-    const id = setInterval(() => {
-      fetch('/api/market/tick', { method: 'POST' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (!cancelled && d?.prices) setPrices(d.prices) })
-        .catch(() => {})
-    }, 2000)
-    return () => { cancelled = true; clearInterval(id) }
-  }, [])
-
-  useEffect(() => {
-    fetch('/api/stats', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d) })
-      .catch(() => {})
-  }, [])
-
-  // ── Focus/highlight the sign-up form ──
-  const focusEmailForm = (e) => {
-    e?.preventDefault()
-    // Scroll so the form is comfortably visible near the top (with nav offset accounted for)
-    const el = document.getElementById('hero-form')
-    if (el) {
-      const y = el.getBoundingClientRect().top + window.scrollY - 100
-      window.scrollTo({ top: y, behavior: 'smooth' })
-    }
-    setFormHighlight(true)
-    setTimeout(() => {
-      emailRef.current?.focus()
-      setTimeout(() => setFormHighlight(false), 1200)
-    }, 350)
-  }
-
-  // ── Auth handlers ──
-  const handleRegisterStep1 = (e) => {
-    e.preventDefault()
-    if (!email || !email.includes('@')) { setError('Enter a valid email address.'); return }
-    setError(''); setStep(2)
-  }
-
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault()
-    if (!password || password.length < 8) { setError('Password must be at least 8 characters.'); return }
-    setError(''); setSubmitting(true)
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 90000)
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, firstName }),
-        signal: ctrl.signal,
-      })
-      clearTimeout(t)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(data.error || 'Registration failed.'); return }
-      setUser(data.user)
-      router.push('/markets')
-    } catch (err) {
-      clearTimeout(t)
-      setError(err?.name === 'AbortError' ? 'Server is waking up — please try again in a moment.' : 'Network error. Check your connection.')
-    } finally { setSubmitting(false) }
-  }
-
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setLoginError(''); setLoginSubmitting(true)
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 90000)
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-        signal: ctrl.signal,
-      })
-      clearTimeout(t)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setLoginError(data.error || 'Login failed.'); return }
-      setUser(data.user)
-      router.push('/dashboard')
-    } catch (err) {
-      clearTimeout(t)
-      setLoginError(err?.name === 'AbortError' ? 'Server timeout — try again.' : 'Network error.')
-    } finally { setLoginSubmitting(false) }
-  }
-
-  const openTawk = () => {
-    if (typeof window === 'undefined') return
-    let attempts = 0
-    const tryOpen = () => {
-      if (window.Tawk_API?.maximize) { window.Tawk_API.maximize() }
-      else if (attempts < 10) { attempts++; setTimeout(tryOpen, 400) }
-    }
-    tryOpen()
-  }
-
-  if (authLoading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="animate-pulse text-foreground/40 text-sm">Loading…</div>
-    </div>
-  )
-
-  if (user) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="animate-pulse text-foreground/40 text-sm">Redirecting…</div>
-    </div>
-  )
-
-  return (
     <div className="min-h-screen bg-background text-foreground">
 
       {/* ── Live ticker ── */}
       <div className="bg-background/90 border-b border-border/50 h-9 flex items-center overflow-hidden relative">
         <div className="flex-shrink-0 flex items-center gap-1.5 px-4 border-r border-border/50 h-full bg-background z-10">
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-2 w-2" aria-hidden="true">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
           </span>
@@ -366,132 +95,175 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-[0_0_12px_rgba(16,185,129,0.3)]">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-black text-lg leading-none">K</span>
               </div>
-              <span className="text-lg font-bold">Kartomtrades</span>
+              <span className="text-lg font-bold tracking-tight">Kartomtrades</span>
             </div>
-            <div className="hidden lg:flex items-center gap-8">
-              <Link href="/markets" className="text-white/50 hover:text-white transition-colors text-sm">Markets</Link>
-              <a href="#features"  className="text-white/50 hover:text-white transition-colors text-sm">Features</a>
-              <a href="#accounts"  className="text-white/50 hover:text-white transition-colors text-sm">Accounts</a>
-              <a href="#cta"       className="text-white/50 hover:text-white transition-colors text-sm">About</a>
+            <div className="hidden lg:flex items-center gap-7">
+              <Link href="/markets"   className="text-white/50 hover:text-white transition-colors text-sm">Markets</Link>
+              <a href="#features"     className="text-white/50 hover:text-white transition-colors text-sm">Features</a>
+              <a href="#how-it-works" className="text-white/50 hover:text-white transition-colors text-sm">How it works</a>
+              <a href="#accounts"     className="text-white/50 hover:text-white transition-colors text-sm">Accounts</a>
+              <a href="#faq"          className="text-white/50 hover:text-white transition-colors text-sm">FAQ</a>
             </div>
             <div className="hidden lg:flex items-center gap-3">
-              <button onClick={() => setShowLogin(true)} className="text-white/60 hover:text-white text-sm font-medium transition-colors px-3 py-2">Log In</button>
-              <button onClick={focusEmailForm} className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-[0_0_16px_rgba(16,185,129,0.25)]">
-                Start Free <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              <button
+                onClick={() => setShowLogin(true)}
+                className="text-white/60 hover:text-white text-sm font-medium transition-colors px-3 py-2"
+              >Log in</button>
+              <button
+                onClick={focusEmailForm}
+                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+              >Start free demo <ArrowRight className="w-3.5 h-3.5" /></button>
             </div>
-            <button className="lg:hidden text-white/60" onClick={() => setMobileMenu(!mobileMenu)}>
+            <button
+              className="lg:hidden text-white/60"
+              aria-label={mobileMenu ? 'Close menu' : 'Open menu'}
+              onClick={() => setMobileMenu(!mobileMenu)}
+            >
               {mobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
         {mobileMenu && (
-          <div className="lg:hidden bg-background border-t border-border/50 px-4 py-4 space-y-3">
-            <Link href="/markets" className="block text-white/60 hover:text-white text-sm py-1">Markets</Link>
-            <a href="#features" className="block text-white/60 hover:text-white text-sm py-1">Features</a>
-            <a href="#accounts" className="block text-white/60 hover:text-white text-sm py-1">Accounts</a>
+          <div className="lg:hidden bg-background border-t border-border/50 px-4 py-4 space-y-2">
+            <Link href="/markets"   className="block text-white/60 hover:text-white text-sm py-1.5">Markets</Link>
+            <a href="#features"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Features</a>
+            <a href="#how-it-works" className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>How it works</a>
+            <a href="#accounts"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Accounts</a>
+            <a href="#faq"          className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>FAQ</a>
             <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
-              <button onClick={() => { setShowLogin(true); setMobileMenu(false) }} className="w-full text-center text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg">Log In</button>
-              <button onClick={(e) => { setMobileMenu(false); setTimeout(() => focusEmailForm(e), 300) }} className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg">Start Free</button>
+              <button
+                onClick={() => { setShowLogin(true); setMobileMenu(false) }}
+                className="w-full text-center text-white/60 hover:text-white text-sm py-2 border border-border/50 rounded-lg"
+              >Log in</button>
+              <button
+                onClick={(e) => { setMobileMenu(false); setTimeout(() => focusEmailForm(e), 300) }}
+                className="w-full text-center bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg"
+              >Start free demo</button>
             </div>
           </div>
         )}
       </nav>
 
       <main>
+
         {/* ── HERO ── */}
-        <section className="relative overflow-hidden pt-16 pb-20 lg:pt-20 lg:pb-28">
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-emerald-500/10 rounded-full blur-[100px]" />
-            <div className="absolute top-1/2 right-0 w-[400px] h-[400px] bg-cyan-500/8 rounded-full blur-[80px]" />
+        <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-28">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-emerald-500/[0.06] rounded-full blur-[130px]" />
           </div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
-              {/* Left */}
+              {/* Left: copy + form */}
               <div>
-                <div className="flex items-center gap-2 mb-6">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full px-3 py-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Platform Online · {stats.uptime ?? 99}% uptime
-                  </span>
+                <div className="inline-flex items-center gap-2 mb-6 text-[11px] font-semibold bg-white/[0.05] text-white/55 border border-white/[0.09] rounded-full px-3 py-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
+                  Demo-first trading platform
                 </div>
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.06]">
-                  Trade smarter.
-                  <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-emerald-300 to-cyan-400">
-                    Risk nothing.
-                  </span>
+                <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
+                  Practice trading with{' '}
+                  <br className="hidden sm:block" />
+                  <span className="text-emerald-400">live market conditions</span>
                 </h1>
                 <p className="mt-5 text-base md:text-lg text-white/50 max-w-lg leading-relaxed">
-                  Institutional-grade terminal for Forex, Crypto, Stocks, Indices &amp; Commodities.
-                  Start with <span className="text-white font-semibold">$100,000 demo funds</span> — no card, no deposit.
+                  Start with <span className="text-white font-semibold">$100,000 in virtual funds</span> across Forex,
+                  Crypto, Stocks, Indices, and Commodities. No card required.
+                  Move to a live account only when you are ready.
                 </p>
 
-                {/* Social proof */}
-                <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
-                  {[
-                    { icon: <Users className="w-3.5 h-3.5 text-emerald-400" />, value: stats.accounts || 0, prefix: '', suffix: ' accounts' },
-                    { icon: <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />, value: (stats.totalVolume || 0) / 1_000_000, prefix: '$', suffix: 'M traded', decimals: 1 },
-                    { icon: <Copy className="w-3.5 h-3.5 text-purple-400" />, value: stats.trades || 0, prefix: '', suffix: ' trades' },
-                  ].map((s, i) => (
-                    <div key={i} className="flex items-center gap-1.5 text-sm text-white/40">
-                      {s.icon}
-                      <span className="text-white font-semibold tabular-nums">
-                        <AnimatedCounter target={s.value} prefix={s.prefix} decimals={s.decimals || 0} />
-                      </span>
-                      <span>{s.suffix}</span>
-                    </div>
+                {/* Primary + secondary CTAs */}
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={focusEmailForm}
+                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(16,185,129,0.22)]"
+                  >
+                    Start free demo <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                  <a
+                    href="#how-it-works"
+                    className="flex items-center gap-1.5 text-white/55 hover:text-white text-sm font-medium transition-colors"
+                  >
+                    See how it works <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                  </a>
+                </div>
+
+                {/* Trust microcopy */}
+                <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  {['No card required', 'Instant demo account', 'Live market environment'].map((item) => (
+                    <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/35">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60 flex-shrink-0" aria-hidden="true" />
+                      {item}
+                    </span>
                   ))}
                 </div>
 
-                {/* Inline register form */}
-                <div id="hero-form" className={`mt-10 max-w-sm transition-all duration-300 ${formHighlight ? 'ring-2 ring-emerald-500/60 ring-offset-2 ring-offset-background rounded-xl p-3 -mx-3' : ''}`}>
+                {/* Sign-up form */}
+                <div
+                  id="hero-form"
+                  className={`mt-10 max-w-sm transition-all duration-300 ${formHighlight ? 'ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-background rounded-xl p-3 -mx-3' : ''}`}
+                >
                   {step === 1 ? (
                     <form onSubmit={handleRegisterStep1} className="flex flex-col gap-3">
                       <div className="flex gap-2">
                         <input
                           ref={emailRef}
-                          type="email" required placeholder="your@email.com"
-                          value={email} onChange={e => { setEmail(e.target.value); setError('') }}
+                          type="email"
+                          required
+                          placeholder="your@email.com"
+                          autoComplete="email"
+                          value={email}
+                          onChange={e => { setEmail(e.target.value); setError('') }}
                           className="flex-1 h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
                         />
-                        <button type="submit" className="flex-shrink-0 h-11 px-5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center gap-1.5">
-                          Start <ArrowRight className="w-4 h-4" />
+                        <button
+                          type="submit"
+                          className="flex-shrink-0 h-11 px-5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors flex items-center gap-1.5"
+                        >
+                          Start <ArrowRight className="w-4 h-4" aria-hidden="true" />
                         </button>
                       </div>
                       {error && <p className="text-red-400 text-xs">{error}</p>}
-                      <p className="text-white/25 text-xs">Free forever. No credit card. $100k demo instant.</p>
+                      <p className="text-white/25 text-xs">Free account. No card. $100,000 demo balance loaded instantly.</p>
                     </form>
                   ) : (
                     <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
                       <div className="text-xs text-white/40 flex items-center gap-2 mb-1">
-                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-[10px]">✓</span>
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-[10px]" aria-hidden="true">✓</span>
                         {email}
                         <button type="button" onClick={() => setStep(1)} className="text-white/30 hover:text-white/60 ml-auto text-xs underline">change</button>
                       </div>
                       <input
-                        type="text" placeholder="First name (optional)"
-                        value={firstName} onChange={e => setFirstName(e.target.value)}
+                        type="text"
+                        placeholder="First name (optional)"
+                        autoComplete="given-name"
+                        value={firstName}
+                        onChange={e => setFirstName(e.target.value)}
                         className="h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
                       />
                       <input
-                        type="password" required minLength={8} placeholder="Password (min 8 characters)"
-                        value={password} onChange={e => { setPassword(e.target.value); setError('') }}
+                        type="password"
+                        required
+                        minLength={8}
+                        placeholder="Password (min 8 characters)"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={e => { setPassword(e.target.value); setError('') }}
                         className="h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
                       />
                       {error && <p className="text-red-400 text-xs">{error}</p>}
-                      <button type="submit" disabled={submitting}
-                        className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold text-sm transition-colors shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
                       >
                         {submitting ? (
-                          <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Creating account…</>
-                        ) : <>Create Account &amp; Trade Now <ArrowRight className="w-4 h-4" /></>}
+                          <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" /> Creating your account…</>
+                        ) : <>Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
                       </button>
-                      <p className="text-white/20 text-xs text-center">By signing up you agree to our terms &amp; risk disclosure.</p>
+                      <p className="text-white/20 text-xs text-center">By registering you agree to our Terms of Service and Risk Disclosure.</p>
                     </form>
                   )}
                   <p className="mt-3 text-xs text-white/25">
@@ -501,13 +273,12 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Right: live terminal card */}
+              {/* Right: live portfolio terminal */}
               <div className="relative">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/5 blur-2xl" />
                 <div className="relative rounded-2xl border border-white/[0.08] bg-[#0d1117]/80 backdrop-blur overflow-hidden shadow-2xl">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5" aria-hidden="true">
                         <div className="w-3 h-3 rounded-full bg-red-500/60" />
                         <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                         <div className="w-3 h-3 rounded-full bg-emerald-500/60" />
@@ -515,7 +286,7 @@ export default function HomePage() {
                       <span className="text-xs text-white/30 ml-1">Portfolio · Demo Account</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
-                      <Activity className="w-3 h-3" /> Live
+                      <Activity className="w-3 h-3" aria-hidden="true" /> Live
                     </div>
                   </div>
                   <div className="px-4 py-4">
@@ -547,62 +318,128 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-                    <button onClick={focusEmailForm}
-                      className="h-9 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors">
+                    <button onClick={focusEmailForm} className="h-9 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors">
                       ▲ Buy
                     </button>
-                    <button onClick={focusEmailForm}
-                      className="h-9 rounded-xl border border-red-500/20 bg-red-500/8 text-red-300 text-xs font-semibold hover:bg-red-500/15 transition-colors">
+                    <button onClick={focusEmailForm} className="h-9 rounded-xl border border-red-500/20 bg-red-500/[0.08] text-red-300 text-xs font-semibold hover:bg-red-500/15 transition-colors">
                       ▼ Sell
                     </button>
                   </div>
                 </div>
+                <p className="text-center text-[11px] text-white/20 mt-3">Simulated demo account — no real funds at risk</p>
               </div>
 
             </div>
           </div>
         </section>
 
-        {/* ── Markets strip ── */}
-        <section className="py-16 border-t border-border/50 bg-muted/20">
+        {/* ── TRUST STRIP ── */}
+        <section className="border-y border-border/40 bg-white/[0.015] py-5" aria-label="Platform trust signals">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 items-center">
+              {[
+                { icon: <Gamepad2 className="w-4 h-4" aria-hidden="true" />,  label: 'Demo-first platform' },
+                { icon: <Activity  className="w-4 h-4" aria-hidden="true" />,  label: 'Live market data' },
+                { icon: <LineChart className="w-4 h-4" aria-hidden="true" />,  label: 'TradingView charts' },
+                { icon: <UserCheck className="w-4 h-4" aria-hidden="true" />,  label: 'KYC before live account' },
+                { icon: <Shield    className="w-4 h-4" aria-hidden="true" />,  label: 'Crypto deposits supported' },
+                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: 'Education-first approach' },
+              ].map(({ icon, label }) => (
+                <div key={label} className="flex items-center gap-2 text-white/40 text-sm">
+                  <span className="text-emerald-500/60">{icon}</span>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── HOW IT WORKS ── */}
+        <section id="how-it-works" className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="max-w-xl mb-14">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">How it works</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Three steps to your first trade</h2>
+              <p className="mt-3 text-white/40 text-base">Practice first. Go live only when you are confident.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6 relative">
+              <div className="hidden md:block absolute top-9 left-[calc(16.67%+1.5rem)] right-[calc(16.67%+1.5rem)] h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" aria-hidden="true" />
+              {[
+                {
+                  step: '01',
+                  title: 'Create your free demo account',
+                  body: 'Sign up with just an email address. No card, no deposit, no wait. Your account is ready in seconds with $100,000 in virtual funds.',
+                  icon: <UserCheck className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                },
+                {
+                  step: '02',
+                  title: 'Practice with virtual funds at live prices',
+                  body: 'Trade Forex, crypto, stocks, indices, and commodities at real market prices. Use stop loss, take profit, copy trading, and the AI trade coach to build real skills.',
+                  icon: <TrendingUp className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                },
+                {
+                  step: '03',
+                  title: 'Upgrade to a live account after verification',
+                  body: "When you're ready, complete identity verification and make a deposit. Same terminal, same interface. No new learning curve.",
+                  icon: <Shield className="w-5 h-5 text-emerald-400" aria-hidden="true" />,
+                },
+              ].map(({ step, title, body, icon }) => (
+                <div key={step} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-7">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                      {icon}
+                    </div>
+                    <span className="text-[11px] font-bold text-white/20 tracking-widest uppercase">Step {step}</span>
+                  </div>
+                  <h3 className="text-white font-semibold text-base mb-2 leading-snug">{title}</h3>
+                  <p className="text-white/40 text-sm leading-relaxed">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── MARKETS STRIP ── */}
+        <section className="py-14 border-b border-border/40 bg-white/[0.01]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-end justify-between mb-8">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-2">Live Markets</div>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">One platform. Every market.</h2>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">One account. Every market.</h2>
               </div>
               <Link href="/markets" className="hidden sm:flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
-                View all <ArrowRight className="w-4 h-4" />
+                View all <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { symbol: 'XAUUSD', name: 'Gold',       icon: '🥇' },
-                { symbol: 'BTCUSD', name: 'Bitcoin',    icon: '₿'  },
-                { symbol: 'US100',  name: 'Nasdaq 100', icon: '📈' },
-                { symbol: 'EURUSD', name: 'EUR/USD',    icon: '💱' },
-              ].map(({ symbol, name, icon }) => {
-                const q   = prices[symbol]
+                { symbol: 'XAUUSD', name: 'Gold',       cat: 'Commodity' },
+                { symbol: 'BTCUSD', name: 'Bitcoin',    cat: 'Crypto'    },
+                { symbol: 'US100',  name: 'Nasdaq 100', cat: 'Index'     },
+                { symbol: 'EURUSD', name: 'EUR/USD',    cat: 'Forex'     },
+              ].map(({ symbol, name, cat }) => {
+                const q    = prices[symbol]
                 const mid  = q ? Number(q.mid)  : null
                 const high = q ? Number(q.high) : null
                 const pct  = (mid && high && high > 0) ? ((mid - high) / high * 100) : null
                 const up   = pct == null || pct >= 0
                 return (
-                  <button key={symbol}
+                  <button
+                    key={symbol}
                     onClick={focusEmailForm}
-                    className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] p-4 text-left transition-all hover:border-emerald-500/20"
+                    className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.05] p-5 text-left transition-all hover:border-white/[0.12]"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <span className="text-2xl">{icon}</span>
+                      <span className="text-[10px] text-white/25 font-semibold uppercase tracking-widest">{cat}</span>
                       {pct != null && (
                         <span className={`text-[11px] font-bold tabular-nums ${up ? 'text-emerald-400' : 'text-red-400'}`}>
                           {up ? '+' : ''}{pct.toFixed(2)}%
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-white/40 mb-0.5">{symbol}</div>
-                    <div className="text-white font-bold text-sm">{name}</div>
-                    <div className="text-white/60 text-sm font-mono tabular-nums mt-1">
+                    <div className="text-white font-bold text-sm mb-0.5">{name}</div>
+                    <div className="text-white/40 text-[11px] mb-2">{symbol}</div>
+                    <div className="text-white font-mono text-base font-semibold tabular-nums">
                       {mid ? formatTickerPrice(mid, symbol) : '--'}
                     </div>
                   </button>
@@ -612,28 +449,58 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Features ── */}
-        <section id="features" className="py-20">
+        {/* ── FEATURES ── */}
+        <section id="features" className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Why Kartomtrades</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for calm, confident execution</h2>
-              <p className="mt-3 text-white/40 text-base">Everything a serious trader needs. Nothing you don't.</p>
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Platform features</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for practice, analysis, and disciplined execution</h2>
+              <p className="mt-3 text-white/40 text-base">Every tool is designed to help you develop real trading skills.</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { Icon: Zap,       title: 'Real-Time Prices',    desc: 'Bid/ask quotes update every 2 seconds across all instruments.', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-                { Icon: LineChart, title: 'TradingView Charts',  desc: 'Full-featured interactive charts with all timeframes and drawing tools.', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
-                { Icon: Copy,      title: 'Copy Trading',        desc: 'Follow expert traders and automatically mirror their positions.', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' },
-                { Icon: Lock,      title: 'TP / SL Controls',   desc: 'Take profit and stop loss on every position. Protect your capital.', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-                { Icon: Globe2,    title: '40+ Instruments',     desc: 'Forex, Crypto, Stocks, Indices, and Commodities under one roof.', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
-                { Icon: Activity,  title: 'AI Trade Coach',      desc: 'Get a grade and feedback on every closed trade to sharpen your edge.', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+                {
+                  Icon: Globe2,
+                  title: 'Multi-asset market access',
+                  desc: 'Trade Forex pairs, cryptocurrencies, equities, stock indices, and commodities from a single account. Over 40 instruments available across all major sessions.',
+                  color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+                },
+                {
+                  Icon: LineChart,
+                  title: 'TradingView charts',
+                  desc: 'Full-featured interactive charts with all major timeframes, a complete library of drawing tools, and a broad range of technical indicators.',
+                  color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                },
+                {
+                  Icon: Lock,
+                  title: 'Stop loss and take profit',
+                  desc: 'Set a stop loss and take profit level on every position before opening it. Define your maximum loss per trade without relying on manual monitoring.',
+                  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+                },
+                {
+                  Icon: RefreshCw,
+                  title: 'Demo and live account switching',
+                  desc: 'Switch between your demo and live accounts in one click from the same terminal. No separate logins, no separate interfaces to learn.',
+                  color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+                },
+                {
+                  Icon: Star,
+                  title: 'AI trade coach',
+                  desc: 'Every closed trade is reviewed automatically. You receive a score and plain-language feedback on your entry, exit, and risk decisions to help you improve.',
+                  color: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
+                },
+                {
+                  Icon: Copy,
+                  title: 'Copy trading',
+                  desc: 'Follow experienced traders on the platform and automatically mirror their positions. You set the allocation size and can stop copying at any time.',
+                  color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+                },
               ].map(({ Icon, title, desc, color }) => (
-                <div key={title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-white/[0.12] transition-colors">
-                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 ${color}`}>
-                    <Icon className="w-5 h-5" />
+                <div key={title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-white/[0.11] transition-colors">
+                  <div className={`w-9 h-9 rounded-xl border flex items-center justify-center mb-4 ${color}`}>
+                    <Icon className="w-4.5 h-4.5" aria-hidden="true" />
                   </div>
-                  <div className="text-white font-semibold mb-1.5">{title}</div>
+                  <div className="text-white font-semibold mb-2">{title}</div>
                   <div className="text-white/40 text-sm leading-relaxed">{desc}</div>
                 </div>
               ))}
@@ -641,89 +508,230 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Accounts ── */}
-        <section id="accounts" className="py-20 border-t border-border/50 bg-muted/20">
+        {/* ── ACCOUNTS COMPARISON ── */}
+        <section id="accounts" className="py-20 border-b border-border/40 bg-white/[0.015]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Dual Account System</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Practice first. Go live when ready.</h2>
-              <p className="mt-3 text-white/40 text-base">Two wallets, same terminal. Demo for skill-building. Real account for live P&amp;L.</p>
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Account types</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Practice first. Go live when you are ready.</h2>
+              <p className="mt-3 text-white/40 text-base">
+                Demo and live accounts share the same interface. The difference is what is at stake.
+              </p>
             </div>
-            <div className="grid md:grid-cols-2 gap-5 max-w-3xl">
-              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-                    <Gamepad2 className="w-5 h-5 text-amber-400" />
+            <div className="grid md:grid-cols-2 gap-5 max-w-2xl">
+
+              {/* Demo account */}
+              <div className="rounded-2xl border border-white/[0.10] bg-white/[0.03] p-7">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                    <Gamepad2 className="w-5 h-5 text-amber-400" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold">Demo Account</div>
-                    <div className="text-white/30 text-xs">Practice with virtual funds</div>
+                    <div className="text-white font-semibold">Demo account</div>
+                    <div className="text-white/30 text-xs">Start immediately — no deposit</div>
                   </div>
                 </div>
-                <div className="text-4xl font-extrabold text-white mb-1 tabular-nums">$100,000</div>
-                <div className="text-white/30 text-sm mb-5">Instant. No deposit. Free forever.</div>
-                <ul className="space-y-2.5 text-sm">
-                  {['Realistic market simulation', 'Reset funds anytime', 'Full access to all tools'].map(t => (
-                    <li key={t} className="flex items-center gap-2 text-white/50">
-                      <CheckCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />{t}
+                <div className="text-3xl font-extrabold text-white mb-1 tabular-nums">$100,000</div>
+                <div className="text-white/30 text-sm mb-6">Virtual funds, loaded instantly</div>
+                <ul className="space-y-3">
+                  {[
+                    'No credit card or deposit required',
+                    'Trade at real live market prices',
+                    'Reset your balance at any time',
+                    'Full access to all platform tools',
+                    'Switch to a live account when ready',
+                  ].map(t => (
+                    <li key={t} className="flex items-start gap-2.5 text-sm text-white/55">
+                      <CheckCircle className="w-4 h-4 text-amber-400/80 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                      {t}
                     </li>
                   ))}
                 </ul>
+                <button
+                  onClick={focusEmailForm}
+                  className="mt-7 w-full h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-300 text-sm font-semibold hover:bg-amber-500/25 transition-colors"
+                >
+                  Open demo account
+                </button>
               </div>
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-                    <DollarSign className="w-5 h-5 text-emerald-400" />
+
+              {/* Live account */}
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-7">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold">Real Account</div>
-                    <div className="text-white/30 text-xs">Live trading after KYC</div>
+                    <div className="text-white font-semibold">Live account</div>
+                    <div className="text-white/30 text-xs">Available after identity verification</div>
                   </div>
                 </div>
-                <div className="text-4xl font-extrabold text-white mb-1">Your Funds</div>
-                <div className="text-white/30 text-sm mb-5">Deposit after verification. Same terminal.</div>
-                <ul className="space-y-2.5 text-sm">
-                  {['Fast crypto deposits (BTC/USDT)', 'Admin review workflow', 'Real P&L, real withdrawals'].map(t => (
-                    <li key={t} className="flex items-center gap-2 text-white/50">
-                      <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />{t}
+                <div className="text-3xl font-extrabold text-white mb-1">Real funds</div>
+                <div className="text-white/30 text-sm mb-6">Deposit after KYC approval</div>
+                <ul className="space-y-3">
+                  {[
+                    'Identity verification (KYC) required',
+                    'Deposit via crypto (BTC / USDT)',
+                    'Real profit and loss on every trade',
+                    'Withdrawal subject to admin review',
+                    'Same terminal as your demo account',
+                  ].map(t => (
+                    <li key={t} className="flex items-start gap-2.5 text-sm text-white/55">
+                      <CheckCircle className="w-4 h-4 text-emerald-400/80 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                      {t}
                     </li>
                   ))}
                 </ul>
+                <button
+                  onClick={focusEmailForm}
+                  className="mt-7 w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors"
+                >
+                  Start with a demo first
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ── CREDIBILITY / TRANSPARENCY ── */}
+        <section className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid lg:grid-cols-2 gap-16 items-start">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">About the platform</div>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-5">
+                  Built for traders who want to learn properly
+                </h2>
+                <p className="text-white/50 text-base leading-relaxed mb-5">
+                  Kartomtrades is a simulated trading platform that connects you to live market data so you can practice
+                  trading in realistic conditions without putting real money at risk.
+                </p>
+                <p className="text-white/40 text-sm leading-relaxed mb-5">
+                  The platform is designed for retail traders who want to build genuine skills before committing real capital.
+                  Whether you are completely new to trading or returning after a break, the demo environment gives you a realistic
+                  space to practice without financial pressure.
+                </p>
+                <p className="text-white/40 text-sm leading-relaxed">
+                  Live trading is available after completing identity verification. This step exists to protect all users.
+                  Deposits and withdrawals are processed in cryptocurrency.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {[
+                  {
+                    title: 'What is Kartomtrades?',
+                    body: 'A simulated trading platform that uses live market data. You can practice across multiple asset classes in a realistic environment before deciding whether to open a live account.',
+                  },
+                  {
+                    title: 'Who is it for?',
+                    body: 'Beginner and intermediate retail traders who want to practice before risking real money. Also suitable for experienced traders who want to test new strategies without financial risk.',
+                  },
+                  {
+                    title: 'What does "demo-first" mean?',
+                    body: 'Every account starts as a demo account with $100,000 in virtual funds. You are never required to deposit. Moving to a live account is a separate, voluntary step.',
+                  },
+                  {
+                    title: 'What requires verification?',
+                    body: 'Identity verification (KYC) is required only before opening a live account or making a deposit. The demo account can be used indefinitely without any verification.',
+                  },
+                ].map(({ title, body }) => (
+                  <div key={title} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
+                    <div className="text-white font-medium text-sm mb-1.5">{title}</div>
+                    <div className="text-white/40 text-sm leading-relaxed">{body}</div>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] px-5 py-4 flex items-center gap-3">
+                  <MessageCircle className="w-5 h-5 text-emerald-400/60 flex-shrink-0" aria-hidden="true" />
+                  <div>
+                    <div className="text-white/50 text-sm">Questions? Our support team is here.</div>
+                    <button onClick={openTawk} className="text-emerald-400 text-xs hover:text-emerald-300 underline transition-colors">Open live chat</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── CTA ── */}
+        {/* ── FAQ ── */}
+        <section id="faq" className="py-20 border-b border-border/40 bg-white/[0.015]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-12">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">FAQ</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Common questions</h2>
+            </div>
+            <Accordion type="single" collapsible className="space-y-2">
+              {FAQ_ITEMS.map((item, i) => (
+                <AccordionItem
+                  key={i}
+                  value={`faq-${i}`}
+                  className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-5 data-[state=open]:border-white/[0.11] transition-colors"
+                >
+                  <AccordionTrigger className="text-white/80 hover:text-white hover:no-underline text-sm font-medium py-4">
+                    {item.q}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-white/45 text-sm leading-relaxed pb-4">
+                    {item.a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        </section>
+
+        {/* ── FINAL CTA ── */}
         <section id="cta" className="py-24">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-            <div className="rounded-3xl border border-white/[0.07] bg-gradient-to-br from-emerald-500/10 to-cyan-500/5 p-10 md:p-16">
-              <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">Ready to start trading?</h2>
-              <p className="text-white/40 text-base md:text-lg mb-10 max-w-xl mx-auto">
-                Create your free account in 30 seconds. $100,000 demo balance, no credit card, no commitment.
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+            <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-10 md:p-14">
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+                Start your free demo account
+              </h2>
+              <p className="text-white/45 text-base mb-2">
+                $100,000 in virtual funds. No card required. Instant access.
               </p>
-              <form onSubmit={step === 1 ? handleRegisterStep1 : handleRegisterSubmit}
-                className="flex flex-col sm:flex-row gap-3 max-w-sm mx-auto">
-                <input type="email" required placeholder="your@email.com"
-                  value={email} onChange={e => { setEmail(e.target.value); setError('') }}
+              <p className="text-white/25 text-sm mb-8">
+                Practice trading in live market conditions before risking real money.
+              </p>
+              <form
+                onSubmit={step === 1 ? handleRegisterStep1 : handleRegisterSubmit}
+                className="flex flex-col sm:flex-row gap-3 max-w-sm mx-auto"
+              >
+                <input
+                  type="email"
+                  required
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setError('') }}
                   className="flex-1 h-12 px-4 rounded-xl bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60"
                 />
-                <button type="submit"
-                  className="h-12 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition-colors shadow-[0_0_24px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 flex-shrink-0">
-                  Get Started <ArrowRight className="w-4 h-4" />
+                <button
+                  type="submit"
+                  className="h-12 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 flex-shrink-0"
+                >
+                  Get started <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </button>
               </form>
-              <p className="text-white/20 text-xs mt-4">No spam. Unsubscribe any time.</p>
+              {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
+              <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
+                {['No card required', 'Instant demo account', 'Live market environment'].map(item => (
+                  <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/30">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500/50" aria-hidden="true" />
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </section>
+
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-border/50 py-12">
+      {/* ── FOOTER ── */}
+      <footer className="border-t border-border/50 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-10 mb-10">
-            <div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
+            <div className="lg:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-black text-lg leading-none">K</span>
@@ -731,54 +739,72 @@ export default function HomePage() {
                 <span className="text-lg font-bold">Kartomtrades</span>
               </div>
               <p className="text-white/30 text-xs max-w-xs leading-relaxed">
-                Professional-grade simulated trading platform for education and practice. Not a licensed financial advisor.
+                A simulated trading platform for education and practice.
+                All trading is conducted using virtual funds unless you open a live account after completing identity verification.
               </p>
             </div>
-            <div className="flex gap-16">
-              <div>
-                <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-3">Platform</div>
-                <div className="space-y-2">
-                  <Link href="/markets"                className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
-                  <button onClick={() => setShowLogin(true)} className="block text-white/40 hover:text-white text-xs transition-colors">Log In</button>
-                  <button onClick={focusEmailForm} className="block text-white/40 hover:text-white text-xs transition-colors">Register</button>
-                </div>
+            <div>
+              <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Platform</div>
+              <div className="space-y-2.5">
+                <Link href="/markets"                  className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
+                <button onClick={() => setShowLogin(true)} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Log in</button>
+                <button onClick={focusEmailForm}           className="block text-white/40 hover:text-white text-xs transition-colors text-left">Register</button>
+                <a href="#how-it-works"                    className="block text-white/40 hover:text-white text-xs transition-colors">How it works</a>
+                <a href="#faq"                             className="block text-white/40 hover:text-white text-xs transition-colors">FAQ</a>
               </div>
-              <div>
-                <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-3">Legal</div>
-                <div className="space-y-2 text-white/25 text-xs">
-                  <div>Risk Disclosure</div>
-                  <div>Privacy Policy</div>
-                  <div>Terms of Service</div>
-                </div>
+            </div>
+            <div>
+              <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Legal</div>
+              <div className="space-y-2.5">
+                {/* TODO: Replace spans with <Link> once legal pages are created */}
+                <span className="block text-white/25 text-xs select-none">Risk Disclosure</span>
+                <span className="block text-white/25 text-xs select-none">Privacy Policy</span>
+                <span className="block text-white/25 text-xs select-none">Terms of Service</span>
+                <button onClick={openTawk} className="block text-white/40 hover:text-white text-xs transition-colors text-left">Support / Contact</button>
               </div>
             </div>
           </div>
-          <div className="border-t border-border/50 pt-6">
+          <div className="border-t border-border/50 pt-6 space-y-3">
             <p className="text-white/20 text-xs leading-relaxed max-w-4xl">
-              <span className="text-white/40 font-semibold">Risk Warning:</span> 76% of retail investor accounts lose money when trading CFDs.
-              You should consider whether you understand how CFDs work and whether you can afford to take the high risk of losing your money.
-              This platform is for educational and simulation purposes only. Past performance is not a reliable indicator of future results.
+              <span className="text-white/35 font-semibold">Risk Warning:</span>{' '}
+              Trading financial instruments involves significant risk and may not be suitable for all investors.
+              A large proportion of retail investor accounts lose money when trading leveraged products.
+              You should carefully consider whether trading is appropriate for you in light of your financial situation, experience, and risk tolerance.
             </p>
+            <p className="text-white/15 text-xs leading-relaxed max-w-4xl">
+              Kartomtrades is a simulation platform intended for educational and practice purposes.
+              Virtual demo trading does not guarantee equivalent results in live markets.
+              Past performance of any trading strategy or instrument is not a reliable indicator of future results.
+              This platform does not provide financial advice.
+            </p>
+            <p className="text-white/15 text-xs">© {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
           </div>
         </div>
       </footer>
 
-      {/* ── Floating support ── */}
-      <button onClick={openTawk}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full px-4 py-3 shadow-[0_4px_24px_rgba(16,185,129,0.4)] transition-colors">
-        <MessageCircle className="w-5 h-5" />
-        <span className="text-sm font-semibold hidden sm:inline">Live Support</span>
+      {/* ── Floating support button ── */}
+      <button
+        onClick={openTawk}
+        aria-label="Open live support chat"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full px-4 py-3 shadow-[0_4px_20px_rgba(16,185,129,0.28)] transition-colors"
+      >
+        <MessageCircle className="w-5 h-5" aria-hidden="true" />
+        <span className="text-sm font-semibold hidden sm:inline">Support</span>
       </button>
 
       {/* ── Login modal ── */}
       {showLogin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowLogin(false)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Log in to Kartomtrades">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowLogin(false)} aria-hidden="true" />
           <div className="relative w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#0d1117] p-6 shadow-2xl">
-            <button onClick={() => setShowLogin(false)} className="absolute top-4 right-4 text-white/30 hover:text-white">
+            <button
+              onClick={() => setShowLogin(false)}
+              aria-label="Close"
+              className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"
+            >
               <X className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2.5 mb-5">
+            <div className="flex items-center gap-2.5 mb-6">
               <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-black text-sm leading-none">K</span>
               </div>
@@ -786,32 +812,51 @@ export default function HomePage() {
             </div>
             <form onSubmit={handleLogin} className="flex flex-col gap-3">
               <div>
-                <label className="text-xs text-white/30 block mb-1.5">Email</label>
-                <input type="email" required placeholder="you@example.com"
-                  value={loginEmail} onChange={e => { setLoginEmail(e.target.value); setLoginError('') }}
+                <label className="text-xs text-white/30 block mb-1.5" htmlFor="login-email">Email</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  required
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  value={loginEmail}
+                  onChange={e => { setLoginEmail(e.target.value); setLoginError('') }}
                   className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.10] text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
               <div>
-                <label className="text-xs text-white/30 block mb-1.5">Password</label>
-                <input type="password" required placeholder="••••••••"
-                  value={loginPassword} onChange={e => { setLoginPassword(e.target.value); setLoginError('') }}
+                <label className="text-xs text-white/30 block mb-1.5" htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={e => { setLoginPassword(e.target.value); setLoginError('') }}
                   className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.10] text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
-              {loginError && <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{loginError}</p>}
-              <button type="submit" disabled={loginSubmitting}
-                className="h-11 mt-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+              {loginError && (
+                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{loginError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={loginSubmitting}
+                className="h-11 mt-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
                 {loginSubmitting
-                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" /> Signing in…</>
-                  : 'Sign In'
+                  ? <><span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" aria-hidden="true" /> Signing in…</>
+                  : 'Sign in'
                 }
               </button>
             </form>
             <p className="text-center text-xs text-white/25 mt-4">
               No account?{' '}
-              <button onClick={(e) => { setShowLogin(false); setTimeout(() => focusEmailForm(e), 200) }}
-                className="text-emerald-400 hover:text-emerald-300 underline">Create one free</button>
+              <button
+                onClick={(e) => { setShowLogin(false); setTimeout(() => focusEmailForm(e), 200) }}
+                className="text-emerald-400 hover:text-emerald-300 underline"
+              >Create one free</button>
             </p>
           </div>
         </div>
