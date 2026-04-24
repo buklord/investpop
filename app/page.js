@@ -407,9 +407,15 @@ export default function HomePage() {
 
               {/* Left: copy + form */}
               <div>
-                <div className="inline-flex items-center gap-2 mb-6 text-[11px] font-semibold bg-white/[0.05] text-white/55 border border-white/[0.09] rounded-full px-3 py-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
-                  Demo-first trading platform
+                <div className="flex flex-wrap items-center gap-2 mb-6">
+                  <div className="inline-flex items-center gap-2 text-[11px] font-semibold bg-white/[0.05] text-white/55 border border-white/[0.09] rounded-full px-3 py-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
+                    Demo-first trading platform
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 rounded-full px-3 py-1.5">
+                    <span aria-hidden="true">&#127873;</span>
+                    100% bonus on your first deposit
+                  </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
                   Practice trading with{' '}
@@ -440,7 +446,7 @@ export default function HomePage() {
 
                 {/* Trust microcopy */}
                 <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {['No card required', 'Instant demo account', 'Live market environment'].map((item) => (
+                  {['No card required', 'Instant account', '100% first deposit bonus'].map((item) => (
                     <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/35">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60 flex-shrink-0" aria-hidden="true" />
                       {item}
@@ -872,6 +878,23 @@ export default function HomePage() {
         {/* ── ACCOUNTS COMPARISON ── */}
         <section id="accounts" className="py-20 border-b border-border/40 bg-white/[0.015]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
+
+            {/* Bonus promo banner */}
+            <div className="mb-10 rounded-2xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/[0.10] to-emerald-600/[0.04] px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                  <span className="text-emerald-300 font-extrabold text-xl leading-none">2×</span>
+                </div>
+                <div>
+                  <div className="text-white font-bold text-lg leading-snug">100% bonus on your first deposit</div>
+                  <div className="text-white/45 text-sm mt-0.5">Deposit any amount &mdash; we match it. Deposit $500, start trading with $1,000.</div>
+                </div>
+              </div>
+              <button
+                onClick={focusEmailForm}
+                className="shrink-0 flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+              >Claim bonus <ArrowRight className="w-3.5 h-3.5" /></button>
+            </div>
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Account types</div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Practice first. Go live when you are ready.</h2>
