@@ -574,7 +574,7 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
-                <p className="text-center text-[11px] text-white/20 mt-3">Simulated demo account &mdash; no real funds at risk</p>
+                <p className="text-center text-[11px] text-white/20 mt-3">Demo account &mdash; no real funds at risk</p>
               </div>
 
             </div>
@@ -591,7 +591,7 @@ export default function HomePage() {
                 { icon: <LineChart className="w-4 h-4" aria-hidden="true" />,  label: 'TradingView charts' },
                 { icon: <UserCheck className="w-4 h-4" aria-hidden="true" />,  label: 'KYC before live account' },
                 { icon: <Shield    className="w-4 h-4" aria-hidden="true" />,  label: 'Crypto deposits supported' },
-                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: 'Education-first approach' },
+                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: '100% first deposit bonus' },
               ].map(({ icon, label }) => (
                 <div key={label} className="flex items-center gap-2 text-white/40 text-sm">
                   <span className="text-emerald-500/60">{icon}</span>
@@ -928,7 +928,14 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="text-3xl font-extrabold text-white mb-1">Real funds</div>
-                <div className="text-white/30 text-sm mb-6">Deposit after KYC approval</div>
+                <div className="text-white/30 text-sm mb-3">Deposit after KYC approval</div>
+                <div className="mb-6 flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-4 py-2.5">
+                  <span className="text-emerald-400 text-lg font-black leading-none">2×</span>
+                  <div>
+                    <div className="text-emerald-300 text-sm font-semibold">100% first deposit bonus</div>
+                    <div className="text-white/30 text-xs">Deposit $500, trade with $1,000</div>
+                  </div>
+                </div>
                 <ul className="space-y-3">
                   {[
                     'Identity verification (KYC) required',
@@ -965,8 +972,8 @@ export default function HomePage() {
                   Built for traders who want to learn properly
                 </h2>
                 <p className="text-white/50 text-base leading-relaxed mb-5">
-                  Kartomtrades is a simulated trading platform that connects you to live market data so you can practice
-                  trading in realistic conditions without putting real money at risk.
+                  Kartomtrades is a trading platform that connects you to live market data so you can practice
+                  trading in realistic conditions before committing real capital.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
                   The platform is designed for retail traders who want to build genuine skills before committing real capital.
@@ -982,7 +989,7 @@ export default function HomePage() {
                 {[
                   {
                     title: 'What is Kartomtrades?',
-                    body: 'A simulated trading platform that uses live market data. You can practice across multiple asset classes in a realistic environment before deciding whether to open a live account.',
+                    body: 'A trading platform that uses live market data. You can practice across multiple asset classes in a realistic environment before deciding whether to open a live account.',
                   },
                   {
                     title: 'Who is it for?',
