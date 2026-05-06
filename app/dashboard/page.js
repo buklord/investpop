@@ -319,7 +319,6 @@ export default function DashboardPage() {
   const loadData = async () => {
     setDataLoading(true)
     try {
-      fetch('/api/assets/seed', { method: 'POST' }).catch(() => {})
       const [accountRes, positionsRes, watchlistRes, tradesRes, snapshotRes] = await Promise.all([
         fetch('/api/account'),
         fetch('/api/positions?status=open'),
@@ -415,7 +414,18 @@ export default function DashboardPage() {
         const data = await res.json()
         const resolvedMode = data.tradingMode || newMode
         setTradingMode(resolvedMode)
-        setAccount(prev => prev ? { ...prev, balance: data.balance ?? prev.balance, tradingMode: resolvedMode } : prev)
+        // Clear P&L and margin fields immediately — they belong to the old mode's positions.
+        // loadData() below will repopulate them for the new mode.
+        setAccount(prev => prev ? {
+          ...prev,
+          balance: data.balance ?? prev.balance,
+          tradingMode: resolvedMode,
+          openPnl: 0,
+          equity: data.balance ?? prev.balance,
+          available: data.balance ?? prev.balance,
+          marginReserved: 0,
+          positionsCount: 0,
+        } : prev)
         loadData().catch(() => {})
       }
     } catch {}
@@ -799,7 +809,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-muted-foreground text-sm">{tradingMode === 'DEMO' ? '🎯 Practice Account' : '💼 Live Account'}</p>
+              <p className={`text-sm font-medium ${tradingMode === 'DEMO' ? 'text-amber-400' : 'text-emerald-400'}`}>{tradingMode === 'DEMO' ? '🎯 Practice Account — Virtual Money' : '💼 Live Account — Real Funds'}</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Demo / Real toggle */}
@@ -879,22 +889,28 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-card border border-border rounded-xl">
+              <Card className={`border rounded-xl ${tradingMode === 'DEMO' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-card border-border'}`}>
+                {tradingMode === 'DEMO' && (
+                  <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 rounded-t-xl">
+                    <span className="text-amber-400 text-sm">🎯</span>
+                    <span className="text-amber-300 text-xs sm:text-sm font-semibold">Practice Account — Virtual money only, no real funds at risk</span>
+                  </div>
+                )}
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${equity >= 0 ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
-                        <TrendingUp className={`h-5 w-5 ${equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                      <div className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 ${tradingMode === 'DEMO' ? 'bg-amber-500/15' : equity >= 0 ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
+                        <TrendingUp className={`h-5 w-5 ${tradingMode === 'DEMO' ? 'text-amber-400' : equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-muted-foreground text-xs sm:text-sm font-semibold uppercase tracking-wide">Total equity</div>
+                        <div className={`text-xs sm:text-sm font-semibold uppercase tracking-wide ${tradingMode === 'DEMO' ? 'text-amber-400/70' : 'text-muted-foreground'}`}>Total equity</div>
                         <div className="flex items-end gap-3 flex-wrap">
                           <div className="text-3xl sm:text-4xl font-bold text-foreground truncate">{formatCurrency(equity)}</div>
                           {sparklineData.length >= 2 && (
                             <div className="mb-1.5"><Sparkline data={sparklineData} positive={sparkPositive} /></div>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">Live account value · cash + open P&amp;L</div>
+                        <div className="text-xs text-muted-foreground mt-1">{tradingMode === 'DEMO' ? 'Practice account · virtual funds' : 'Live account · cash + open P&L'}</div>
                         {/* Session indicator */}
                         <div className="mt-2">
                           <SessionBadge elapsedSeconds={elapsedSeconds} sessionDelta={sessionDelta} />

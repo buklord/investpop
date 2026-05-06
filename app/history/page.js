@@ -548,10 +548,21 @@ export default function AnalyticsPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-white">Analytics</h1>
               <p className="text-slate-400 text-sm">Portfolio · Performance · History · AI Coach</p>
             </div>
-            <Button variant="ghost" onClick={refreshData} disabled={refreshing}
-              className="hidden lg:flex text-slate-400 hover:text-white">
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />Refresh
-            </Button>
+            <div className="flex items-center gap-3">
+              {account && (
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  (account.tradingMode ?? account.trading_mode) === 'DEMO'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                }`}>
+                  {(account.tradingMode ?? account.trading_mode) === 'DEMO' ? '🎯 Practice Data' : '💼 Real Data'}
+                </span>
+              )}
+              <Button variant="ghost" onClick={refreshData} disabled={refreshing}
+                className="hidden lg:flex text-slate-400 hover:text-white">
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />Refresh
+              </Button>
+            </div>
           </div>
 
           {/* ── Stats bar ─────────────────────────────────────────────────────── */}

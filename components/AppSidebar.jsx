@@ -237,25 +237,28 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </div>
               </div>
 
-              <div className="mt-3 bg-sidebar-accent/60 rounded-lg p-2 text-xs space-y-1">
+              <div className={`mt-3 rounded-lg p-2 text-xs space-y-1 ${tradingMode === 'DEMO' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-sidebar-accent/60'}`}>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Mode</span>
                   {accountLoading || tradingMode === null ? (
                     <span className="text-muted-foreground text-xs italic">Loading…</span>
                   ) : (
                     <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                      {tradingMode === 'REAL' ? 'Real' : 'Demo'}
+                      {tradingMode === 'REAL' ? '💼 Real' : '🎯 Demo'}
                     </span>
                   )}
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Available</span>
+                  <span className="text-muted-foreground">{tradingMode === 'DEMO' ? 'Practice Bal.' : 'Available'}</span>
                   <span className="text-sidebar-foreground font-mono">{fmt(available)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Equity</span>
                   <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
                 </div>
+                {tradingMode === 'DEMO' && (
+                  <div className="pt-1 text-[10px] text-amber-500/70 text-center">Virtual funds — practice only</div>
+                )}
               </div>
             </div>
           )}

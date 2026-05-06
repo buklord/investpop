@@ -515,6 +515,8 @@ export default function MarketsPage() {
     return Number.isFinite(eq) ? `$${eq.toFixed(2)}` : '—'
   }, [account])
 
+  const headerMode = account?.tradingMode ?? account?.trading_mode ?? null
+
   const showMarketSkeleton = marketLoading && assets.length === 0
 
   if (loading) {
@@ -733,7 +735,14 @@ export default function MarketsPage() {
                   <LayoutGrid className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <span className="text-xs font-mono text-white/30 ml-2">{headerEquity}</span>
+            <div className="flex items-center gap-2">
+              {headerMode && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${headerMode === 'DEMO' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                  {headerMode === 'DEMO' ? '🎯 DEMO' : '💼 REAL'}
+                </span>
+              )}
+              <span className="text-xs font-mono text-white/30">{headerEquity}</span>
+            </div>
             </div>
           </div>
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
@@ -772,7 +781,14 @@ export default function MarketsPage() {
             </button>
           </div>
 
-          <span className="text-xs font-mono text-white/30">{headerEquity}</span>
+          <div className="flex items-center gap-1.5">
+            {headerMode && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${headerMode === 'DEMO' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                {headerMode === 'DEMO' ? '🎯' : '💼'}
+              </span>
+            )}
+            <span className="text-xs font-mono text-white/30">{headerEquity}</span>
+          </div>
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden">

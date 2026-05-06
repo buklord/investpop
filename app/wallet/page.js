@@ -70,7 +70,7 @@ export default function WalletPage() {
       const res = await fetch('/api/wallet/request-funds', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setSuccessMsg(`$${data.amount?.toLocaleString()} demo funds added to your practice account!`)
+        setSuccessMsg(`Practice account reset to $${data.amount?.toLocaleString()}!`)
         // Add cache-busting param to force fresh data
         const [accountRes, ledgerRes] = await Promise.all([
           fetch('/api/account?_t=' + Date.now()),
@@ -125,6 +125,8 @@ export default function WalletPage() {
 
   const realBalance = account?.realBalance ?? 0
   const demoBalance = account?.demoBalance ?? 0
+  const activeMode = account?.tradingMode ?? account?.trading_mode ?? 'REAL'
+  const activeEquity = (account?.balance ?? 0) + (account?.openPnl ?? 0)
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -237,14 +239,19 @@ export default function WalletPage() {
           </div>
 
           {/* Stats Row */}
+          <div className="mb-3">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-3 text-xs font-medium w-fit ${activeMode === 'DEMO' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'}`}>
+              {activeMode === 'DEMO' ? '🎯 Showing Practice Account stats' : '💼 Showing Real Account stats'}
+            </div>
+          </div>
           <div className="grid grid-cols-3 gap-3 mb-6">
             <Card className="bg-card border-border">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="h-4 w-4 text-blue-400" />
-                  <span className="text-muted-foreground text-xs">Total Equity</span>
+                  <span className="text-muted-foreground text-xs">Active Equity</span>
                 </div>
-                <div className="text-lg font-bold text-foreground">{formatCurrency(account?.equity)}</div>
+                <div className="text-lg font-bold text-foreground">{formatCurrency(activeEquity)}</div>
               </CardContent>
             </Card>
             <Card className="bg-card border-border">

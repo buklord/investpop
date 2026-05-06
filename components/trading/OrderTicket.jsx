@@ -124,6 +124,7 @@ export default function OrderTicket({ instrument, initialSide, entryRefPrice, on
   }, [entry, pipSize, state.side, state.slOn, state.slPips])
 
   const account = useMemo(() => globalThis?.__INVESTPOP_ACCOUNT || null, [])
+  const tradingMode = account?.tradingMode ?? account?.trading_mode ?? null
 
   const size = clampNumber(state.size, { min: 0 }) || 0
 
@@ -198,6 +199,17 @@ export default function OrderTicket({ instrument, initialSide, entryRefPrice, on
         </div>
         <div className="w-12" />
       </div>
+
+      {/* ── Mode badge ── */}
+      {tradingMode && (
+        <div className={`mx-4 mb-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold ${
+          tradingMode === 'DEMO'
+            ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+            : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+        }`}>
+          <span>{tradingMode === 'DEMO' ? '🎯 PRACTICE TRADE — virtual money only' : '💼 REAL TRADE — uses your live funds'}</span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto px-4 pb-6 space-y-4">
 
