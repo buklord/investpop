@@ -555,7 +555,7 @@ export default function AnalyticsPage() {
                     ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                     : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                 }`}>
-                  {(account.tradingMode ?? account.trading_mode) === 'DEMO' ? '🎯 Practice Data' : '💼 Real Data'}
+                  {(account.tradingMode ?? account.trading_mode) === 'DEMO' ? '🎯 Demo Data' : '💼 Real Data'}
                 </span>
               )}
               <Button variant="ghost" onClick={refreshData} disabled={refreshing}

@@ -70,7 +70,7 @@ export default function WalletPage() {
       const res = await fetch('/api/wallet/request-funds', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setSuccessMsg(`Practice account reset to $${data.amount?.toLocaleString()}!`)
+        setSuccessMsg(`Demo account reset to $${data.amount?.toLocaleString()}!`)
         // Add cache-busting param to force fresh data
         const [accountRes, ledgerRes] = await Promise.all([
           fetch('/api/account?_t=' + Date.now()),
@@ -154,7 +154,7 @@ export default function WalletPage() {
           <div className="flex items-center justify-between mb-6 sm:mb-8">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-foreground">My Wallets</h1>
-              <p className="text-muted-foreground text-sm">Manage your Real and Practice accounts</p>
+              <p className="text-muted-foreground text-sm">Manage your Real and Demo accounts</p>
             </div>
             <Button variant="ghost" onClick={refreshData} disabled={refreshing}
               className="hidden lg:flex text-muted-foreground hover:text-foreground">
@@ -210,7 +210,7 @@ export default function WalletPage() {
                     <Gamepad2 className="h-5 w-5 text-amber-400" />
                   </div>
                   <div>
-                    <div className="text-foreground font-semibold text-sm">Practice Wallet</div>
+                    <div className="text-foreground font-semibold text-sm">Demo Wallet</div>
                     <div className="text-muted-foreground text-xs">Virtual funds for risk-free trading</div>
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export default function WalletPage() {
           {/* Stats Row */}
           <div className="mb-3">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg mb-3 text-xs font-medium w-fit ${activeMode === 'DEMO' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'}`}>
-              {activeMode === 'DEMO' ? '🎯 Showing Practice Account stats' : '💼 Showing Real Account stats'}
+              {activeMode === 'DEMO' ? '🎯 Showing Demo Account stats' : '💼 Showing Real Account stats'}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 mb-6">
@@ -286,7 +286,7 @@ export default function WalletPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground text-base">Transaction History</CardTitle>
                 <span className={`text-xs font-medium px-2 py-1 rounded-full ${ledgerMode === 'REAL' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}`}>
-                  {ledgerMode === 'REAL' ? '💼 Real Wallet' : '🎯 Practice Wallet'}
+                  {ledgerMode === 'REAL' ? '💼 Real Wallet' : '🎯 Demo Wallet'}
                 </span>
               </div>
             </CardHeader>

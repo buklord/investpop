@@ -34,7 +34,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-white text-lg font-semibold mb-3">1. About the platform</h2>
             <p>
-              Kartomtrades provides a simulated trading platform for educational and practice purposes
+              Kartomtrades provides a simulated trading platform for educational and simulated trading purposes
               (the &ldquo;Platform&rdquo;). By creating an account, you accept these Terms of Service in full.
               If you do not agree, do not use the Platform.
             </p>

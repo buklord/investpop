@@ -5,22 +5,22 @@ import { ThemeProvider } from '@/components/theme-provider'
 export const metadata = {
   metadataBase: new URL('https://www.kartomtrades.com'),
   title: {
-    default: 'Kartomtrades — Practice Trading with Live Market Data',
+    default: 'Kartomtrades — Trading with Live Market Data',
     template: '%s | Kartomtrades',
   },
-  description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Practice in live market conditions and upgrade to a live account only when you are ready.',
-  keywords: ['trading platform', 'demo trading', 'forex trading', 'crypto trading', 'practice trading', 'virtual trading', 'Kartomtrades'],
+  description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Trade in live market conditions and upgrade to a live account only when you are ready.',
+  keywords: ['trading platform', 'demo trading', 'forex trading', 'crypto trading', 'live trading', 'virtual trading', 'Kartomtrades'],
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://www.kartomtrades.com',
     siteName: 'Kartomtrades',
-    title: 'Kartomtrades — Practice Trading with Live Market Data',
+    title: 'Kartomtrades — Trading with Live Market Data',
     description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Demo-first platform with live market prices.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Kartomtrades — Practice Trading with Live Market Data',
+    title: 'Kartomtrades — Trading with Live Market Data',
     description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Demo-first platform with live market prices.',
   },
   robots: {

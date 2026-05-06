@@ -34,7 +34,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-white text-lg font-semibold mb-3">1. Introduction</h2>
             <p>
-              Kartomtrades operates a trading platform for educational and practice purposes (the &ldquo;Platform&rdquo;).
+              Kartomtrades operates a trading platform for educational and simulated trading purposes (the &ldquo;Platform&rdquo;).
               This Privacy Policy explains how we collect, use, store, and protect personal information when
               you use our website and services. By creating an account or using the Platform, you agree to the
               practices described in this policy.

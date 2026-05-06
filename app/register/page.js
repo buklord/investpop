@@ -82,7 +82,7 @@ export default function RegisterPage() {
           {/* Heading */}
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold tracking-tight mb-1">Open your free demo account</h1>
-            <p className="text-white/40 text-sm">Practice trading with live market conditions. No card required.</p>
+            <p className="text-white/40 text-sm">Trading with live market conditions. No card required.</p>
           </div>
 
           {/* Trust signals */}

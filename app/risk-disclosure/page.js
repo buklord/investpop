@@ -150,7 +150,7 @@ export default function RiskDisclosurePage() {
             </p>
             <p className="mt-3">
               If you are unsure whether trading is appropriate for your financial situation, do not
-              deposit real funds. The demo account is available at no cost for practice and education.
+              deposit real funds. The demo account is available at no cost for demo trading and education.
             </p>
           </section>
 

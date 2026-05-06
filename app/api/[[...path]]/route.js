@@ -2861,11 +2861,11 @@ async function handleRoute(request, context) {
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, account_type, created_at)
-        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newDemoBalance}, 'Practice account reset to $100,000', 'DEMO', NOW())
+        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newDemoBalance}, 'Demo account reset to $100,000', 'DEMO', NOW())
       `
 
       return handleCORS(NextResponse.json({
-        message: 'Practice account reset to $100,000',
+        message: 'Demo account reset to $100,000',
         amount: DEMO_AMOUNT,
         newBalance,
         newDemoBalance

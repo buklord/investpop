@@ -131,7 +131,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Is this platform suitable for beginners?',
-    a: 'Yes. The demo account is specifically designed for traders who want to build confidence before risking real money. You can practice in live market conditions without any financial risk.',
+    a: 'Yes. The demo account is specifically designed for traders who want to build confidence before risking real money. You can trade in live market conditions without financial risk using virtual funds.',
   },
 ]
 
@@ -419,7 +419,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
-                  Practice trading with{' '}
+                  Trading with{' '}
                   <br className="hidden sm:block" />
                   <span className="text-emerald-400">live market conditions</span>
                 </h1>
@@ -615,7 +615,7 @@ export default function HomePage() {
             <div className="max-w-xl mb-14">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">How it works</div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Three steps to your first trade</h2>
-              <p className="mt-3 text-white/40 text-base">Practice first. Go live only when you are confident.</p>
+              <p className="mt-3 text-white/40 text-base">Start on demo. Go live only when you are confident.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 relative">
               <div className="hidden md:block absolute top-9 left-[calc(16.67%+1.5rem)] right-[calc(16.67%+1.5rem)] h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" aria-hidden="true" />
@@ -628,7 +628,7 @@ export default function HomePage() {
                 },
                 {
                   step: '02',
-                  title: 'Practice with virtual funds at live prices',
+                  title: 'Trade with virtual funds at live prices',
                   body: 'Trade Forex, crypto, stocks, indices, and commodities at real market prices. Use stop loss, take profit, copy trading, and the AI trade coach to build real skills.',
                   Icon: TrendingUp,
                 },
@@ -709,7 +709,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Platform features</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for practice, analysis, and disciplined execution</h2>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for trading, analysis, and disciplined execution</h2>
               <p className="mt-3 text-white/40 text-base">Every tool is designed to help you develop real trading skills.</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -898,7 +898,7 @@ export default function HomePage() {
             </div>
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Account types</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Practice first. Go live when you are ready.</h2>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Start on demo. Go live when you are ready.</h2>
               <p className="mt-3 text-white/40 text-base">
                 Demo and live accounts share the same interface. The difference is what is at stake.
               </p>
@@ -996,13 +996,13 @@ export default function HomePage() {
                   Built for traders who want to learn properly
                 </h2>
                 <p className="text-white/50 text-base leading-relaxed mb-5">
-                  Kartomtrades is a trading platform that connects you to live market data so you can practice
-                  trading in realistic conditions before committing real capital.
+                  Kartomtrades is a trading platform that connects you to live market data so you can trade
+                  in realistic conditions before committing real capital.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
                   The platform is designed for retail traders who want to build genuine skills before committing real capital.
                   Whether you are completely new to trading or returning after a break, the demo environment gives you a realistic
-                  space to practice without financial pressure.
+                  space to trade without financial pressure.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed">
                   Live trading is available after completing identity verification. This step exists to protect all users.
@@ -1013,11 +1013,11 @@ export default function HomePage() {
                 {[
                   {
                     title: 'What is Kartomtrades?',
-                    body: 'A trading platform that uses live market data. You can practice across multiple asset classes in a realistic environment before deciding whether to open a live account.',
+                    body: 'A trading platform that uses live market data. You can trade across multiple asset classes in a realistic environment before deciding whether to open a live account.',
                   },
                   {
                     title: 'Who is it for?',
-                    body: 'Beginner and intermediate retail traders who want to practice before risking real money. Also suitable for experienced traders who want to test new strategies without financial risk.',
+                    body: 'Beginner and intermediate retail traders who want to build confidence before risking real money. Also suitable for experienced traders who want to test new strategies without financial risk.',
                   },
                   {
                     title: 'What does "demo-first" mean?',
@@ -1082,7 +1082,7 @@ export default function HomePage() {
                 $100,000 in virtual funds. No card required. Instant access.
               </p>
               <p className="text-white/25 text-sm mb-8">
-                Practice trading in live market conditions before risking real money.
+                Trade in live market conditions before risking real money.
               </p>
               <form
                 onSubmit={step === 1 ? handleRegisterStep1 : handleRegisterSubmit}
@@ -1131,7 +1131,7 @@ export default function HomePage() {
                 <span className="text-lg font-bold">Kartomtrades</span>
               </div>
               <p className="text-white/30 text-xs max-w-xs leading-relaxed">
-                A simulated trading platform for education and practice.
+                A simulated trading platform for education and demo trading.
                 All trading is conducted using virtual funds unless you open a live account after completing identity verification.
               </p>
             </div>
@@ -1163,7 +1163,7 @@ export default function HomePage() {
               You should carefully consider whether trading is appropriate for you in light of your financial situation, experience, and risk tolerance.
             </p>
             <p className="text-white/15 text-xs leading-relaxed max-w-4xl">
-              Kartomtrades is a simulation platform intended for educational and practice purposes.
+              Kartomtrades is a simulation platform intended for educational and simulated trading purposes.
               Virtual demo trading does not guarantee equivalent results in live markets.
               Past performance of any trading strategy or instrument is not a reliable indicator of future results.
               This platform does not provide financial advice.

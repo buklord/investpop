@@ -809,7 +809,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className={`text-sm font-medium ${tradingMode === 'DEMO' ? 'text-amber-400' : 'text-emerald-400'}`}>{tradingMode === 'DEMO' ? '🎯 Practice Account — Virtual Money' : '💼 Live Account — Real Funds'}</p>
+              <p className={`text-sm font-medium ${tradingMode === 'DEMO' ? 'text-amber-400' : 'text-emerald-400'}`}>{tradingMode === 'DEMO' ? '🎯 Demo Account — Virtual Money' : '💼 Live Account — Real Funds'}</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Demo / Real toggle */}
@@ -893,7 +893,7 @@ export default function DashboardPage() {
                 {tradingMode === 'DEMO' && (
                   <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 rounded-t-xl">
                     <span className="text-amber-400 text-sm">🎯</span>
-                    <span className="text-amber-300 text-xs sm:text-sm font-semibold">Practice Account — Virtual money only, no real funds at risk</span>
+                    <span className="text-amber-300 text-xs sm:text-sm font-semibold">Demo Account — Virtual money only, no real funds at risk</span>
                   </div>
                 )}
                 <CardContent className="p-4 sm:p-6">
@@ -910,7 +910,7 @@ export default function DashboardPage() {
                             <div className="mb-1.5"><Sparkline data={sparklineData} positive={sparkPositive} /></div>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">{tradingMode === 'DEMO' ? 'Practice account · virtual funds' : 'Live account · cash + open P&L'}</div>
+                        <div className="text-xs text-muted-foreground mt-1">{tradingMode === 'DEMO' ? 'Demo account · virtual funds' : 'Live account · cash + open P&L'}</div>
                         {/* Session indicator */}
                         <div className="mt-2">
                           <SessionBadge elapsedSeconds={elapsedSeconds} sessionDelta={sessionDelta} />
