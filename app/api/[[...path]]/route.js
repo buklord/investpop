@@ -263,9 +263,19 @@ async function ensureSchemaExtensions() {
   await run(`CREATE UNIQUE INDEX IF NOT EXISTS va_user_id_unique ON virtual_accounts (user_id)`, 'virtual_accounts user_id unique index')
   // Migrate existing rows: treat old balance as demo balance
   await run(`UPDATE virtual_accounts SET demo_balance = balance WHERE demo_balance = 0 AND balance > 0`, 'migrate demo_balance')
-  // If REAL is now the default mode, make sure legacy accounts have a usable
-  // real wallet too (only when real_balance is still uninitialized).
-  await run(`UPDATE virtual_accounts SET real_balance = demo_balance WHERE real_balance = 0 AND demo_balance > 0`, 'seed real_balance from demo_balance')
+  // Reset any accounts where real_balance was incorrectly seeded from demo_balance
+  // (accounts with no real DEPOSIT ledger entries should have real_balance = 0).
+  await run(`
+    UPDATE virtual_accounts va
+    SET real_balance = 0
+    WHERE va.real_balance > 0
+      AND NOT EXISTS (
+        SELECT 1 FROM ledger_entries l
+        WHERE l.user_id = va.user_id
+          AND l.type = 'DEPOSIT'
+          AND l.account_type = 'REAL'
+      )
+  `, 'clear real_balance incorrectly seeded from demo for accounts without real deposits')
   // Default users into REAL mode going forward.
   await run(`UPDATE virtual_accounts SET trading_mode = 'REAL' WHERE trading_mode IS NULL OR trading_mode = ''`, 'default trading_mode to REAL')
 
@@ -2823,7 +2833,7 @@ async function handleRoute(request, context) {
 
     // ============ WALLET ENDPOINTS ============
 
-    // POST /api/wallet/request-funds - Add $10k demo funds
+    // POST /api/wallet/request-funds - Reset demo balance to $100k
     if (route === '/wallet/request-funds' && method === 'POST') {
       const auth = await requireAuth()
       if (auth.error) {
@@ -2832,30 +2842,30 @@ async function handleRoute(request, context) {
 
       const DEMO_AMOUNT = 100000
 
-      // Add funds to demo wallet (and to active balance if currently in DEMO mode)
+      // Reset demo wallet to $100k (and sync active balance if currently in DEMO mode)
       await prisma.$executeRaw`
         UPDATE virtual_accounts
-        SET demo_balance = demo_balance + ${DEMO_AMOUNT},
-            balance = CASE WHEN trading_mode = 'DEMO' THEN balance + ${DEMO_AMOUNT} ELSE balance END
+        SET demo_balance = ${DEMO_AMOUNT},
+            balance = CASE WHEN trading_mode = 'DEMO' THEN ${DEMO_AMOUNT} ELSE balance END
         WHERE user_id = ${auth.user.userId}
       `
 
-      // Get new balance
+      // Get new balances
       const accounts = await prisma.$queryRaw`
         SELECT balance, demo_balance FROM virtual_accounts WHERE user_id = ${auth.user.userId}
       `
-      const newBalance = parseFloat(accounts[0]?.balance || 0)
       const newDemoBalance = parseFloat(accounts[0]?.demo_balance || 0)
+      const newBalance = parseFloat(accounts[0]?.balance || 0)
 
-      // Create ledger entry — record active balance as snapshot
+      // Create ledger entry — record new demo balance as snapshot
       const ledgerId = uuidv4()
       await prisma.$executeRaw`
         INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, account_type, created_at)
-        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newBalance}, 'Demo funds added to practice account', 'DEMO', NOW())
+        VALUES (${ledgerId}, ${auth.user.userId}, 'DEPOSIT', ${DEMO_AMOUNT}, ${newDemoBalance}, 'Practice account reset to $100,000', 'DEMO', NOW())
       `
 
       return handleCORS(NextResponse.json({
-        message: 'Demo funds added to your practice account',
+        message: 'Practice account reset to $100,000',
         amount: DEMO_AMOUNT,
         newBalance,
         newDemoBalance

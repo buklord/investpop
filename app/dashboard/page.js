@@ -414,15 +414,15 @@ export default function DashboardPage() {
         const data = await res.json()
         const resolvedMode = data.tradingMode || newMode
         setTradingMode(resolvedMode)
-        // Clear P&L and margin fields immediately — they belong to the old mode's positions.
-        // loadData() below will repopulate them for the new mode.
+        // Zero out immediately — let loadData() repopulate the correct balance.
+        // Never use prev.balance here as it belongs to the previous mode.
         setAccount(prev => prev ? {
           ...prev,
-          balance: data.balance ?? prev.balance,
+          balance: data.balance ?? 0,
           tradingMode: resolvedMode,
           openPnl: 0,
-          equity: data.balance ?? prev.balance,
-          available: data.balance ?? prev.balance,
+          equity: data.balance ?? 0,
+          available: data.balance ?? 0,
           marginReserved: 0,
           positionsCount: 0,
         } : prev)
