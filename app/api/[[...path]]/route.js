@@ -602,6 +602,8 @@ async function ensureSchemaExtensions() {
   // ALTER TYPE cannot run inside a transaction — separate try/catch is critical
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
+  await run(`ALTER TYPE "LedgerEntryType" ADD VALUE IF NOT EXISTS 'BOT_ALLOCATION'`, 'LedgerEntryType BOT_ALLOCATION')
+  await run(`ALTER TYPE "LedgerEntryType" ADD VALUE IF NOT EXISTS 'BOT_RETURN'`, 'LedgerEntryType BOT_RETURN')
 
   // ── Referral system ──────────────────────────────────────────────────────
   await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`, 'referral_code column')
@@ -4715,6 +4717,10 @@ async function handleRoute(request, context) {
         `UPDATE virtual_accounts SET real_balance = real_balance - $1, updated_at = NOW() WHERE user_id = $2`,
         allocatedAmount, auth.user.userId
       )
+
+      // Ensure enum values exist (ALTER TYPE cannot run in a transaction)
+      try { await prisma.$executeRawUnsafe(`ALTER TYPE "LedgerEntryType" ADD VALUE IF NOT EXISTS 'BOT_ALLOCATION'`) } catch (_) {}
+      try { await prisma.$executeRawUnsafe(`ALTER TYPE "LedgerEntryType" ADD VALUE IF NOT EXISTS 'BOT_RETURN'`) } catch (_) {}
 
       // Record ledger deduction
       const ledgerId = uuidv4()
