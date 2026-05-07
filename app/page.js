@@ -747,13 +747,13 @@ export default function HomePage() {
             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-12">
               {/* Left: copy */}
               <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-semibold mb-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" aria-hidden="true" />
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
                   Now available — AI Trading Bots
                 </div>
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
                   Let AI trade for you <br className="hidden sm:block" />
-                  <span className="text-blue-400">24 hours a day, 7 days a week</span>
+                  <span className="text-emerald-400">24 hours a day, 7 days a week</span>
                 </h2>
                 <p className="text-white/45 text-base leading-relaxed mb-6 max-w-lg">
                   Choose from a library of exclusive algorithmic bots, each built around a specific trading pair and
@@ -768,7 +768,7 @@ export default function HomePage() {
                   ].map(({ label, sub }, i) => (
                     <div key={i} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/25 text-blue-400 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
                         <span className="text-white text-xs font-semibold">{label}</span>
                       </div>
                       <p className="text-white/30 text-[11px] leading-snug">{sub}</p>
@@ -777,7 +777,7 @@ export default function HomePage() {
                 </div>
                 <Link
                   href="/register"
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(59,130,246,0.25)]"
+                  className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(16,185,129,0.25)]"
                 >
                   Explore AI Bots <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Link>
@@ -791,7 +791,7 @@ export default function HomePage() {
                 ].map(({ emoji, name, risk, pnl, pct, traders, minDep, sparkPositive }) => {
                   const riskCls = risk === 'Low' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
                   return (
-                    <div key={name} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 flex items-center gap-3 hover:border-blue-500/20 transition-colors">
+                    <div key={name} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 flex items-center gap-3 hover:border-emerald-500/20 transition-colors">
                       <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.09] flex items-center justify-center text-xl flex-shrink-0">{emoji}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
@@ -810,7 +810,7 @@ export default function HomePage() {
                 })}
                 <Link
                   href="/register"
-                  className="flex items-center justify-center gap-1.5 w-full h-10 rounded-2xl border border-blue-500/25 bg-blue-500/10 text-blue-300 text-xs font-semibold hover:bg-blue-500/20 transition-colors"
+                  className="flex items-center justify-center gap-1.5 w-full h-10 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-colors"
                 >
                   View all bots <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </Link>
@@ -839,7 +839,7 @@ export default function HomePage() {
                   Icon: LineChart,
                   title: 'TradingView charts',
                   desc: 'Full-featured interactive charts with all major timeframes, a complete library of drawing tools, and a broad range of technical indicators.',
-                  color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                  color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
                 },
                 {
                   Icon: Lock,
@@ -869,7 +869,7 @@ export default function HomePage() {
                   Icon: Zap,
                   title: 'AI trading bots',
                   desc: 'Deploy exclusive algorithmic bots that trade 24/7 on your behalf. Choose your risk level and trading pair, fund your balance, and let the bot execute automatically.',
-                  color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
                 },
               ].map(({ Icon, title, desc, color }) => (
                 <div key={title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-white/[0.11] transition-colors">

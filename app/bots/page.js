@@ -1,371 +1,172 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import AppSidebar from '@/components/AppSidebar'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef } from 'react'
 import {
-  Bot, Zap, Shield, TrendingUp, Lock, Users, Star,
-  Filter, Plus, ChevronRight, Trophy, Flame, Sparkles,
-  BarChart3, Clock, AlertTriangle, CheckCircle2
+  Zap, Shield, TrendingUp, Lock, Users,
+  Filter, ChevronRight, Sparkles, BarChart3,
+  AlertTriangle, ArrowUpDown, Crown, Activity,
+  Clock, Wallet
 } from 'lucide-react'
 
-// ─── Sparkline tiny chart ─────────────────────────────────────────────────
-function BotSparkline({ data, positive = true, width = 90, height = 32 }) {
+function BotSparkline({ data, width = 80, height = 30 }) {
   if (!data || data.length < 2) return null
-  const min = Math.min(...data)
-  const max = Math.max(...data)
+  const min = Math.min(...data), max = Math.max(...data)
   const range = max - min || 1
   const pts = data.map((v, i) => {
     const x = (i / (data.length - 1)) * width
     const y = height - ((v - min) / range) * (height - 4) - 2
-    return `${x.toFixed(1)},${y.toFixed(1)}`
+    return x.toFixed(1) + ',' + y.toFixed(1)
   }).join(' ')
-  const stroke = positive ? '#10b981' : '#ef4444'
-  const fillPts = `0,${height} ${pts} ${width},${height}`
+  const fill = '0,' + height + ' ' + pts + ' ' + width + ',' + height
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="flex-shrink-0">
+    <svg width={width} height={height} viewBox={'0 0 ' + width + ' ' + height} className="flex-shrink-0">
       <defs>
-        <linearGradient id={`sg-${positive}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon points={fillPts} fill={`url(#sg-${positive})`} />
-      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points={fill} fill="url(#sg)" />
+      <polyline points={pts} fill="none" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
-// ─── Bot data ─────────────────────────────────────────────────────────────
-const BOT_DATA = [
-  {
-    id: 'ethblitz',
-    name: 'EthBlitz USDT',
-    emoji: '⚡',
-    desc: 'Lightning-fast bot for ETH/USDT. Catches micro-trends for rapid, high-profit trades.',
-    risk: 'Low',
-    tier: null,
-    isNew: true,
-    activeTraders: 2349,
-    allTimePnl: 273.75,
-    last30dPct: 23.9,
-    duration: 15,
-    minDeposit: 51,
-    sparkData: [12,18,14,20,22,19,25,23,28,30,27,32,35,31,36,38,40,37,42,45],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'hypewave',
-    name: 'HypeWave USDC',
-    emoji: '🌊',
-    desc: 'Advanced bot for HYPE/USDC. Uses trends for confident and stable trading.',
-    risk: 'Low',
-    tier: null,
-    isNew: false,
-    activeTraders: 450,
-    allTimePnl: 347.07,
-    last30dPct: 28.4,
-    duration: 30,
-    minDeposit: 147,
-    soldOut: true,
-    sparkData: [10,14,13,16,15,18,20,17,22,24,21,26,28,25,30,32,29,34,36,33],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'ethshield',
-    name: 'EthShield DAI',
-    emoji: '🛡️',
-    desc: 'Protective bot for ETH/DAI. Focuses on safety and stability for long-term investors.',
-    risk: 'Low',
-    tier: null,
-    isNew: false,
-    activeTraders: 1821,
-    allTimePnl: 420.02,
-    last30dPct: 31.8,
-    duration: 30,
-    minDeposit: 297,
-    sparkData: [8,11,10,14,13,16,18,15,20,22,19,24,26,23,28,30,27,32,34,31],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'xrpflash',
-    name: 'XrpFlash USDC',
-    emoji: '🤖',
-    desc: 'Balanced bot for XRP/USDC. Mines profits from small fluctuations with a moderate approach.',
-    risk: 'Mid',
-    tier: null,
-    isNew: true,
-    activeTraders: 2199,
-    allTimePnl: 511.34998,
-    last30dPct: 44.3,
-    duration: 25,
-    minDeposit: 499,
-    sparkData: [15,22,19,28,25,33,30,38,35,42,39,46,43,50,47,54,51,58,55,62],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'toncalm',
-    name: 'TonCalm USD',
-    emoji: '🤖',
-    desc: 'Energetic bot for TON/USD. Reacts quickly to market pulses for rhythmic trading.',
-    risk: 'Mid',
-    tier: null,
-    isNew: false,
-    activeTraders: 1355,
-    allTimePnl: 658.31995,
-    last30dPct: 60.3,
-    duration: 40,
-    minDeposit: 987,
-    sparkData: [10,16,14,22,20,28,26,34,32,40,38,46,44,52,50,58,56,64,62,70],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'bnbrocket',
-    name: 'BnbRocket USDT',
-    emoji: '🚀',
-    desc: 'Dynamic bot for BNB/USDT. Soars on volatile movements, perfect for active traders.',
-    risk: 'Mid',
-    tier: 'Pro',
-    isNew: false,
-    activeTraders: 1733,
-    allTimePnl: 748.57,
-    last30dPct: 57.1,
-    duration: 60,
-    minDeposit: 1941,
-    sparkData: [20,28,25,35,32,42,39,50,47,56,53,62,59,68,65,74,71,80,77,86],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'pepeflare',
-    name: 'PepeFlare USDC',
-    emoji: '🤖',
-    desc: 'Calm bot for PEPE/USDC. Ideal for those who prefer low risk and steady returns.',
-    risk: 'High',
-    tier: null,
-    isNew: false,
-    activeTraders: 1693,
-    allTimePnl: 894.52,
-    last30dPct: 70.1,
-    duration: 40,
-    minDeposit: 2476,
-    sparkData: [12,20,17,28,25,36,33,44,41,52,49,60,57,68,65,76,73,84,81,92],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'trxflow',
-    name: 'TrxFlow USDT',
-    emoji: '🤖',
-    desc: 'Vivid bot for TRX/USDT. Uses market flares for rapid profit growth on volatile trends.',
-    risk: 'Mid',
-    tier: null,
-    isNew: false,
-    activeTraders: 978,
-    allTimePnl: 796.52,
-    last30dPct: 64.1,
-    duration: 45,
-    minDeposit: 3430,
-    sparkData: [10,18,15,26,23,34,31,42,39,50,47,58,55,66,63,74,71,82,79,90],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'solsniper',
-    name: 'SolSniper USDS',
-    emoji: '🎯',
-    desc: 'Aggressive bot for SOL/USDS. Targets sharp price strikes for maximum gains in volatile markets.',
-    risk: 'Mid',
-    tier: 'Elite',
-    isNew: false,
-    activeTraders: 328,
-    allTimePnl: 1024.18,
-    last30dPct: 81.9,
-    duration: 90,
-    minDeposit: 4232,
-    locked: true,
-    lockBalance: 4232,
-    sparkData: [8,16,13,24,21,32,29,40,37,48,45,56,53,64,61,72,69,80,77,88],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'dogesurge',
-    name: 'DogeSurge USD',
-    emoji: '🚀',
-    desc: 'Powerful bot for DOGE/USD. Leverages market surges for aggressive profit growth.',
-    risk: 'High',
-    tier: 'Pro',
-    isNew: false,
-    activeTraders: 1861,
-    allTimePnl: 1186.17,
-    last30dPct: 98.7,
-    duration: 90,
-    minDeposit: 9735,
-    sparkData: [15,25,22,35,32,44,41,54,51,64,61,74,71,84,81,94,91,104,101,114],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'shibboom',
-    name: 'ShibBoom USDC',
-    emoji: '💥',
-    desc: 'Smooth bot for SHIB/USDC. Follows steady trends for constant profit growth.',
-    risk: 'Mid',
-    tier: 'Elite',
-    isNew: false,
-    activeTraders: 579,
-    allTimePnl: 1380.44,
-    last30dPct: 91.8,
-    duration: 90,
-    minDeposit: 10000,
-    locked: true,
-    lockBalance: 10000,
-    sparkData: [10,20,17,30,27,40,37,50,47,60,57,70,67,80,77,90,87,100,97,110],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
-  {
-    id: 'btcpulse',
-    name: 'BtcPulse USD',
-    emoji: '💎',
-    desc: 'Stable bot for BTC/USD. Minimises risks and ensures steady growth on long-term trends.',
-    risk: 'Mid',
-    tier: 'Elite',
-    isNew: false,
-    activeTraders: 409,
-    allTimePnl: 1601.33,
-    last30dPct: 107.2,
-    duration: 90,
-    minDeposit: 13422,
-    locked: true,
-    lockBalance: 13422,
-    sparkData: [12,22,19,32,29,42,39,52,49,62,59,72,69,82,79,92,89,102,99,112],
-    features: ['⚡','🛡️','🔄','↔️'],
-  },
+const LIVE_TRADES = [
+  { bot: 'EthBlitz',  pair: 'ETH/USDT',  side: 'BUY',  pnl: '+$4.21',  ago: '2s ago' },
+  { bot: 'BnbRocket', pair: 'BNB/USDT',  side: 'SELL', pnl: '+$12.84', ago: '5s ago' },
+  { bot: 'XrpFlash',  pair: 'XRP/USDC',  side: 'BUY',  pnl: '+$2.17',  ago: '9s ago' },
+  { bot: 'DogeSurge', pair: 'DOGE/USD',  side: 'BUY',  pnl: '+$31.06', ago: '14s ago' },
+  { bot: 'TonCalm',   pair: 'TON/USD',   side: 'SELL', pnl: '+$8.90',  ago: '18s ago' },
+  { bot: 'EthShield', pair: 'ETH/DAI',   side: 'BUY',  pnl: '+$5.55',  ago: '22s ago' },
 ]
 
-const RISK_COLORS = {
-  Low:  'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-  Mid:  'bg-amber-500/15  text-amber-400  border-amber-500/20',
-  High: 'bg-red-500/15    text-red-400    border-red-500/20',
-}
+const BOT_DATA = [
+  { id:'ethblitz',  name:'EthBlitz USDT',  emoji:'⚡', desc:'Lightning-fast bot for ETH/USDT. Catches micro-trends for rapid, high-profit trades.',       risk:'Low', tier:null,    isNew:true,  champion:false, activeTraders:2349, allTimePnl:273.75,  last30dPct:23.9,  duration:15, minDeposit:51,    sparkData:[12,18,14,20,22,19,25,23,28,30,27,32,35,31,36,38,40,37,42,45] },
+  { id:'hypewave',  name:'HypeWave USDC',  emoji:'🌊', desc:'Advanced bot for HYPE/USDC. Uses trends for confident and stable trading.',                  risk:'Low', tier:null,    isNew:false, champion:false, activeTraders:450,  allTimePnl:347.07,  last30dPct:28.4,  duration:30, minDeposit:147,   soldOut:true, sparkData:[10,14,13,16,15,18,20,17,22,24,21,26,28,25,30,32,29,34,36,33] },
+  { id:'ethshield', name:'EthShield DAI',  emoji:'🛡️', desc:'Protective bot for ETH/DAI. Focuses on safety and stability for long-term investors.',       risk:'Low', tier:null,    isNew:false, champion:false, activeTraders:1821, allTimePnl:420.02,  last30dPct:31.8,  duration:30, minDeposit:297,   sparkData:[8,11,10,14,13,16,18,15,20,22,19,24,26,23,28,30,27,32,34,31] },
+  { id:'xrpflash',  name:'XrpFlash USDC', emoji:'⚡', desc:'Balanced bot for XRP/USDC. Mines profits from small fluctuations with a moderate approach.',  risk:'Mid', tier:null,    isNew:true,  champion:false, activeTraders:2199, allTimePnl:511.35,  last30dPct:44.3,  duration:25, minDeposit:499,   sparkData:[15,22,19,28,25,33,30,38,35,42,39,46,43,50,47,54,51,58,55,62] },
+  { id:'toncalm',   name:'TonCalm USD',   emoji:'🔷', desc:'Energetic bot for TON/USD. Reacts quickly to market pulses for rhythmic trading.',            risk:'Mid', tier:null,    isNew:false, champion:false, activeTraders:1355, allTimePnl:658.32,  last30dPct:60.3,  duration:40, minDeposit:987,   sparkData:[10,16,14,22,20,28,26,34,32,40,38,46,44,52,50,58,56,64,62,70] },
+  { id:'bnbrocket',  name:'BnbRocket USDT', emoji:'🚀', desc:'Dynamic bot for BNB/USDT. Soars on volatile movements, perfect for active traders.',        risk:'Mid', tier:'Pro',   isNew:false, champion:false, activeTraders:1733, allTimePnl:748.57,  last30dPct:57.1,  duration:60, minDeposit:1941,  sparkData:[20,28,25,35,32,42,39,50,47,56,53,62,59,68,65,74,71,80,77,86] },
+  { id:'pepeflare', name:'PepeFlare USDC', emoji:'🔥', desc:'Aggressive bot for PEPE/USDC. Rides momentum spikes for explosive short-term gains.',        risk:'High',tier:null,    isNew:false, champion:false, activeTraders:1693, allTimePnl:894.52,  last30dPct:70.1,  duration:40, minDeposit:2476,  sparkData:[12,20,17,28,25,36,33,44,41,52,49,60,57,68,65,76,73,84,81,92] },
+  { id:'trxflow',   name:'TrxFlow USDT',  emoji:'💫', desc:'Vivid bot for TRX/USDT. Uses market flares for rapid profit growth on volatile trends.',       risk:'Mid', tier:null,    isNew:false, champion:false, activeTraders:978,  allTimePnl:796.52,  last30dPct:64.1,  duration:45, minDeposit:3430,  sparkData:[10,18,15,26,23,34,31,42,39,50,47,58,55,66,63,74,71,82,79,90] },
+  { id:'solsniper', name:'SolSniper USDS',emoji:'🎯', desc:'Aggressive bot for SOL/USDS. Targets sharp price strikes for maximum gains in volatile markets.', risk:'Mid', tier:'Elite', isNew:false, champion:false, activeTraders:328, allTimePnl:1024.18, last30dPct:81.9,  duration:90, minDeposit:4232,  locked:true, lockBalance:4232,  sparkData:[8,16,13,24,21,32,29,40,37,48,45,56,53,64,61,72,69,80,77,88] },
+  { id:'dogesurge', name:'DogeSurge USD', emoji:'🚀', desc:'Powerful bot for DOGE/USD. Leverages market surges for aggressive profit growth.',             risk:'High',tier:'Pro',   isNew:false, champion:true,  activeTraders:1861, allTimePnl:1186.17, last30dPct:98.7,  duration:90, minDeposit:9735,  sparkData:[15,25,22,35,32,44,41,54,51,64,61,74,71,84,81,94,91,104,101,114] },
+  { id:'shibboom',  name:'ShibBoom USDC', emoji:'💥', desc:'Smooth bot for SHIB/USDC. Follows steady trends for constant profit growth.',                  risk:'Mid', tier:'Elite', isNew:false, champion:false, activeTraders:579,  allTimePnl:1380.44, last30dPct:91.8,  duration:90, minDeposit:10000, locked:true, lockBalance:10000, sparkData:[10,20,17,30,27,40,37,50,47,60,57,70,67,80,77,90,87,100,97,110] },
+  { id:'btcpulse',  name:'BtcPulse USD',  emoji:'💎', desc:'Stable bot for BTC/USD. Minimises risks and ensures steady growth on long-term trends.',       risk:'Mid', tier:'Elite', isNew:false, champion:false, activeTraders:409,  allTimePnl:1601.33, last30dPct:107.2, duration:90, minDeposit:13422, locked:true, lockBalance:13422, sparkData:[12,22,19,32,29,42,39,52,49,62,59,72,69,82,79,92,89,102,99,112] },
+]
 
-const TIER_COLORS = {
-  Pro:   'bg-blue-500/15  text-blue-400  border-blue-500/20',
-  Elite: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
-}
+const RISK_CLR = { Low:'bg-emerald-500/15 text-emerald-400 border-emerald-500/20', Mid:'bg-amber-500/15 text-amber-400 border-amber-500/20', High:'bg-red-500/15 text-red-400 border-red-500/20' }
+const TIER_CLR = { Pro:'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', Elite:'bg-amber-500/10 text-amber-300 border-amber-500/20' }
 
 function BotCard({ bot, onSubscribe }) {
-  const riskCls = RISK_COLORS[bot.risk] || ''
-  const tierCls = bot.tier ? (TIER_COLORS[bot.tier] || '') : ''
-  const pnlPositive = bot.allTimePnl >= 0
-  const pnlFormatted = bot.allTimePnl >= 1000
-    ? `+${bot.allTimePnl.toFixed(2)}`
-    : `+${bot.allTimePnl.toFixed(2)}`
-
   if (bot.locked) {
     return (
-      <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 overflow-hidden opacity-60 select-none">
-        <div className="absolute inset-0 bg-[#0d1117]/70 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 rounded-2xl">
-          <Lock className="w-6 h-6 text-white/40 mb-2" />
-          <div className="text-white/70 font-semibold text-sm">Elite Tier Locked</div>
-          <div className="text-white/35 text-xs mt-1">Unlock requires ${bot.lockBalance?.toLocaleString()} Total Balance</div>
+      <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 overflow-hidden select-none">
+        <div className="absolute inset-0 bg-[#0d1117]/75 backdrop-blur-[3px] flex flex-col items-center justify-center z-10 rounded-2xl">
+          <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-3">
+            <Lock className="w-5 h-5 text-white/35" />
+          </div>
+          <div className="text-white/70 font-bold text-sm mb-1">Elite Tier Locked</div>
+          <div className="text-white/35 text-xs">Requires <span className="text-white/55 font-semibold">${bot.lockBalance?.toLocaleString()}</span> total balance</div>
+          <Link href="/wallet/deposit" className="mt-4 px-4 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 transition-colors">
+            Fund to Unlock
+          </Link>
         </div>
-        {/* blurred content behind lock */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl flex-shrink-0">{bot.emoji}</div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-white font-semibold text-sm">{bot.name}</span>
-            </div>
+        <div className="opacity-25">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl">{bot.emoji}</div>
+            <div><div className="text-white font-semibold text-sm">{bot.name}</div><div className="text-white/40 text-xs mt-0.5 leading-snug">{bot.desc}</div></div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] text-white/25">All Time PnL</div><div className="text-emerald-400 font-bold">+{bot.allTimePnl.toFixed(2)}</div></div>
+            <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] text-white/25">Last 30d</div><div className="text-emerald-400 font-bold">+{bot.last30dPct}%</div></div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] p-3">
-            <div className="text-[10px] text-white/25 mb-1">All Time PnL</div>
-            <div className="text-emerald-400 font-bold text-base">{pnlFormatted}</div>
-          </div>
-          <div className="rounded-xl bg-white/[0.03] border border-white/[0.05] p-3">
-            <div className="text-[10px] text-white/25 mb-1">Last 30d</div>
-            <div className="text-emerald-400 font-bold text-base">+{bot.last30dPct}%</div>
-          </div>
-        </div>
-        <div className="h-9 rounded-xl bg-white/[0.05] border border-white/[0.08]" />
       </div>
     )
   }
 
+  const riskCls = RISK_CLR[bot.risk] || ''
+  const tierCls = bot.tier ? (TIER_CLR[bot.tier] || '') : ''
+
   return (
-    <div className={`rounded-2xl border bg-white/[0.025] p-5 flex flex-col gap-4 hover:border-white/[0.14] transition-all group ${bot.isNew ? 'border-emerald-500/25' : 'border-white/[0.08]'}`}>
-      {/* Header */}
+    <div className={[
+      'relative rounded-2xl border p-5 flex flex-col gap-3.5 transition-all duration-200',
+      'hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(16,185,129,0.08)] group',
+      bot.champion ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent'
+        : bot.isNew ? 'border-emerald-500/25 bg-white/[0.025]'
+        : 'border-white/[0.08] bg-white/[0.02]'
+    ].join(' ')}>
+
+      {bot.champion && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-[0_2px_12px_rgba(16,185,129,0.4)]">
+          <Crown className="w-3 h-3" /> Top Performer
+        </div>
+      )}
+
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.09] flex items-center justify-center text-xl flex-shrink-0">{bot.emoji}</div>
+        <div className={['w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border',
+          bot.champion ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.06] border-white/[0.09]'
+        ].join(' ')}>{bot.emoji}</div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-white font-semibold text-sm leading-tight">{bot.name}</span>
-            {bot.tier && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tierCls}`}>
-                {bot.tier}
-              </span>
-            )}
-            {bot.isNew && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/25">
-                New
-              </span>
-            )}
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ml-auto ${riskCls}`}>
-              {bot.risk}
-            </span>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className="text-white font-bold text-sm">{bot.name}</span>
+            {bot.tier && <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full border ' + tierCls}>{bot.tier}</span>}
+            {bot.isNew && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">New</span>}
+            <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full border ml-auto ' + riskCls}>{bot.risk}</span>
           </div>
-          <p className="text-white/40 text-xs leading-snug">{bot.desc}</p>
+          <p className="text-white/40 text-[11px] leading-snug">{bot.desc}</p>
         </div>
       </div>
 
-      {/* Feature icons row */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1.5 text-sm">{bot.features.map((f, i) => <span key={i}>{f}</span>)}</div>
-        <div className="flex items-center gap-1 text-white/35 text-xs">
-          <Users className="w-3.5 h-3.5" />
-          <span>Active Traders <span className="text-white/55 font-semibold">{bot.activeTraders.toLocaleString()}+</span></span>
+        <div className="flex items-center gap-1.5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <span className="text-[11px] text-emerald-400 font-semibold">Executing</span>
+        </div>
+        <div className="flex items-center gap-1 text-white/30 text-[11px]">
+          <Users className="w-3 h-3" />
+          <span className="text-white/50 font-medium">{bot.activeTraders.toLocaleString()}+</span>
+          <span>traders</span>
         </div>
       </div>
 
-      {/* PnL + sparkline */}
       <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3 flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] text-white/30 mb-0.5">All Time PnL</div>
-          <div className={`font-bold text-lg tabular-nums ${pnlPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {pnlFormatted}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] text-white/25">Duration</span>
-            <span className="text-[10px] text-white/40 font-semibold">{bot.duration} Days</span>
-            <Lock className="w-2.5 h-2.5 text-white/20" />
+          <div className="text-[10px] text-white/30 uppercase tracking-wide mb-0.5">All Time PnL</div>
+          <div className="text-emerald-400 font-extrabold text-xl tabular-nums leading-tight">+{bot.allTimePnl.toFixed(2)}</div>
+          <div className="flex items-center gap-1 mt-1">
+            <Clock className="w-3 h-3 text-white/20" />
+            <span className="text-[10px] text-white/30">{bot.duration} Day bot</span>
           </div>
         </div>
-        <BotSparkline data={bot.sparkData} positive={pnlPositive} width={90} height={36} />
+        <div className="text-right">
+          <div className="text-[10px] text-white/30 mb-0.5">Last 30d</div>
+          <div className="text-emerald-400 font-bold text-sm mb-1">+{bot.last30dPct}%</div>
+          <BotSparkline data={bot.sparkData} />
+        </div>
       </div>
 
-      {/* Last 30d */}
-      <div className="flex items-center gap-1.5 text-xs">
-        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-        <span className="text-white/35">Last 30d:</span>
-        <span className="text-emerald-400 font-semibold">+{bot.last30dPct}%</span>
-      </div>
-
-      {/* Footer: min deposit + CTA */}
-      <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+      <div className="flex items-center justify-between pt-1 border-t border-white/[0.05]">
         <div>
-          <span className="text-[10px] text-white/30">Min deposit </span>
-          <span className="text-white/70 text-sm font-semibold">${bot.minDeposit.toLocaleString()}</span>
+          <span className="text-[10px] text-white/25">Min deposit </span>
+          <span className="text-white font-bold text-sm">${bot.minDeposit.toLocaleString()}</span>
         </div>
         {bot.soldOut ? (
-          <div className="px-4 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white/30 text-xs font-semibold">
-            Sold Out
-          </div>
+          <span className="px-4 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] text-white/30 text-xs font-semibold">Sold Out</span>
         ) : (
           <button
             onClick={() => onSubscribe(bot)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold transition-colors shadow-[0_2px_12px_rgba(16,185,129,0.25)] hover:shadow-[0_2px_18px_rgba(16,185,129,0.4)]"
           >
-            Subscribe
+            Subscribe <ChevronRight className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
@@ -373,59 +174,56 @@ function BotCard({ bot, onSubscribe }) {
   )
 }
 
-// ─── Subscribe modal ───────────────────────────────────────────────────────
 function SubscribeModal({ bot, onClose }) {
   if (!bot) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative w-full max-w-sm rounded-2xl border border-white/[0.10] bg-[#0d1117] p-6 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/[0.09] flex items-center justify-center text-2xl">{bot.emoji}</div>
-          <div>
-            <div className="text-white font-bold">{bot.name}</div>
-            <div className="text-white/40 text-xs">{bot.desc}</div>
-          </div>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      <div className="relative w-full max-w-sm rounded-2xl border border-emerald-500/20 bg-[#0d1117] p-6 shadow-[0_24px_64px_rgba(0,0,0,0.6)]" onClick={e => e.stopPropagation()}>
+        <div className="pointer-events-none absolute inset-0 rounded-2xl overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-emerald-500/10 blur-2xl" />
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
-            <div className="text-[10px] text-white/30 mb-1">All Time PnL</div>
-            <div className="text-emerald-400 font-bold">+{bot.allTimePnl.toFixed(2)}</div>
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-2xl">{bot.emoji}</div>
+            <div>
+              <div className="text-white font-bold text-base">{bot.name}</div>
+              <div className="text-emerald-400 text-sm font-semibold mt-0.5">+{bot.allTimePnl.toFixed(2)} All Time PnL</div>
+            </div>
           </div>
-          <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3">
-            <div className="text-[10px] text-white/30 mb-1">Min Deposit</div>
-            <div className="text-white font-bold">${bot.minDeposit.toLocaleString()}</div>
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {[['Last 30d', '+' + bot.last30dPct + '%', 'text-emerald-400'], ['Duration', bot.duration + 'd', 'text-white'], ['Min Dep.', '$' + bot.minDeposit.toLocaleString(), 'text-white']].map(([label, val, cls]) => (
+              <div key={label} className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3 text-center">
+                <div className="text-[10px] text-white/30 mb-1">{label}</div>
+                <div className={'font-bold text-sm ' + cls}>{val}</div>
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 mb-4 flex gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-          <p className="text-amber-200/70 text-xs leading-relaxed">
-            You need to fund your wallet with at least <strong>${bot.minDeposit.toLocaleString()}</strong> to activate this bot. Deposit via your wallet page.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-white/[0.10] text-white/50 text-sm hover:text-white hover:border-white/20 transition-colors">
-            Cancel
-          </button>
-          <Link href="/wallet/deposit" className="flex-1 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors">
-            Fund Wallet <ChevronRight className="w-4 h-4" />
-          </Link>
+          <div className="rounded-xl bg-amber-500/[0.08] border border-amber-500/20 px-4 py-3 mb-5 flex gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-amber-200/60 text-xs leading-relaxed">
+              Fund your wallet with at least <span className="text-amber-300 font-semibold">${bot.minDeposit.toLocaleString()}</span> to activate this bot. Your deposit powers the bot&apos;s trading capital.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-white/[0.10] text-white/50 text-sm hover:text-white hover:border-white/[0.20] transition-colors">Cancel</button>
+            <Link href="/wallet/deposit" className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-[0_4px_16px_rgba(16,185,129,0.3)]">
+              <Wallet className="w-4 h-4" /> Fund Wallet
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────
 export default function BotsPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [filter, setFilter] = useState('All')
+  const [sort, setSort] = useState('popular')
   const [subscribingBot, setSubscribingBot] = useState(null)
 
   useEffect(() => {
@@ -436,16 +234,20 @@ export default function BotsPage() {
       .finally(() => setLoading(false))
   }, [router])
 
-  const filters = ['All', 'Low Risk', 'Mid Risk', 'High Risk', 'New']
-
   const filteredBots = useMemo(() => {
-    if (filter === 'All') return BOT_DATA
-    if (filter === 'Low Risk') return BOT_DATA.filter(b => b.risk === 'Low')
-    if (filter === 'Mid Risk') return BOT_DATA.filter(b => b.risk === 'Mid')
-    if (filter === 'High Risk') return BOT_DATA.filter(b => b.risk === 'High')
-    if (filter === 'New') return BOT_DATA.filter(b => b.isNew)
-    return BOT_DATA
-  }, [filter])
+    let bots = [...BOT_DATA]
+    if (filter === 'Low Risk') bots = bots.filter(b => b.risk === 'Low')
+    else if (filter === 'Mid Risk') bots = bots.filter(b => b.risk === 'Mid')
+    else if (filter === 'High Risk') bots = bots.filter(b => b.risk === 'High')
+    else if (filter === 'New') bots = bots.filter(b => b.isNew)
+    if (sort === 'popular') bots.sort((a, b) => b.activeTraders - a.activeTraders)
+    else if (sort === 'pnl') bots.sort((a, b) => b.allTimePnl - a.allTimePnl)
+    else if (sort === '30d') bots.sort((a, b) => b.last30dPct - a.last30dPct)
+    else if (sort === 'min') bots.sort((a, b) => a.minDeposit - b.minDeposit)
+    return bots
+  }, [filter, sort])
+
+  const totalTraders = BOT_DATA.reduce((s, b) => s + b.activeTraders, 0)
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -458,76 +260,88 @@ export default function BotsPage() {
       <AppSidebar user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 min-w-0 flex flex-col">
 
-        {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 px-4 sm:px-6 h-14 flex items-center gap-3">
-          <button
-            className="lg:hidden text-white/60 hover:text-white mr-1"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+          <button className="lg:hidden text-white/60 hover:text-white mr-1" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <h1 className="text-lg font-bold tracking-tight">AI Trading Bots</h1>
-          <span className="ml-auto text-[10px] text-white/30 hidden sm:block">Powered by advanced algorithmic strategies</span>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold tracking-tight">AI Trading Bots</h1>
+            <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Live
+            </span>
+          </div>
+          <div className="ml-auto hidden sm:flex items-center gap-4 text-[11px] text-white/35">
+            <span>{BOT_DATA.filter(b => !b.locked && !b.soldOut).length} bots active</span>
+            <span className="text-white/20">·</span>
+            <span>{totalTraders.toLocaleString()}+ traders</span>
+          </div>
         </header>
 
         <main className="flex-1 px-4 sm:px-6 py-6 max-w-7xl w-full mx-auto">
 
-          {/* Hero banner */}
-          <div className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/10 via-[#0d1117] to-purple-600/10 px-6 py-8 mb-8">
+          {/* Hero */}
+          <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] via-[#0d1117] to-emerald-600/[0.04] px-6 py-7 mb-6">
             <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl" />
+              <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/[0.07] rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-56 h-56 bg-emerald-600/[0.05] rounded-full blur-3xl" />
             </div>
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
               <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/20 text-blue-300 text-xs font-semibold mb-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-3">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Neura AI Core — System Online
+                  Kartom AI Core — System Online
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
-                  Trade smarter with{' '}
-                  <span className="text-blue-400">Exclusive Bots</span>
+                  Trade smarter with <span className="text-emerald-400">Exclusive Bots</span>
                 </h2>
-                <p className="text-white/45 text-sm max-w-lg leading-relaxed">
-                  Built by our team with advanced private strategies for maximum performance. Deploy sophisticated trading
-                  algorithms powered by deep learning — maximise your profits 24/7.
+                <p className="text-white/45 text-sm max-w-lg leading-relaxed mb-4">
+                  Built by our team with advanced private strategies for maximum performance. Automated 24/7 execution — no monitors, no guesswork.
                 </p>
-                <div className="flex flex-wrap gap-4 mt-4">
-                  {[
-                    { label: '$5.28M', sub: 'Managed by bots' },
-                    { label: '20×',   sub: 'Faster execution' },
-                    { label: '5,000+', sub: 'Happy traders' },
-                  ].map(({ label, sub }) => (
-                    <div key={label} className="text-center">
-                      <div className="text-white font-extrabold text-lg leading-none">{label}</div>
+                <div className="flex flex-wrap gap-6">
+                  {[['$5.28M','Managed by bots'],['20×','Faster execution'],['5,000+','Active traders']].map(([label, sub]) => (
+                    <div key={label}>
+                      <div className="text-white font-extrabold text-xl leading-none">{label}</div>
                       <div className="text-white/35 text-[11px] mt-0.5">{sub}</div>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="flex-shrink-0 hidden sm:block">
-                <div className="w-24 h-24 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                  <Bot className="w-12 h-12 text-blue-400" />
+              {/* Live trade feed */}
+              <div className="w-full sm:w-72 flex-shrink-0 rounded-xl border border-emerald-500/15 bg-black/30 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.05]">
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px] text-emerald-400 font-semibold">Live Executions</span>
+                  <span className="ml-auto text-[10px] text-white/25">real-time</span>
+                </div>
+                <div className="px-3 py-2 overflow-hidden h-7 flex items-center">
+                  <div className="flex gap-6 w-max" style={{ animation: 'ticker 22s linear infinite' }}>
+                    {[...LIVE_TRADES, ...LIVE_TRADES].map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px] whitespace-nowrap">
+                        <span className="text-white/30">{t.bot}</span>
+                        <span className="text-white/50">{t.pair}</span>
+                        <span className={'font-bold px-1.5 py-0.5 rounded text-[10px] ' + (t.side === 'BUY' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400')}>{t.side}</span>
+                        <span className="text-emerald-400 font-semibold">{t.pnl}</span>
+                        <span className="text-white/20">{t.ago}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* "How bots work" 4-step strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          {/* 4-step */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             {[
-              { n: '1', icon: <BarChart3 className="w-4 h-4" />, title: 'Select a Bot', body: 'Choose from bots tuned for your preferred risk level and trading pair.' },
-              { n: '2', icon: <Filter className="w-4 h-4" />, title: 'Set Strategy', body: 'Pick between Spot and Futures and configure the aggressiveness level.' },
-              { n: '3', icon: <Zap className="w-4 h-4" />, title: 'Fund & Activate', body: 'Deposit the minimum amount to activate the bot and start executing.' },
-              { n: '4', icon: <TrendingUp className="w-4 h-4" />, title: 'Watch It Trade', body: 'Orders execute automatically 24/7 via high-speed API. Track profits live.' },
-            ].map(({ n, icon, title, body }) => (
-              <div key={n} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm flex-shrink-0">{n}</div>
-                  <span className="text-white/70 text-xs font-medium">{icon}</span>
+              { n:'1', Icon:BarChart3,  title:'Select a Bot',    body:'Pick a bot tuned for your risk level and trading pair.' },
+              { n:'2', Icon:Filter,     title:'Set Strategy',    body:'Spot or Futures, conservative to aggressive — you choose.' },
+              { n:'3', Icon:Zap,        title:'Fund & Activate', body:'Deposit the minimum amount to start execution.' },
+              { n:'4', Icon:TrendingUp, title:'Watch It Trade',  body:'Orders fire 24/7 via high-speed API. Track profits live.' },
+            ].map(({ n, Icon, title, body }) => (
+              <div key={n} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.02] transition-colors">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-xs font-bold flex-shrink-0">{n}</div>
+                  <Icon className="w-4 h-4 text-white/30" />
                 </div>
                 <div className="text-white font-semibold text-xs mb-1">{title}</div>
                 <div className="text-white/35 text-[11px] leading-snug">{body}</div>
@@ -535,49 +349,50 @@ export default function BotsPage() {
             ))}
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+          {/* Filters + sort */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
             <Filter className="w-4 h-4 text-white/30 flex-shrink-0" />
-            {filters.map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+            {['All','Low Risk','Mid Risk','High Risk','New'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={'px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ' + (
                   filter === f
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-emerald-500 text-white shadow-[0_2px_10px_rgba(16,185,129,0.35)]'
                     : 'bg-white/[0.05] text-white/50 border border-white/[0.08] hover:text-white hover:bg-white/[0.08]'
-                }`}
-              >
+                )}>
                 {f}
               </button>
             ))}
-            <span className="ml-auto text-xs text-white/25 flex-shrink-0">{filteredBots.length} bots</span>
+            <div className="ml-auto flex items-center gap-2">
+              <ArrowUpDown className="w-3.5 h-3.5 text-white/30" />
+              <select value={sort} onChange={e => setSort(e.target.value)}
+                className="bg-white/[0.05] border border-white/[0.08] text-white/60 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-500/40 cursor-pointer">
+                <option value="popular">Most Popular</option>
+                <option value="pnl">Best All-Time PnL</option>
+                <option value="30d">Best 30d Return</option>
+                <option value="min">Lowest Min Deposit</option>
+              </select>
+              <span className="text-xs text-white/20 hidden sm:block">{filteredBots.length} bots</span>
+            </div>
           </div>
 
-          {/* Bot grid */}
+          {/* Grid */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBots.map(bot => (
               <BotCard key={bot.id} bot={bot} onSubscribe={b => setSubscribingBot(b)} />
             ))}
           </div>
 
-          {/* Bottom info */}
-          <div className="mt-10 rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Disclaimer */}
+          <div className="mt-8 rounded-2xl border border-white/[0.06] bg-white/[0.01] p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
               <Shield className="w-5 h-5 text-emerald-400" />
             </div>
             <div className="flex-1">
               <div className="text-white font-semibold text-sm mb-1">Orders executed via high-speed corporate API</div>
-              <div className="text-white/35 text-xs leading-relaxed">
-                All bots trade via our enterprise execution layer with sub-millisecond order routing.
-                Past performance is not indicative of future results. Trading involves risk.
-              </div>
+              <div className="text-white/30 text-xs leading-relaxed">All bots trade via our enterprise execution layer with sub-millisecond order routing. Past performance is not indicative of future results. Trading always involves risk of loss.</div>
             </div>
-            <Link href="/risk-disclosure" className="text-xs text-white/30 hover:text-white/60 underline flex-shrink-0 transition-colors">
-              Risk Disclosure
-            </Link>
+            <Link href="/risk-disclosure" className="text-xs text-white/25 hover:text-white/60 underline flex-shrink-0 transition-colors">Risk Disclosure</Link>
           </div>
-
         </main>
       </div>
 
