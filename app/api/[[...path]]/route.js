@@ -4544,6 +4544,27 @@ async function handleRoute(request, context) {
 
       await getSchemaInitPromise() // ensure bot_subscriptions table exists
       try {
+        // Guarantee the table exists even if schema init failed silently
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS bot_subscriptions (
+            id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            user_id TEXT NOT NULL,
+            bot_id VARCHAR(50) NOT NULL,
+            bot_name VARCHAR(100) NOT NULL,
+            bot_emoji VARCHAR(10) NOT NULL DEFAULT '🤖',
+            allocated_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+            daily_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+            risk_level VARCHAR(10) NOT NULL DEFAULT 'Mid',
+            status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+            cumulative_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+            last_tick_at TIMESTAMPTZ,
+            subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ,
+            canceled_at TIMESTAMPTZ,
+            UNIQUE(user_id, bot_id)
+          )
+        `)
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_bot_sub_user ON bot_subscriptions (user_id, status)`)
         const rows = await prisma.$queryRawUnsafe(
           `SELECT bs.id, bs.user_id, bs.bot_id, bs.bot_name, bs.bot_emoji, bs.allocated_amount,
                   bs.daily_rate, bs.risk_level, bs.status, bs.subscribed_at, bs.canceled_at,
@@ -4587,6 +4608,25 @@ async function handleRoute(request, context) {
 
       await getSchemaInitPromise() // ensure bot_subscriptions table exists
       try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS bot_subscriptions (
+            id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            user_id TEXT NOT NULL,
+            bot_id VARCHAR(50) NOT NULL,
+            bot_name VARCHAR(100) NOT NULL,
+            bot_emoji VARCHAR(10) NOT NULL DEFAULT '🤖',
+            allocated_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+            daily_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+            risk_level VARCHAR(10) NOT NULL DEFAULT 'Mid',
+            status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+            cumulative_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+            last_tick_at TIMESTAMPTZ,
+            subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ,
+            canceled_at TIMESTAMPTZ,
+            UNIQUE(user_id, bot_id)
+          )
+        `)
         const subs = await prisma.$queryRawUnsafe(
           `SELECT * FROM bot_subscriptions WHERE user_id = $1 ORDER BY subscribed_at DESC`,
           auth.user.userId
