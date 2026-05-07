@@ -1177,6 +1177,7 @@ async function handleRoute(request, context) {
     // GET /api/alerts/active-count  — must come before /alerts/:id
     if (route === '/alerts/active-count' && method === 'GET') {
       const auth = await requireAuth()
+      await getSchemaInitPromise() // ensure price_alerts table exists
       const rows = await prisma.$queryRaw`
         SELECT COUNT(*)::int AS count FROM price_alerts
         WHERE user_id = ${auth.user.userId} AND triggered = FALSE
@@ -4315,6 +4316,7 @@ async function handleRoute(request, context) {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
+      await getSchemaInitPromise() // ensure referral_claims table exists
       // Get or generate referral code
       let userRows = await prisma.$queryRawUnsafe(
         `SELECT referral_code FROM users WHERE id = $1 LIMIT 1`, auth.user.userId
@@ -4352,6 +4354,7 @@ async function handleRoute(request, context) {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
+      await getSchemaInitPromise() // ensure referral_claims table exists
       let body
       try { body = await request.json() } catch { return handleCORS(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
       const { code } = body
@@ -4511,6 +4514,7 @@ async function handleRoute(request, context) {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
+      await getSchemaInitPromise() // ensure bot_subscriptions table exists
       const [posRows, botRows, depRows] = await Promise.all([
         prisma.$queryRawUnsafe(
           `SELECT COUNT(*)::int AS cnt FROM trading_positions WHERE user_id = $1`, auth.user.userId
@@ -4538,6 +4542,7 @@ async function handleRoute(request, context) {
       const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
 
+      await getSchemaInitPromise() // ensure bot_subscriptions table exists
       try {
         const rows = await prisma.$queryRawUnsafe(
           `SELECT bs.id, bs.user_id, bs.bot_id, bs.bot_name, bs.bot_emoji, bs.allocated_amount,
@@ -4580,6 +4585,7 @@ async function handleRoute(request, context) {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
 
+      await getSchemaInitPromise() // ensure bot_subscriptions table exists
       try {
         const subs = await prisma.$queryRawUnsafe(
           `SELECT * FROM bot_subscriptions WHERE user_id = $1 ORDER BY subscribed_at DESC`,
@@ -4618,6 +4624,8 @@ async function handleRoute(request, context) {
     if (route === '/bots/subscribe' && method === 'POST') {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      await getSchemaInitPromise() // ensure bot_subscriptions table exists
 
       let body
       try { body = await request.json() } catch { return handleCORS(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
@@ -4711,6 +4719,8 @@ async function handleRoute(request, context) {
     if (route.startsWith('/bots/cancel/') && method === 'DELETE') {
       const auth = await requireAuth()
       if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      await getSchemaInitPromise() // ensure bot_subscriptions table exists
 
       const subId = route.slice('/bots/cancel/'.length)
       if (!subId) return handleCORS(NextResponse.json({ error: 'Subscription ID required' }, { status: 400 }))
