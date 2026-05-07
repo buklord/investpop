@@ -180,11 +180,95 @@ function loadWidgetOrder() {
   return DEFAULT_WIDGET_ORDER
 }
 
+// ── Onboarding Modal ──────────────────────────────────────────────────────────
+const ONBOARDING_KEY = 'kartom_onboarding_done'
+const ONBOARDING_STEPS = [
+  {
+    emoji: '📈',
+    title: 'Start Trading',
+    desc: 'Open your first trade on the Markets page. Choose any asset — forex, crypto, stocks, or indices. Set your position size and execute with one click.',
+    cta: 'Go to Trade',
+    href: '/trade',
+  },
+  {
+    emoji: '🤖',
+    title: 'Try an AI Bot',
+    desc: 'Let an AI bot trade for you. Allocate demo funds and watch your portfolio grow automatically. Choose from Conservative, Balanced, or Aggressive strategies.',
+    cta: 'Browse Bots',
+    href: '/ai-bots',
+  },
+  {
+    emoji: '📓',
+    title: 'Keep a Trade Journal',
+    desc: 'Log your trades, moods, and learnings. The AI weekly summary will highlight patterns and help you improve your edge over time.',
+    cta: 'Open Journal',
+    href: '/journal',
+  },
+]
+
+function OnboardingModal({ onDone }) {
+  const [step, setStep] = useState(0)
+  const router = useRouter()
+  const s = ONBOARDING_STEPS[step]
+  const isLast = step === ONBOARDING_STEPS.length - 1
+
+  const handleSkip = () => {
+    if (typeof window !== 'undefined') localStorage.setItem(ONBOARDING_KEY, '1')
+    onDone()
+  }
+
+  const handleNext = () => {
+    if (isLast) { handleSkip(); return }
+    setStep(s => s + 1)
+  }
+
+  const handleCta = () => {
+    if (typeof window !== 'undefined') localStorage.setItem(ONBOARDING_KEY, '1')
+    onDone()
+    router.push(s.href)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md">
+        {/* Progress dots */}
+        <div className="flex justify-center gap-2 pt-6">
+          {ONBOARDING_STEPS.map((_, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === step ? 'bg-emerald-500 w-6' : i < step ? 'bg-emerald-500/50' : 'bg-muted'}`} />
+          ))}
+        </div>
+
+        <div className="px-8 py-6 text-center">
+          <div className="text-5xl mb-4">{s.emoji}</div>
+          <h2 className="text-xl font-bold mb-2">{s.title}</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">{s.desc}</p>
+        </div>
+
+        <div className="px-8 pb-6 space-y-2">
+          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCta}>
+            {s.cta} →
+          </Button>
+          <Button variant="ghost" className="w-full text-muted-foreground" onClick={handleNext}>
+            {isLast ? 'Finish' : 'Next'}
+          </Button>
+        </div>
+
+        <div className="px-8 pb-5 text-center">
+          <button onClick={handleSkip} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Skip tour
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [broadcastMessage, setBroadcastMessage] = useState('')
 
@@ -313,7 +397,19 @@ export default function DashboardPage() {
         identifyTawk()
       }
     } catch { router.push('/') }
-    finally { setLoading(false) }
+    finally {
+      setLoading(false)
+      // Check onboarding only if not dismissed before
+      if (typeof window !== 'undefined' && !localStorage.getItem(ONBOARDING_KEY)) {
+        try {
+          const ob = await fetch('/api/onboarding/status')
+          if (ob.ok) {
+            const { isNew } = await ob.json()
+            if (isNew) setShowOnboarding(true)
+          }
+        } catch { /* non-critical */ }
+      }
+    }
   }
 
   const loadData = async () => {
@@ -779,6 +875,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background flex">
+      {showOnboarding && <OnboardingModal onDone={() => setShowOnboarding(false)} />}
       <AppSidebar currentPage="/dashboard" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} account={account} />
 
       <div className="flex-1 min-w-0">

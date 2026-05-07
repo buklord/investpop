@@ -17,8 +17,12 @@ import {
   Loader2,
   SlidersHorizontal,
   Bell,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+import { useTheme } from 'next-themes'
 
 // ── Toggle switch ─────────────────────────────────────────────────────────────
 function Toggle({ checked, onChange, id }) {
@@ -72,6 +76,8 @@ export default function SettingsPage() {
   const [npDailySummary, setNpDailySummary] = useState(false)
   const [npLoading, setNpLoading] = useState(false)
   const [npMsg, setNpMsg] = useState(null)
+
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => { checkAuth() }, [])
 
@@ -446,6 +452,38 @@ export default function SettingsPage() {
                   {passwordLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Update Password
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* ── Appearance ── */}
+          <Card className="bg-[#161b22] border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <Sun className="h-5 w-5 text-yellow-400" />Appearance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-slate-400 text-sm mb-4">Choose your preferred color theme.</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'light', label: 'Light', Icon: Sun },
+                  { value: 'dark', label: 'Dark', Icon: Moon },
+                  { value: 'system', label: 'System', Icon: Monitor },
+                ].map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTheme(value)}
+                    className={`flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium transition-colors
+                      ${theme === value
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                        : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:border-slate-600'}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </CardContent>
           </Card>
 

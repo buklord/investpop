@@ -27,6 +27,8 @@ import {
   Trophy,
   Users,
   Bot,
+  Bell,
+  Gift,
 } from 'lucide-react'
 
 // Opens the Tawk.to chat with retry (safe — no-ops if Tawk is not loaded)
@@ -57,6 +59,8 @@ const navGroups = [
       { href: '/history',      label: 'Analytics',    icon: History  },
       { href: '/journal',      label: 'Journal',      icon: BookOpen },
       { href: '/leaderboard',  label: 'Leaderboard',  icon: Trophy   },
+      { href: '/alerts',       label: 'Alerts',       icon: Bell     },
+      { href: '/referral',     label: 'Referral',     icon: Gift     },
     ],
   },
   {

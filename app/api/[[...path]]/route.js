@@ -603,6 +603,20 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
 
+  // ── Referral system ──────────────────────────────────────────────────────
+  await run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`, 'referral_code column')
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users (referral_code) WHERE referral_code IS NOT NULL`, 'users referral_code index')
+  await run(`
+    CREATE TABLE IF NOT EXISTS referral_claims (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      referrer_id TEXT NOT NULL,
+      referee_id TEXT NOT NULL UNIQUE,
+      referrer_bonus DOUBLE PRECISION NOT NULL DEFAULT 50,
+      referee_bonus DOUBLE PRECISION NOT NULL DEFAULT 25,
+      claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`, 'referral_claims table')
+  await run(`CREATE INDEX IF NOT EXISTS idx_referral_claims_referrer ON referral_claims (referrer_id)`, 'referral_claims referrer index')
+
   // ── AI Bot Subscriptions ───────────────────────────────────────────────────
   await run(`
     CREATE TABLE IF NOT EXISTS bot_subscriptions (
@@ -4292,6 +4306,262 @@ async function handleRoute(request, context) {
         UPDATE notifications SET read = TRUE WHERE user_id = ${auth.user.userId}
       `
       return handleCORS(NextResponse.json({ message: 'Notifications marked as read' }))
+    }
+
+    // ============ REFERRAL PROGRAM ============
+
+    // GET /api/referral — get/generate referral code + stats
+    if (route === '/referral' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      // Get or generate referral code
+      let userRows = await prisma.$queryRawUnsafe(
+        `SELECT referral_code FROM users WHERE id = $1 LIMIT 1`, auth.user.userId
+      )
+      let code = userRows[0]?.referral_code
+      if (!code) {
+        const base = auth.user.email?.split('@')[0]?.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 6) || 'USER'
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+        code = `${base}${suffix}`
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE users SET referral_code = $1 WHERE id = $2`, code, auth.user.userId
+          )
+        } catch { code = suffix + Math.random().toString(36).slice(2, 4).toUpperCase() }
+      }
+
+      const claimRows = await prisma.$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS total, COALESCE(SUM(referrer_bonus),0) AS earned FROM referral_claims WHERE referrer_id = $1`,
+        auth.user.userId
+      )
+      const myClaimRow = await prisma.$queryRawUnsafe(
+        `SELECT id FROM referral_claims WHERE referee_id = $1 LIMIT 1`, auth.user.userId
+      )
+
+      return handleCORS(NextResponse.json({
+        code,
+        totalReferrals: Number(claimRows[0]?.total || 0),
+        totalEarned: Number(claimRows[0]?.earned || 0),
+        hasClaimed: myClaimRow.length > 0,
+      }))
+    }
+
+    // POST /api/referral/claim — claim another user's referral code
+    if (route === '/referral/claim' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      let body
+      try { body = await request.json() } catch { return handleCORS(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
+      const { code } = body
+      if (!code) return handleCORS(NextResponse.json({ error: 'Referral code required' }, { status: 400 }))
+
+      // Check if already claimed
+      const alreadyClaimed = await prisma.$queryRawUnsafe(
+        `SELECT id FROM referral_claims WHERE referee_id = $1 LIMIT 1`, auth.user.userId
+      )
+      if (alreadyClaimed.length) return handleCORS(NextResponse.json({ error: 'You have already used a referral code.' }, { status: 409 }))
+
+      // Find referrer
+      const referrerRows = await prisma.$queryRawUnsafe(
+        `SELECT id FROM users WHERE referral_code = $1 LIMIT 1`, code.toUpperCase()
+      )
+      if (!referrerRows.length) return handleCORS(NextResponse.json({ error: 'Invalid referral code.' }, { status: 404 }))
+      const referrerId = referrerRows[0].id
+      if (referrerId === auth.user.userId) return handleCORS(NextResponse.json({ error: 'Cannot use your own referral code.' }, { status: 400 }))
+
+      const REFEREE_BONUS = 25, REFERRER_BONUS = 50
+      const claimId = uuidv4()
+
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO referral_claims (id, referrer_id, referee_id, referrer_bonus, referee_bonus)
+         VALUES ($1, $2, $3, $4, $5)`,
+        claimId, referrerId, auth.user.userId, REFERRER_BONUS, REFEREE_BONUS
+      )
+
+      // Credit referee (demo balance)
+      await prisma.$executeRawUnsafe(
+        `UPDATE virtual_accounts SET demo_balance = demo_balance + $1 WHERE user_id = $2`,
+        REFEREE_BONUS, auth.user.userId
+      )
+      // Credit referrer (demo balance)
+      await prisma.$executeRawUnsafe(
+        `UPDATE virtual_accounts SET demo_balance = demo_balance + $1 WHERE user_id = $2`,
+        REFERRER_BONUS, referrerId
+      )
+      // Ledger entries
+      const lid1 = uuidv4(), lid2 = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type)
+         VALUES ($1,$2,'REFERRAL_BONUS',$3,0,'Referral bonus — code used',$4,'DEMO')`,
+        lid1, auth.user.userId, REFEREE_BONUS, claimId
+      )
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type)
+         VALUES ($1,$2,'REFERRAL_BONUS',$3,0,'Referral bonus — friend joined',$4,'DEMO')`,
+        lid2, referrerId, REFERRER_BONUS, claimId
+      )
+      // Notifications
+      const nid = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO notifications (id, user_id, message) VALUES ($1,$2,$3)`,
+        nid, referrerId, `🎉 Your referral code was used! $${REFERRER_BONUS} credited to your demo wallet.`
+      )
+      try { await logActivity(auth.user.userId, 'REFERRAL_CLAIM', { code, bonus: REFEREE_BONUS }) } catch (_) {}
+
+      return handleCORS(NextResponse.json({
+        message: `Referral applied! $${REFEREE_BONUS} credited to your demo wallet.`,
+        bonus: REFEREE_BONUS
+      }))
+    }
+
+    // ============ BOT ANALYTICS ============
+
+    // GET /api/bots/analytics — aggregated stats for bot portfolio view
+    if (route === '/bots/analytics' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const subs = await prisma.$queryRawUnsafe(
+        `SELECT * FROM bot_subscriptions WHERE user_id = $1 ORDER BY subscribed_at DESC`,
+        auth.user.userId
+      )
+
+      const now = Date.now()
+      const enriched = subs.map(sub => {
+        const startMs = new Date(sub.subscribed_at).getTime()
+        const daysSince = Math.max(0, (now - startMs) / 86400000)
+        const seed = sub.bot_id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+        const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
+        const simulatedPnl = parseFloat(sub.allocated_amount) * parseFloat(sub.daily_rate) * daysSince * noiseFactor
+        return {
+          bot_id: sub.bot_id,
+          bot_name: sub.bot_name,
+          bot_emoji: sub.bot_emoji,
+          allocated_amount: parseFloat(sub.allocated_amount),
+          cumulative_pnl: simulatedPnl,
+          pnl_pct: parseFloat(sub.allocated_amount) > 0 ? (simulatedPnl / parseFloat(sub.allocated_amount)) * 100 : 0,
+          days_active: Math.floor(daysSince),
+          risk_level: sub.risk_level,
+          status: sub.status,
+          subscribed_at: sub.subscribed_at,
+        }
+      })
+
+      const active = enriched.filter(s => s.status === 'ACTIVE')
+      const totalAllocated = active.reduce((s, b) => s + b.allocated_amount, 0)
+      const totalPnl = active.reduce((s, b) => s + b.cumulative_pnl, 0)
+      const totalReturn = totalAllocated > 0 ? (totalPnl / totalAllocated) * 100 : 0
+
+      return handleCORS(NextResponse.json({
+        subscriptions: enriched,
+        summary: { totalAllocated, totalPnl, totalReturn, activeCount: active.length, historyCount: enriched.length }
+      }))
+    }
+
+    // ============ CSV EXPORT ============
+
+    // GET /api/export/trades — download closed positions as CSV
+    if (route === '/export/trades' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT tp.symbol, tp.side, tp.quantity, tp.entry_price,
+                tp.exit_price, tp.realized_pnl, tp.total_fees,
+                tp.leverage, tp.account_type, tp.opened_at, tp.closed_at,
+                a.type as asset_type
+         FROM trading_positions tp
+         LEFT JOIN assets a ON tp.asset_id = a.id
+         WHERE tp.user_id = $1 AND tp.status = 'CLOSED'
+         ORDER BY tp.closed_at DESC`,
+        auth.user.userId
+      )
+
+      const headers = 'Symbol,Type,Side,Quantity,Entry Price,Exit Price,Realized P&L,Fees,Leverage,Account,Opened,Closed\n'
+      const csv = headers + rows.map(r =>
+        [
+          r.symbol, r.asset_type || '', r.side, r.quantity,
+          parseFloat(r.entry_price).toFixed(5),
+          r.exit_price ? parseFloat(r.exit_price).toFixed(5) : '',
+          parseFloat(r.realized_pnl || 0).toFixed(2),
+          parseFloat(r.total_fees || 0).toFixed(2),
+          r.leverage || 1,
+          r.account_type || '',
+          r.opened_at ? new Date(r.opened_at).toISOString() : '',
+          r.closed_at ? new Date(r.closed_at).toISOString() : '',
+        ].join(',')
+      ).join('\n')
+
+      const csvResponse = new NextResponse(csv, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv',
+          'Content-Disposition': `attachment; filename="trades_${new Date().toISOString().slice(0,10)}.csv"`,
+        }
+      })
+      return handleCORS(csvResponse)
+    }
+
+    // ============ ONBOARDING STATUS ============
+
+    // GET /api/onboarding/status — tells the client if this is a new user
+    if (route === '/onboarding/status' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const [posRows, botRows, depRows] = await Promise.all([
+        prisma.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS cnt FROM trading_positions WHERE user_id = $1`, auth.user.userId
+        ),
+        prisma.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS cnt FROM bot_subscriptions WHERE user_id = $1`, auth.user.userId
+        ),
+        prisma.$queryRawUnsafe(
+          `SELECT COUNT(*)::int AS cnt FROM deposit_requests WHERE user_id = $1`, auth.user.userId
+        ),
+      ])
+
+      return handleCORS(NextResponse.json({
+        hasTrades: Number(posRows[0]?.cnt || 0) > 0,
+        hasBots: Number(botRows[0]?.cnt || 0) > 0,
+        hasDeposit: Number(depRows[0]?.cnt || 0) > 0,
+        isNew: Number(posRows[0]?.cnt || 0) === 0 && Number(botRows[0]?.cnt || 0) === 0,
+      }))
+    }
+
+    // ============ ADMIN BOT SUBSCRIPTIONS ============
+
+    // GET /api/admin/bots — all bot subscriptions (admin only)
+    if (route === '/admin/bots' && method === 'GET') {
+      const admin = await requireAdminAuth()
+      if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT bs.*, u.email, u.first_name, u.last_name
+         FROM bot_subscriptions bs
+         JOIN users u ON bs.user_id = u.id
+         ORDER BY bs.subscribed_at DESC
+         LIMIT 500`
+      )
+      const now = Date.now()
+      const enriched = rows.map(sub => {
+        const startMs = new Date(sub.subscribed_at).getTime()
+        const daysSince = Math.max(0, (now - startMs) / 86400000)
+        const seed = sub.bot_id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+        const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
+        const simulatedPnl = parseFloat(sub.allocated_amount) * parseFloat(sub.daily_rate) * daysSince * noiseFactor
+        return { ...sub, allocated_amount: parseFloat(sub.allocated_amount), simulated_pnl: simulatedPnl, days_active: Math.floor(daysSince) }
+      })
+
+      const totals = {
+        totalSubscriptions: rows.length,
+        activeCount: rows.filter(r => r.status === 'ACTIVE').length,
+        totalAllocated: enriched.reduce((s, r) => s + (r.status === 'ACTIVE' ? r.allocated_amount : 0), 0),
+        totalPnl: enriched.reduce((s, r) => s + r.simulated_pnl, 0),
+      }
+      return handleCORS(NextResponse.json({ subscriptions: enriched, totals }))
     }
 
     // ============ AI BOT SUBSCRIPTIONS ============

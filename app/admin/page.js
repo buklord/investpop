@@ -35,6 +35,97 @@ import {
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
+// ── Admin Bots Tab ─────────────────────────────────────────────────────────────
+function AdminBotsTab() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin/bots')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData(d) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="text-slate-400 text-sm py-8 text-center">Loading bot data…</div>
+  if (!data) return <div className="text-red-400 text-sm py-8 text-center">Failed to load</div>
+
+  const { subscriptions, totals } = data
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Total Subscriptions', value: totals.totalSubscriptions },
+          { label: 'Active', value: totals.activeCount },
+          { label: 'Total Allocated', value: `$${Number(totals.totalAllocated).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+          { label: 'Simulated P&L', value: `${totals.totalPnl >= 0 ? '+' : ''}$${Number(totals.totalPnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+        ].map(({ label, value }) => (
+          <Card key={label} className="bg-[#161b22] border-slate-800">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-xs text-slate-500">{label}</div>
+              <div className="text-xl font-bold text-white mt-1">{value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Table */}
+      <Card className="bg-[#161b22] border-slate-800">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-white text-base">All Bot Subscriptions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-slate-500 text-xs border-b border-slate-800">
+                  <th className="text-left py-2 pr-4">User</th>
+                  <th className="text-left py-2 pr-4">Bot</th>
+                  <th className="text-right py-2 pr-4">Allocated</th>
+                  <th className="text-right py-2 pr-4">Sim. P&L</th>
+                  <th className="text-right py-2 pr-4">Days</th>
+                  <th className="text-left py-2 pr-4">Risk</th>
+                  <th className="text-left py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.map(s => (
+                  <tr key={s.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                    <td className="py-2 pr-4">
+                      <div className="text-white text-xs">{s.first_name} {s.last_name}</div>
+                      <div className="text-slate-500 text-xs">{s.email}</div>
+                    </td>
+                    <td className="py-2 pr-4 text-white">{s.bot_emoji} {s.bot_name}</td>
+                    <td className="py-2 pr-4 text-right text-white">${Number(s.allocated_amount).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td className={`py-2 pr-4 text-right font-medium ${s.simulated_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {s.simulated_pnl >= 0 ? '+' : ''}${Number(s.simulated_pnl).toFixed(2)}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-slate-400">{s.days_active}</td>
+                    <td className="py-2 pr-4">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${s.risk_level === 'HIGH' ? 'bg-red-500/15 text-red-400' : s.risk_level === 'LOW' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
+                        {s.risk_level}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${s.status === 'ACTIVE' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {subscriptions.length === 0 && (
+              <div className="text-slate-500 text-sm text-center py-8">No bot subscriptions yet.</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -936,6 +1027,7 @@ export default function AdminPage() {
               { id: 'withdrawals', label: 'Withdrawals', badge: withdrawals.filter(w => w.status === 'PENDING').length },
               { id: 'kyc', label: 'KYC Requests', badge: kycRequests.filter(k => k.status === 'SUBMITTED').length },
               { id: 'market-control', label: '🎛️ Market Control' },
+              { id: 'bots', label: '🤖 Bot Manager' },
               { id: 'activity', label: `Live Feed (${activityFeed.length})` },
               { id: 'audit', label: `Audit Log (${auditLog.length})` },
               ...(isSuperAdmin ? [{ id: 'super-admin', label: '👑 Super Admin' }] : []),
@@ -1873,6 +1965,12 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          {/* ── BOT MANAGER TAB ── */}
+          {activeTab === 'bots' && (
+            <AdminBotsTab />
+          )}
+
         </div>
       </div>
 

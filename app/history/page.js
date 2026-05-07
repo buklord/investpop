@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Menu, RefreshCw, Loader2, Brain, Activity,
   Award, Target, Zap, TrendingUp, CalendarDays,
-  BarChart3, PieChart, ChevronDown, ChevronUp
+  BarChart3, PieChart, ChevronDown, ChevronUp, Download
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -768,6 +768,18 @@ export default function AnalyticsPage() {
           ════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'history' && (
             <div className="space-y-3">
+              {closedPositions.length > 0 && (
+                <div className="flex justify-end">
+                  <a
+                    href="/api/export/trades"
+                    download
+                    className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
+                  </a>
+                </div>
+              )}
               {closedPositions.length === 0 ? (
                 <Card className="bg-[#161b22] border-slate-800"><CardContent className="py-14 text-center text-slate-500 text-sm">No closed trades yet.</CardContent></Card>
               ) : closedPositions.map(pos => {
