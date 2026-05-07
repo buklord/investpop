@@ -4738,16 +4738,16 @@ async function handleRoute(request, context) {
         await prisma.$executeRawUnsafe(
           `UPDATE bot_subscriptions
            SET status='ACTIVE', allocated_amount=$1, daily_rate=$2, risk_level=$3,
-               cumulative_pnl=0, subscribed_at=NOW(), expires_at=$4, canceled_at=NULL
+               cumulative_pnl=0, subscribed_at=NOW(), expires_at=NULLIF($4, '')::TIMESTAMPTZ, canceled_at=NULL
            WHERE user_id=$5 AND bot_id=$6`,
-          allocatedAmount, safeDailyRate, safeRisk, expiresAt, auth.user.userId, botId
+          allocatedAmount, safeDailyRate, safeRisk, expiresAt || '', auth.user.userId, botId
         )
       } else {
         await prisma.$executeRawUnsafe(
           `INSERT INTO bot_subscriptions
             (id, user_id, bot_id, bot_name, bot_emoji, allocated_amount, daily_rate, risk_level, status, subscribed_at, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), $9)`,
-          subId, auth.user.userId, botId, botName, safeEmoji, allocatedAmount, safeDailyRate, safeRisk, expiresAt
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), NULLIF($9, '')::TIMESTAMPTZ)`,
+          subId, auth.user.userId, botId, botName, safeEmoji, allocatedAmount, safeDailyRate, safeRisk, expiresAt || ''
         )
       }
 
