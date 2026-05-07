@@ -603,6 +603,27 @@ async function ensureSchemaExtensions() {
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'forex'`, 'AssetType forex')
   await run(`ALTER TYPE "AssetType" ADD VALUE IF NOT EXISTS 'index'`, 'AssetType index')
 
+  // ── AI Bot Subscriptions ───────────────────────────────────────────────────
+  await run(`
+    CREATE TABLE IF NOT EXISTS bot_subscriptions (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL,
+      bot_id VARCHAR(50) NOT NULL,
+      bot_name VARCHAR(100) NOT NULL,
+      bot_emoji VARCHAR(10) NOT NULL DEFAULT '🤖',
+      allocated_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      daily_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+      risk_level VARCHAR(10) NOT NULL DEFAULT 'Mid',
+      status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+      cumulative_pnl DOUBLE PRECISION NOT NULL DEFAULT 0,
+      last_tick_at TIMESTAMPTZ,
+      subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ,
+      canceled_at TIMESTAMPTZ,
+      UNIQUE(user_id, bot_id)
+    )`, 'bot_subscriptions table')
+  await run(`CREATE INDEX IF NOT EXISTS idx_bot_sub_user ON bot_subscriptions (user_id, status)`, 'bot_subscriptions user index')
+
   // If we got this far, the schema has been checked/extended best-effort.
   // Mark as ready so we don't re-run info_schema checks on every request.
   schemaReady = true
@@ -4271,6 +4292,204 @@ async function handleRoute(request, context) {
         UPDATE notifications SET read = TRUE WHERE user_id = ${auth.user.userId}
       `
       return handleCORS(NextResponse.json({ message: 'Notifications marked as read' }))
+    }
+
+    // ============ AI BOT SUBSCRIPTIONS ============
+
+    // GET /api/bots/my — get current user's active bot subscriptions with live simulated PnL
+    if (route === '/bots/my' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      try {
+        const subs = await prisma.$queryRawUnsafe(
+          `SELECT * FROM bot_subscriptions WHERE user_id = $1 ORDER BY subscribed_at DESC`,
+          auth.user.userId
+        )
+
+        const now = Date.now()
+        const enriched = subs.map(sub => {
+          const startMs = new Date(sub.subscribed_at).getTime()
+          const daysSince = Math.max(0, (now - startMs) / 86400000)
+
+          // Simulate incremental PnL based on daily rate + per-bot noise seed
+          const seed = sub.bot_id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+          const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
+          const baseRate = parseFloat(sub.daily_rate) || 0
+          const simulatedPnl = parseFloat(sub.allocated_amount) * baseRate * daysSince * noiseFactor
+
+          return {
+            ...sub,
+            allocated_amount: parseFloat(sub.allocated_amount),
+            cumulative_pnl: simulatedPnl,
+            days_active: Math.floor(daysSince),
+            pnl_pct: parseFloat(sub.allocated_amount) > 0
+              ? (simulatedPnl / parseFloat(sub.allocated_amount)) * 100
+              : 0,
+          }
+        })
+
+        return handleCORS(NextResponse.json({ subscriptions: enriched }))
+      } catch (e) {
+        return handleCORS(NextResponse.json({ error: e.message }, { status: 500 }))
+      }
+    }
+
+    // POST /api/bots/subscribe — subscribe to a bot (allocates funds)
+    if (route === '/bots/subscribe' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      let body
+      try { body = await request.json() } catch { return handleCORS(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
+
+      const { botId, botName, botEmoji, allocatedAmount, dailyRate, riskLevel, durationDays } = body
+
+      if (!botId || !botName || !allocatedAmount || allocatedAmount <= 0) {
+        return handleCORS(NextResponse.json({ error: 'botId, botName, and allocatedAmount are required' }, { status: 400 }))
+      }
+
+      // Fetch current balance (use real_balance — bots operate on real funds)
+      const vaRows = await prisma.$queryRawUnsafe(
+        `SELECT real_balance, demo_balance, trading_mode FROM virtual_accounts WHERE user_id = $1 LIMIT 1`,
+        auth.user.userId
+      )
+      if (!vaRows.length) return handleCORS(NextResponse.json({ error: 'Account not found' }, { status: 404 }))
+
+      const va = vaRows[0]
+      const balance = parseFloat(va.real_balance) || 0
+
+      if (balance < allocatedAmount) {
+        return handleCORS(NextResponse.json({
+          error: `Insufficient real balance. You have $${balance.toFixed(2)}, need $${Number(allocatedAmount).toFixed(2)}.`,
+          currentBalance: balance
+        }, { status: 400 }))
+      }
+
+      // Check if already subscribed to this bot
+      const existingRows = await prisma.$queryRawUnsafe(
+        `SELECT id, status FROM bot_subscriptions WHERE user_id = $1 AND bot_id = $2 LIMIT 1`,
+        auth.user.userId, botId
+      )
+      if (existingRows.length && existingRows[0].status === 'ACTIVE') {
+        return handleCORS(NextResponse.json({ error: 'You are already subscribed to this bot.' }, { status: 409 }))
+      }
+
+      const subId = uuidv4()
+      const safeEmoji = (botEmoji || '🤖').slice(0, 10)
+      const safeDailyRate = (parseFloat(dailyRate) || 0) / 100  // store as decimal
+      const safeRisk = ['Low', 'Mid', 'High'].includes(riskLevel) ? riskLevel : 'Mid'
+      const expiresAt = durationDays > 0
+        ? new Date(Date.now() + durationDays * 86400000).toISOString()
+        : null
+
+      // Deduct allocation from real_balance
+      await prisma.$executeRawUnsafe(
+        `UPDATE virtual_accounts SET real_balance = real_balance - $1, updated_at = NOW() WHERE user_id = $2`,
+        allocatedAmount, auth.user.userId
+      )
+
+      // Record ledger deduction
+      const ledgerId = uuidv4()
+      const newBalance = balance - allocatedAmount
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type, created_at)
+         VALUES ($1, $2, 'BOT_ALLOCATION', $3, $4, $5, $6, 'REAL', NOW())`,
+        ledgerId, auth.user.userId, -allocatedAmount, newBalance,
+        `Bot allocation: ${botName}`, subId
+      )
+
+      // Upsert subscription
+      if (existingRows.length) {
+        // reactivate
+        await prisma.$executeRawUnsafe(
+          `UPDATE bot_subscriptions
+           SET status='ACTIVE', allocated_amount=$1, daily_rate=$2, risk_level=$3,
+               cumulative_pnl=0, subscribed_at=NOW(), expires_at=$4, canceled_at=NULL
+           WHERE user_id=$5 AND bot_id=$6`,
+          allocatedAmount, safeDailyRate, safeRisk, expiresAt, auth.user.userId, botId
+        )
+      } else {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO bot_subscriptions
+            (id, user_id, bot_id, bot_name, bot_emoji, allocated_amount, daily_rate, risk_level, status, subscribed_at, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), $9)`,
+          subId, auth.user.userId, botId, botName, safeEmoji, allocatedAmount, safeDailyRate, safeRisk, expiresAt
+        )
+      }
+
+      try { await logActivity(auth.user.userId, 'BOT_SUBSCRIBE', { botId, botName, allocatedAmount }) } catch (_) {}
+
+      return handleCORS(NextResponse.json({
+        message: `Successfully subscribed to ${botName}`,
+        subscriptionId: subId,
+        allocatedAmount,
+        newBalance: balance - allocatedAmount
+      }))
+    }
+
+    // DELETE /api/bots/cancel/:id — cancel a bot subscription and return funds
+    if (route.startsWith('/bots/cancel/') && method === 'DELETE') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const subId = route.slice('/bots/cancel/'.length)
+      if (!subId) return handleCORS(NextResponse.json({ error: 'Subscription ID required' }, { status: 400 }))
+
+      const subRows = await prisma.$queryRawUnsafe(
+        `SELECT * FROM bot_subscriptions WHERE id = $1 AND user_id = $2 LIMIT 1`,
+        subId, auth.user.userId
+      )
+      if (!subRows.length) return handleCORS(NextResponse.json({ error: 'Subscription not found' }, { status: 404 }))
+
+      const sub = subRows[0]
+      if (sub.status !== 'ACTIVE') {
+        return handleCORS(NextResponse.json({ error: 'Subscription is not active' }, { status: 400 }))
+      }
+
+      // Calculate final simulated PnL to return correct amount
+      const startMs = new Date(sub.subscribed_at).getTime()
+      const daysSince = Math.max(0, (Date.now() - startMs) / 86400000)
+      const seed = sub.bot_id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+      const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
+      const simulatedPnl = parseFloat(sub.allocated_amount) * parseFloat(sub.daily_rate) * daysSince * noiseFactor
+      const returnAmount = parseFloat(sub.allocated_amount) + simulatedPnl
+
+      // Mark subscription cancelled
+      await prisma.$executeRawUnsafe(
+        `UPDATE bot_subscriptions SET status='CANCELED', canceled_at=NOW(), cumulative_pnl=$1 WHERE id=$2`,
+        simulatedPnl, subId
+      )
+
+      // Return funds (allocation + pnl) to real_balance
+      await prisma.$executeRawUnsafe(
+        `UPDATE virtual_accounts SET real_balance = real_balance + $1, updated_at = NOW() WHERE user_id = $2`,
+        returnAmount, auth.user.userId
+      )
+
+      // Record ledger return
+      const vaRows2 = await prisma.$queryRawUnsafe(
+        `SELECT real_balance FROM virtual_accounts WHERE user_id = $1 LIMIT 1`,
+        auth.user.userId
+      )
+      const newBal = parseFloat(vaRows2[0]?.real_balance) || 0
+      const ledgerId2 = uuidv4()
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO ledger_entries (id, user_id, type, amount, balance, description, reference_id, account_type, created_at)
+         VALUES ($1, $2, 'BOT_RETURN', $3, $4, $5, $6, 'REAL', NOW())`,
+        ledgerId2, auth.user.userId, returnAmount, newBal,
+        `Bot return: ${sub.bot_name} (+${simulatedPnl >= 0 ? '+' : ''}$${simulatedPnl.toFixed(2)} PnL)`,
+        subId
+      )
+
+      try { await logActivity(auth.user.userId, 'BOT_CANCEL', { botId: sub.bot_id, botName: sub.bot_name, returnAmount, pnl: simulatedPnl }) } catch (_) {}
+
+      return handleCORS(NextResponse.json({
+        message: `Bot stopped. $${returnAmount.toFixed(2)} returned to your wallet.`,
+        returnAmount,
+        pnl: simulatedPnl,
+        newBalance: newBal
+      }))
     }
 
     // ============ ROUTE NOT FOUND ============

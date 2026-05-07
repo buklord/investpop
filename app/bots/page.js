@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import AppSidebar from '@/components/AppSidebar'
 import { useRouter } from 'next/navigation'
 import {
-  Zap, Shield, TrendingUp, Lock, Users,
-  Filter, ChevronRight, Sparkles, BarChart3,
-  AlertTriangle, ArrowUpDown, Crown, Activity,
-  Clock, Wallet
+  Zap, Shield, TrendingUp, Lock, Users, Filter,
+  ChevronRight, Sparkles, BarChart3, AlertTriangle,
+  ArrowUpDown, Crown, Activity, Clock, Wallet,
+  CheckCircle2, XCircle, TrendingDown, RefreshCw,
+  BadgeCheck, Play, StopCircle, Info, Ban
 } from 'lucide-react'
 
-function BotSparkline({ data, width = 80, height = 30 }) {
+// ── Sparkline ────────────────────────────────────────────────────────────────
+function BotSparkline({ data, width = 80, height = 30, positive = true }) {
   if (!data || data.length < 2) return null
   const min = Math.min(...data), max = Math.max(...data)
   const range = max - min || 1
@@ -21,20 +23,22 @@ function BotSparkline({ data, width = 80, height = 30 }) {
     return x.toFixed(1) + ',' + y.toFixed(1)
   }).join(' ')
   const fill = '0,' + height + ' ' + pts + ' ' + width + ',' + height
+  const color = positive ? '#10b981' : '#ef4444'
   return (
     <svg width={width} height={height} viewBox={'0 0 ' + width + ' ' + height} className="flex-shrink-0">
       <defs>
-        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+        <linearGradient id={'sg' + width} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon points={fill} fill="url(#sg)" />
-      <polyline points={pts} fill="none" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points={fill} fill={'url(#sg' + width + ')'} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
+// ── Static Data ───────────────────────────────────────────────────────────────
 const LIVE_TRADES = [
   { bot: 'EthBlitz',  pair: 'ETH/USDT',  side: 'BUY',  pnl: '+$4.21',  ago: '2s ago' },
   { bot: 'BnbRocket', pair: 'BNB/USDT',  side: 'SELL', pnl: '+$12.84', ago: '5s ago' },
@@ -62,7 +66,72 @@ const BOT_DATA = [
 const RISK_CLR = { Low:'bg-emerald-500/15 text-emerald-400 border-emerald-500/20', Mid:'bg-amber-500/15 text-amber-400 border-amber-500/20', High:'bg-red-500/15 text-red-400 border-red-500/20' }
 const TIER_CLR = { Pro:'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', Elite:'bg-amber-500/10 text-amber-300 border-amber-500/20' }
 
-function BotCard({ bot, onSubscribe }) {
+// ── Active Bot Card (user's running bot) ─────────────────────────────────────
+function ActiveBotCard({ sub, onCancel, canceling }) {
+  const bot = BOT_DATA.find(b => b.id === sub.bot_id) || {}
+  const pnl = sub.cumulative_pnl || 0
+  const isPos = pnl >= 0
+
+  return (
+    <div className="relative rounded-2xl border border-emerald-500/25 bg-gradient-to-b from-emerald-500/[0.06] to-transparent p-4 flex flex-col gap-3">
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] text-emerald-400 font-semibold">Running</span>
+      </div>
+
+      <div className="flex items-center gap-3 pr-20">
+        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-xl flex-shrink-0">
+          {sub.bot_emoji}
+        </div>
+        <div>
+          <div className="text-white font-bold text-sm">{sub.bot_name}</div>
+          <div className="text-white/40 text-[11px]">{sub.days_active}d active · ${Number(sub.allocated_amount).toLocaleString()} allocated</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 text-center">
+          <div className="text-[10px] text-white/30 mb-0.5">PnL</div>
+          <div className={`font-bold text-sm ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+            {isPos ? '+' : ''}${pnl.toFixed(2)}
+          </div>
+        </div>
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 text-center">
+          <div className="text-[10px] text-white/30 mb-0.5">Return</div>
+          <div className={`font-bold text-sm ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+            {isPos ? '+' : ''}{sub.pnl_pct?.toFixed(2) || '0.00'}%
+          </div>
+        </div>
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2.5 text-center">
+          <div className="text-[10px] text-white/30 mb-0.5">Risk</div>
+          <div className="text-white/60 font-semibold text-sm">{sub.risk_level}</div>
+        </div>
+      </div>
+
+      {bot.sparkData && (
+        <div className="flex justify-center">
+          <BotSparkline data={bot.sparkData} width={200} height={36} positive={isPos} />
+        </div>
+      )}
+
+      <button
+        onClick={() => onCancel(sub)}
+        disabled={canceling === sub.id}
+        className="flex items-center justify-center gap-2 w-full py-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] text-red-400 text-xs font-semibold hover:bg-red-500/15 transition-colors disabled:opacity-50"
+      >
+        {canceling === sub.id ? (
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <StopCircle className="w-3.5 h-3.5" />
+        )}
+        {canceling === sub.id ? 'Stopping…' : 'Stop Bot & Return Funds'}
+      </button>
+    </div>
+  )
+}
+
+// ── Bot Marketplace Card ──────────────────────────────────────────────────────
+function BotCard({ bot, onSubscribe, activeSub }) {
   if (bot.locked) {
     return (
       <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 overflow-hidden select-none">
@@ -92,25 +161,32 @@ function BotCard({ bot, onSubscribe }) {
 
   const riskCls = RISK_CLR[bot.risk] || ''
   const tierCls = bot.tier ? (TIER_CLR[bot.tier] || '') : ''
+  const isActive = !!activeSub
 
   return (
     <div className={[
       'relative rounded-2xl border p-5 flex flex-col gap-3.5 transition-all duration-200',
       'hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(16,185,129,0.08)] group',
-      bot.champion ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent'
+      isActive ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.07] to-transparent ring-1 ring-emerald-500/20'
+        : bot.champion ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-500/[0.06] to-transparent'
         : bot.isNew ? 'border-emerald-500/25 bg-white/[0.025]'
         : 'border-white/[0.08] bg-white/[0.02]'
     ].join(' ')}>
 
-      {bot.champion && (
+      {bot.champion && !isActive && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-[0_2px_12px_rgba(16,185,129,0.4)]">
           <Crown className="w-3 h-3" /> Top Performer
+        </div>
+      )}
+      {isActive && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-[0_2px_12px_rgba(16,185,129,0.4)]">
+          <BadgeCheck className="w-3 h-3" /> Active
         </div>
       )}
 
       <div className="flex items-start gap-3">
         <div className={['w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border',
-          bot.champion ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.06] border-white/[0.09]'
+          (isActive || bot.champion) ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.06] border-white/[0.09]'
         ].join(' ')}>{bot.emoji}</div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
@@ -154,6 +230,28 @@ function BotCard({ bot, onSubscribe }) {
         </div>
       </div>
 
+      {/* If active — show live PnL mini-widget */}
+      {isActive && (
+        <div className="rounded-xl bg-emerald-500/[0.06] border border-emerald-500/20 px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[10px] text-emerald-400/60 mb-0.5">Your PnL</div>
+            <div className="text-emerald-400 font-bold text-base tabular-nums">
+              {activeSub.cumulative_pnl >= 0 ? '+' : ''}${activeSub.cumulative_pnl?.toFixed(2)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-emerald-400/60 mb-0.5">Return</div>
+            <div className="text-emerald-400 font-bold text-base">
+              {activeSub.pnl_pct >= 0 ? '+' : ''}{activeSub.pnl_pct?.toFixed(2)}%
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-white/30 mb-0.5">Allocated</div>
+            <div className="text-white font-semibold text-sm">${Number(activeSub.allocated_amount).toLocaleString()}</div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-1 border-t border-white/[0.05]">
         <div>
           <span className="text-[10px] text-white/25">Min deposit </span>
@@ -161,6 +259,10 @@ function BotCard({ bot, onSubscribe }) {
         </div>
         {bot.soldOut ? (
           <span className="px-4 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] text-white/30 text-xs font-semibold">Sold Out</span>
+        ) : isActive ? (
+          <span className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Running
+          </span>
         ) : (
           <button
             onClick={() => onSubscribe(bot)}
@@ -174,8 +276,50 @@ function BotCard({ bot, onSubscribe }) {
   )
 }
 
-function SubscribeModal({ bot, onClose }) {
+// ── Subscribe Modal ───────────────────────────────────────────────────────────
+function SubscribeModal({ bot, onClose, onSubscribed, userBalance }) {
+  const [amount, setAmount] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [newBalance, setNewBalance] = useState(null)
+
+  const parsedAmount = parseFloat(amount) || 0
+  const min = bot?.minDeposit || 0
+  const canSubmit = parsedAmount >= min && parsedAmount <= userBalance && !loading
+
+  async function handleSubmit() {
+    if (!canSubmit) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/bots/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botId: bot.id,
+          botName: bot.name,
+          botEmoji: bot.emoji,
+          allocatedAmount: parsedAmount,
+          dailyRate: bot.last30dPct / 30,  // daily rate from 30d performance
+          riskLevel: bot.risk,
+          durationDays: bot.duration,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Subscription failed'); return }
+      setSuccess(true)
+      setNewBalance(data.newBalance)
+      if (onSubscribed) onSubscribed()
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!bot) return null
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
@@ -183,56 +327,239 @@ function SubscribeModal({ bot, onClose }) {
         <div className="pointer-events-none absolute inset-0 rounded-2xl overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-20 bg-emerald-500/10 blur-2xl" />
         </div>
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-2xl">{bot.emoji}</div>
-            <div>
-              <div className="text-white font-bold text-base">{bot.name}</div>
-              <div className="text-emerald-400 text-sm font-semibold mt-0.5">+{bot.allTimePnl.toFixed(2)} All Time PnL</div>
+
+        {success ? (
+          <div className="relative text-center py-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            </div>
+            <div className="text-white font-bold text-lg mb-1">{bot.name} Activated!</div>
+            <div className="text-emerald-400 text-sm mb-1">+${parsedAmount.toLocaleString()} allocated</div>
+            {newBalance !== null && (
+              <div className="text-white/40 text-xs mb-4">New balance: ${newBalance.toFixed(2)}</div>
+            )}
+            <p className="text-white/45 text-sm mb-6">Your bot is now running 24/7. Track live PnL in <strong className="text-white/70">My Active Bots</strong>.</p>
+            <button onClick={onClose} className="w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold transition-colors">
+              View My Bots
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-2xl">{bot.emoji}</div>
+              <div>
+                <div className="text-white font-bold text-base">{bot.name}</div>
+                <div className="text-emerald-400 text-sm font-semibold mt-0.5">+{bot.last30dPct}% last 30d · {bot.duration}d bot</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[['30d Return', '+' + bot.last30dPct + '%', 'text-emerald-400'], ['Duration', bot.duration + 'd', 'text-white'], ['Risk', bot.risk, bot.risk === 'Low' ? 'text-emerald-400' : bot.risk === 'High' ? 'text-red-400' : 'text-amber-400']].map(([label, val, cls]) => (
+                <div key={label} className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3 text-center">
+                  <div className="text-[10px] text-white/30 mb-1">{label}</div>
+                  <div className={'font-bold text-sm ' + cls}>{val}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Balance info */}
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-4 py-3 mb-4">
+              <div className="flex justify-between text-xs mb-2">
+                <span className="text-white/35">Available Balance</span>
+                <span className="text-white font-semibold">${userBalance.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-white/35">Minimum Required</span>
+                <span className="text-white/70">${min.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Amount input */}
+            <div className="mb-1">
+              <label className="text-xs text-white/40 mb-1.5 block">Allocation Amount (USD)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-bold">$</span>
+                <input
+                  type="number"
+                  min={min}
+                  max={userBalance}
+                  step="0.01"
+                  value={amount}
+                  onChange={e => { setAmount(e.target.value); setError('') }}
+                  placeholder={min.toString()}
+                  className="w-full pl-7 pr-4 h-11 rounded-xl bg-white/[0.05] border border-white/[0.10] text-white text-sm focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.07] transition-colors"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mb-4">
+              {[25, 50, 75, 100].map(pct => (
+                <button
+                  key={pct}
+                  onClick={() => setAmount((userBalance * pct / 100).toFixed(2))}
+                  className="flex-1 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-white/40 text-[11px] hover:text-white/70 hover:bg-white/[0.07] transition-colors"
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 rounded-xl bg-red-500/[0.08] border border-red-500/20 px-3 py-2.5 mb-4">
+                <XCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-red-300/80 text-xs leading-relaxed">{error}</p>
+              </div>
+            )}
+
+            {userBalance < min && (
+              <div className="rounded-xl bg-amber-500/[0.08] border border-amber-500/20 px-4 py-3 mb-4 flex gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-amber-200/60 text-xs leading-relaxed">
+                  Need <span className="text-amber-300 font-semibold">${min.toLocaleString()}</span> to activate. Deposit more funds first.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-white/[0.10] text-white/50 text-sm hover:text-white hover:border-white/[0.20] transition-colors">Cancel</button>
+              {userBalance < min ? (
+                <Link href="/wallet/deposit" className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-[0_4px_16px_rgba(16,185,129,0.3)]">
+                  <Wallet className="w-4 h-4" /> Fund Wallet
+                </Link>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-[0_4px_16px_rgba(16,185,129,0.3)]"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {loading ? 'Activating…' : 'Activate Bot'}
+                </button>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 mb-5">
-            {[['Last 30d', '+' + bot.last30dPct + '%', 'text-emerald-400'], ['Duration', bot.duration + 'd', 'text-white'], ['Min Dep.', '$' + bot.minDeposit.toLocaleString(), 'text-white']].map(([label, val, cls]) => (
-              <div key={label} className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-3 text-center">
-                <div className="text-[10px] text-white/30 mb-1">{label}</div>
-                <div className={'font-bold text-sm ' + cls}>{val}</div>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-xl bg-amber-500/[0.08] border border-amber-500/20 px-4 py-3 mb-5 flex gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <p className="text-amber-200/60 text-xs leading-relaxed">
-              Fund your wallet with at least <span className="text-amber-300 font-semibold">${bot.minDeposit.toLocaleString()}</span> to activate this bot. Your deposit powers the bot&apos;s trading capital.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-white/[0.10] text-white/50 text-sm hover:text-white hover:border-white/[0.20] transition-colors">Cancel</button>
-            <Link href="/wallet/deposit" className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-[0_4px_16px_rgba(16,185,129,0.3)]">
-              <Wallet className="w-4 h-4" /> Fund Wallet
-            </Link>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
 }
 
+// ── Cancel Confirm Modal ──────────────────────────────────────────────────────
+function CancelModal({ sub, onClose, onCanceled }) {
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+
+  async function handleCancel() {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/bots/cancel/${sub.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Cancel failed'); setLoading(false); return }
+      setResult(data)
+      if (onCanceled) onCanceled()
+    } catch {
+      alert('Network error'); setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      <div className="relative w-full max-w-sm rounded-2xl border border-red-500/20 bg-[#0d1117] p-6 shadow-[0_24px_64px_rgba(0,0,0,0.6)]" onClick={e => e.stopPropagation()}>
+        {result ? (
+          <div className="text-center py-2">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+            </div>
+            <div className="text-white font-bold text-base mb-1">Bot Stopped</div>
+            <div className="text-emerald-400 font-semibold text-sm mb-1">${result.returnAmount?.toFixed(2)} returned to wallet</div>
+            <div className="text-white/40 text-xs mb-4">PnL: {result.pnl >= 0 ? '+' : ''}${result.pnl?.toFixed(2)}</div>
+            <button onClick={onClose} className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors">Done</button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center">
+                <StopCircle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <div className="text-white font-bold">Stop {sub.bot_name}?</div>
+                <div className="text-white/40 text-xs">Your funds + PnL will be returned</div>
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3 mb-5 grid grid-cols-2 gap-3 text-sm">
+              <div><div className="text-[10px] text-white/30 mb-0.5">Allocated</div><div className="text-white font-semibold">${Number(sub.allocated_amount).toLocaleString()}</div></div>
+              <div><div className="text-[10px] text-white/30 mb-0.5">Earned PnL</div><div className="text-emerald-400 font-semibold">{sub.cumulative_pnl >= 0 ? '+' : ''}${sub.cumulative_pnl?.toFixed(2)}</div></div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-white/[0.10] text-white/50 text-sm hover:text-white transition-colors">Keep Running</button>
+              <button onClick={handleCancel} disabled={loading} className="flex-1 h-10 rounded-xl bg-red-500/80 hover:bg-red-500 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
+                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+                {loading ? 'Stopping…' : 'Stop Bot'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function BotsPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
+  const [userBalance, setUserBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [filter, setFilter] = useState('All')
   const [sort, setSort] = useState('popular')
   const [subscribingBot, setSubscribingBot] = useState(null)
+  const [cancelingSub, setCancelingSub] = useState(null)
+  const [activeSubs, setActiveSubs] = useState([])
+  const [subsLoading, setSubsLoading] = useState(false)
+  const [canceling, setCanceling] = useState(null)
 
+  // Auth + balance
   useEffect(() => {
     fetch('/api/auth/me')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.user) setUser(d.user); else router.push('/login') })
+      .then(d => {
+        if (d?.user) {
+          setUser(d.user)
+          setUserBalance(parseFloat(d.account?.balance || d.account?.real_balance || 0))
+        } else {
+          router.push('/login')
+        }
+      })
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false))
   }, [router])
+
+  const loadSubs = useCallback(() => {
+    setSubsLoading(true)
+    fetch('/api/bots/my')
+      .then(r => r.ok ? r.json() : { subscriptions: [] })
+      .then(d => setActiveSubs(d.subscriptions || []))
+      .catch(() => {})
+      .finally(() => setSubsLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      loadSubs()
+      // Refresh PnL every 30s
+      const int = setInterval(loadSubs, 30000)
+      return () => clearInterval(int)
+    }
+  }, [user, loadSubs])
+
+  const activeSubMap = useMemo(() => {
+    const m = {}
+    for (const s of activeSubs) if (s.status === 'ACTIVE') m[s.bot_id] = s
+    return m
+  }, [activeSubs])
+
+  const runningBots = useMemo(() => activeSubs.filter(s => s.status === 'ACTIVE'), [activeSubs])
 
   const filteredBots = useMemo(() => {
     let bots = [...BOT_DATA]
@@ -240,14 +567,17 @@ export default function BotsPage() {
     else if (filter === 'Mid Risk') bots = bots.filter(b => b.risk === 'Mid')
     else if (filter === 'High Risk') bots = bots.filter(b => b.risk === 'High')
     else if (filter === 'New') bots = bots.filter(b => b.isNew)
+    else if (filter === 'Active') bots = bots.filter(b => !!activeSubMap[b.id])
     if (sort === 'popular') bots.sort((a, b) => b.activeTraders - a.activeTraders)
     else if (sort === 'pnl') bots.sort((a, b) => b.allTimePnl - a.allTimePnl)
     else if (sort === '30d') bots.sort((a, b) => b.last30dPct - a.last30dPct)
     else if (sort === 'min') bots.sort((a, b) => a.minDeposit - b.minDeposit)
     return bots
-  }, [filter, sort])
+  }, [filter, sort, activeSubMap])
 
   const totalTraders = BOT_DATA.reduce((s, b) => s + b.activeTraders, 0)
+  const totalPnl = runningBots.reduce((s, b) => s + (b.cumulative_pnl || 0), 0)
+  const totalAllocated = runningBots.reduce((s, b) => s + (parseFloat(b.allocated_amount) || 0), 0)
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -257,6 +587,7 @@ export default function BotsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
+      <style>{`@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
       <AppSidebar user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 min-w-0 flex flex-col">
 
@@ -271,15 +602,16 @@ export default function BotsPage() {
             </span>
           </div>
           <div className="ml-auto hidden sm:flex items-center gap-4 text-[11px] text-white/35">
-            <span>{BOT_DATA.filter(b => !b.locked && !b.soldOut).length} bots active</span>
-            <span className="text-white/20">·</span>
-            <span>{totalTraders.toLocaleString()}+ traders</span>
+            {runningBots.length > 0 && (
+              <span className="text-emerald-400 font-semibold">{runningBots.length} bot{runningBots.length > 1 ? 's' : ''} running</span>
+            )}
+            <span>{BOT_DATA.filter(b => !b.locked && !b.soldOut).length} bots active · {totalTraders.toLocaleString()}+ traders</span>
           </div>
         </header>
 
         <main className="flex-1 px-4 sm:px-6 py-6 max-w-7xl w-full mx-auto">
 
-          {/* Hero */}
+          {/* ── Hero ── */}
           <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] via-[#0d1117] to-emerald-600/[0.04] px-6 py-7 mb-6">
             <div className="pointer-events-none absolute inset-0" aria-hidden="true">
               <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/[0.07] rounded-full blur-3xl" />
@@ -306,7 +638,7 @@ export default function BotsPage() {
                   ))}
                 </div>
               </div>
-              {/* Live trade feed */}
+              {/* Live trade ticker */}
               <div className="w-full sm:w-72 flex-shrink-0 rounded-xl border border-emerald-500/15 bg-black/30 overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.05]">
                   <Activity className="w-3.5 h-3.5 text-emerald-400" />
@@ -330,7 +662,33 @@ export default function BotsPage() {
             </div>
           </div>
 
-          {/* 4-step */}
+          {/* ── My Active Bots ── */}
+          {runningBots.length > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-white font-bold text-base">My Active Bots</h2>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[11px] font-semibold">{runningBots.length} running</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-white/40">
+                  <span>Allocated <span className="text-white font-semibold">${totalAllocated.toLocaleString()}</span></span>
+                  <span>Total PnL <span className={totalPnl >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>{totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}</span></span>
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {runningBots.map(sub => (
+                  <ActiveBotCard
+                    key={sub.id}
+                    sub={sub}
+                    onCancel={s => setCancelingSub(s)}
+                    canceling={canceling}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── How it works ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             {[
               { n:'1', Icon:BarChart3,  title:'Select a Bot',    body:'Pick a bot tuned for your risk level and trading pair.' },
@@ -349,10 +707,10 @@ export default function BotsPage() {
             ))}
           </div>
 
-          {/* Filters + sort */}
+          {/* ── Filters + sort ── */}
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <Filter className="w-4 h-4 text-white/30 flex-shrink-0" />
-            {['All','Low Risk','Mid Risk','High Risk','New'].map(f => (
+            {['All','Low Risk','Mid Risk','High Risk','New', runningBots.length > 0 ? 'Active' : null].filter(Boolean).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={'px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ' + (
                   filter === f
@@ -375,14 +733,19 @@ export default function BotsPage() {
             </div>
           </div>
 
-          {/* Grid */}
+          {/* ── Bot grid ── */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBots.map(bot => (
-              <BotCard key={bot.id} bot={bot} onSubscribe={b => setSubscribingBot(b)} />
+              <BotCard
+                key={bot.id}
+                bot={bot}
+                activeSub={activeSubMap[bot.id] || null}
+                onSubscribe={b => setSubscribingBot(b)}
+              />
             ))}
           </div>
 
-          {/* Disclaimer */}
+          {/* ── Disclaimer ── */}
           <div className="mt-8 rounded-2xl border border-white/[0.06] bg-white/[0.01] p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
               <Shield className="w-5 h-5 text-emerald-400" />
@@ -396,7 +759,35 @@ export default function BotsPage() {
         </main>
       </div>
 
-      {subscribingBot && <SubscribeModal bot={subscribingBot} onClose={() => setSubscribingBot(null)} />}
+      {subscribingBot && (
+        <SubscribeModal
+          bot={subscribingBot}
+          userBalance={userBalance}
+          onClose={() => setSubscribingBot(null)}
+          onSubscribed={() => {
+            setSubscribingBot(null)
+            loadSubs()
+            // Refresh balance
+            fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => {
+              if (d?.account) setUserBalance(parseFloat(d.account.balance || d.account.real_balance || 0))
+            })
+          }}
+        />
+      )}
+
+      {cancelingSub && (
+        <CancelModal
+          sub={cancelingSub}
+          onClose={() => setCancelingSub(null)}
+          onCanceled={() => {
+            setCancelingSub(null)
+            loadSubs()
+            fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => {
+              if (d?.account) setUserBalance(parseFloat(d.account.balance || d.account.real_balance || 0))
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
