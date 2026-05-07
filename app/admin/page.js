@@ -39,16 +39,22 @@ import AppSidebar from '@/components/AppSidebar'
 function AdminBotsTab() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     fetch('/api/admin/bots')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setData(d) })
+      .then(async r => {
+        const json = await r.json()
+        if (!r.ok) throw new Error(json.error || `HTTP ${r.status}`)
+        return json
+      })
+      .then(d => setData(d))
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div className="text-slate-400 text-sm py-8 text-center">Loading bot data…</div>
-  if (!data) return <div className="text-red-400 text-sm py-8 text-center">Failed to load</div>
+  if (error || !data) return <div className="text-red-400 text-sm py-8 text-center">Failed to load{error ? `: ${error}` : ''}</div>
 
   const { subscriptions, totals } = data
   return (

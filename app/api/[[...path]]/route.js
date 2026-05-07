@@ -4538,30 +4538,39 @@ async function handleRoute(request, context) {
       const admin = await requireAdminAuth()
       if (admin.error) return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
 
-      const rows = await prisma.$queryRawUnsafe(
-        `SELECT bs.*, u.email, u.first_name, u.last_name
-         FROM bot_subscriptions bs
-         JOIN users u ON bs.user_id = u.id
-         ORDER BY bs.subscribed_at DESC
-         LIMIT 500`
-      )
-      const now = Date.now()
-      const enriched = rows.map(sub => {
-        const startMs = new Date(sub.subscribed_at).getTime()
-        const daysSince = Math.max(0, (now - startMs) / 86400000)
-        const seed = sub.bot_id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
-        const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
-        const simulatedPnl = parseFloat(sub.allocated_amount) * parseFloat(sub.daily_rate) * daysSince * noiseFactor
-        return { ...sub, allocated_amount: parseFloat(sub.allocated_amount), simulated_pnl: simulatedPnl, days_active: Math.floor(daysSince) }
-      })
+      try {
+        const rows = await prisma.$queryRawUnsafe(
+          `SELECT bs.id, bs.user_id, bs.bot_id, bs.bot_name, bs.bot_emoji, bs.allocated_amount,
+                  bs.daily_rate, bs.risk_level, bs.status, bs.subscribed_at, bs.canceled_at,
+                  COALESCE(u.email, 'unknown') AS email,
+                  COALESCE(u.first_name, '') AS first_name,
+                  COALESCE(u.last_name, '') AS last_name
+           FROM bot_subscriptions bs
+           LEFT JOIN users u ON bs.user_id = u.id
+           ORDER BY bs.subscribed_at DESC
+           LIMIT 500`
+        )
+        const now = Date.now()
+        const enriched = rows.map(sub => {
+          const startMs = new Date(sub.subscribed_at).getTime()
+          const daysSince = Math.max(0, (now - startMs) / 86400000)
+          const seed = String(sub.bot_id).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+          const noiseFactor = 0.75 + 0.5 * Math.abs(Math.sin(seed + daysSince * 0.7))
+          const simulatedPnl = parseFloat(sub.allocated_amount) * parseFloat(sub.daily_rate) * daysSince * noiseFactor
+          return { ...sub, allocated_amount: parseFloat(sub.allocated_amount), simulated_pnl: simulatedPnl, days_active: Math.floor(daysSince) }
+        })
 
-      const totals = {
-        totalSubscriptions: rows.length,
-        activeCount: rows.filter(r => r.status === 'ACTIVE').length,
-        totalAllocated: enriched.reduce((s, r) => s + (r.status === 'ACTIVE' ? r.allocated_amount : 0), 0),
-        totalPnl: enriched.reduce((s, r) => s + r.simulated_pnl, 0),
+        const totals = {
+          totalSubscriptions: rows.length,
+          activeCount: rows.filter(r => r.status === 'ACTIVE').length,
+          totalAllocated: enriched.reduce((s, r) => s + (r.status === 'ACTIVE' ? r.allocated_amount : 0), 0),
+          totalPnl: enriched.reduce((s, r) => s + r.simulated_pnl, 0),
+        }
+        return handleCORS(NextResponse.json({ subscriptions: enriched, totals }))
+      } catch (err) {
+        console.error('[/admin/bots]', err)
+        return handleCORS(NextResponse.json({ error: err.message || 'Query failed' }, { status: 500 }))
       }
-      return handleCORS(NextResponse.json({ subscriptions: enriched, totals }))
     }
 
     // ============ AI BOT SUBSCRIPTIONS ============
