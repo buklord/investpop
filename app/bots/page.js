@@ -526,7 +526,10 @@ export default function BotsPage() {
       .then(d => {
         if (d?.user) {
           setUser(d.user)
-          setUserBalance(parseFloat(d.account?.balance || d.account?.real_balance || 0))
+          // Fetch real balance separately — /api/auth/me doesn't return account data
+          return fetch('/api/account').then(r => r.ok ? r.json() : null).then(acc => {
+            setUserBalance(parseFloat(acc?.realBalance ?? 0))
+          })
         } else {
           router.push('/login')
         }
@@ -767,9 +770,9 @@ export default function BotsPage() {
           onSubscribed={() => {
             setSubscribingBot(null)
             loadSubs()
-            // Refresh balance
-            fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => {
-              if (d?.account) setUserBalance(parseFloat(d.account.balance || d.account.real_balance || 0))
+            // Refresh real balance
+            fetch('/api/account').then(r => r.ok ? r.json() : null).then(acc => {
+              if (acc) setUserBalance(parseFloat(acc.realBalance ?? 0))
             })
           }}
         />
@@ -782,8 +785,8 @@ export default function BotsPage() {
           onCanceled={() => {
             setCancelingSub(null)
             loadSubs()
-            fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => {
-              if (d?.account) setUserBalance(parseFloat(d.account.balance || d.account.real_balance || 0))
+            fetch('/api/account').then(r => r.ok ? r.json() : null).then(acc => {
+              if (acc) setUserBalance(parseFloat(acc.realBalance ?? 0))
             })
           }}
         />
