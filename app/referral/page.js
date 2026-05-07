@@ -1,21 +1,33 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Gift, Copy, Users, DollarSign, Check, ArrowRight, Star, Sparkles } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Gift, Copy, Users, DollarSign, Check, ArrowRight, Star, Sparkles, Menu, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function ReferralPage() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState(false)
   const [claimCode, setClaimCode] = useState('')
   const [copied, setCopied] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setUser(d.user))
+      .catch(() => router.push('/'))
+  }, [router])
 
   const loadReferral = useCallback(async () => {
     try {
@@ -68,19 +80,37 @@ export default function ReferralPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-4 md:p-6">
-        <div className="max-w-3xl mx-auto space-y-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-xl bg-muted/40 animate-pulse" />)}
+      <div className="min-h-screen bg-background flex">
+        <AppSidebar currentPage="/referral" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <div className="flex-1 p-4 md:p-6">
+          <div className="max-w-3xl mx-auto space-y-4">
+            {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-xl bg-muted/40 animate-pulse" />)}
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
+    <div className="min-h-screen bg-background flex">
+      <AppSidebar currentPage="/referral" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+      <div className="flex-1 min-w-0">
+        {/* Mobile header */}
+        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1">
+            <Menu className="h-6 w-6" />
+          </button>
+          <span className="font-bold text-foreground text-sm">Referral</span>
+          <Button variant="ghost" size="sm" onClick={loadReferral} className="text-muted-foreground p-1">
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="p-4 md:p-6">
       <div className="max-w-3xl mx-auto space-y-6">
 
-        {/* Header */}
+        {/* Header */}}
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-primary/10">
             <Gift className="w-6 h-6 text-primary" />
@@ -208,6 +238,8 @@ export default function ReferralPage() {
             </CardContent>
           </Card>
         )}
+      </div>
+        </div>
       </div>
     </div>
   )

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, BellRing, Trash2, Plus, TrendingUp, TrendingDown, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Bell, BellRing, Trash2, Plus, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Menu, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,14 +11,25 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function AlertsPage() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [open, setOpen] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setUser(d.user))
+      .catch(() => router.push('/'))
+  }, [router])
 
   const [form, setForm] = useState({
     symbol: '',
@@ -77,7 +89,22 @@ export default function AlertsPage() {
   const triggeredAlerts = alerts.filter(a => a.status === 'TRIGGERED')
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
+    <div className="min-h-screen bg-background flex">
+      <AppSidebar currentPage="/alerts" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+      <div className="flex-1 min-w-0">
+        {/* Mobile header */}
+        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
+          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1">
+            <Menu className="h-6 w-6" />
+          </button>
+          <span className="font-bold text-foreground text-sm">Price Alerts</span>
+          <Button variant="ghost" size="sm" onClick={loadAlerts} className="text-muted-foreground p-1">
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
@@ -239,6 +266,8 @@ export default function AlertsPage() {
             })}
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   )
