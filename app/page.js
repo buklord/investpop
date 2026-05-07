@@ -609,6 +609,43 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── STATS SECTION ── */}
+        <section className="py-16 border-b border-border/40 bg-white/[0.01]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-3 gap-6 md:gap-12 text-center">
+              {[
+                { value: '$5.28M', label: '$5.28M currently managed by AI-powered trading bots.' },
+                { value: '20×',    label: '20× Faster Trades, lightning-fast trades powered by AI-driven analysis.' },
+                { value: '5,000+', label: '5,000+ Happy Traders. Join thousands of users achieving amazing results.' },
+              ].map(({ value, label }) => (
+                <div key={value}>
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-2 tabular-nums">{value}</div>
+                  <p className="text-white/35 text-xs sm:text-sm leading-relaxed max-w-[14rem] mx-auto">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── ECOSYSTEM INTEGRATIONS ── */}
+        <section className="py-10 border-b border-border/40 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-5 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30">Ecosystem &amp; Integrations</div>
+          </div>
+          <div className="relative">
+            <div className="flex w-max" style={{ animation: 'ticker 30s linear infinite' }}>
+              {[...Array(2)].map((_, r) => (
+                ['TradingView', 'OpenAI', 'Bloomberg', 'Coinbase', 'Binance', 'Kraken', 'CoinGecko', 'MetaMask'].map((name, i) => (
+                  <div key={`${r}-${i}`} className="mx-8 flex items-center gap-2 text-white/25 font-semibold text-sm whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-white/15" aria-hidden="true" />
+                    {name}
+                  </div>
+                ))
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── HOW IT WORKS ── */}
         <section id="how-it-works" className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -704,6 +741,84 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── AI TRADING BOTS TEASER ── */}
+        <section className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-12">
+              {/* Left: copy */}
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-semibold mb-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" aria-hidden="true" />
+                  Now available — AI Trading Bots
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
+                  Let AI trade for you <br className="hidden sm:block" />
+                  <span className="text-blue-400">24 hours a day, 7 days a week</span>
+                </h2>
+                <p className="text-white/45 text-base leading-relaxed mb-6 max-w-lg">
+                  Choose from a library of exclusive algorithmic bots, each built around a specific trading pair and
+                  risk profile. Set your allocation, activate, and watch the bot execute in real time.
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-7 max-w-sm">
+                  {[
+                    { label: 'Select your bot',    sub: 'Pick the risk & pair that suits you' },
+                    { label: 'Configure strategy', sub: 'Spot or Futures, conservative to aggressive' },
+                    { label: 'Fund your balance',  sub: 'Activate with the minimum deposit' },
+                    { label: 'Automated execution', sub: 'Orders fire 24/7 while you sleep' },
+                  ].map(({ label, sub }, i) => (
+                    <div key={i} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/25 text-blue-400 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                        <span className="text-white text-xs font-semibold">{label}</span>
+                      </div>
+                      <p className="text-white/30 text-[11px] leading-snug">{sub}</p>
+                    </div>
+                  ))}
+                </div>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(59,130,246,0.25)]"
+                >
+                  Explore AI Bots <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </Link>
+              </div>
+              {/* Right: top bots preview */}
+              <div className="w-full lg:w-[380px] flex-shrink-0 space-y-3">
+                {[
+                  { emoji: '⚡', name: 'EthBlitz USDT',  risk: 'Low',  pnl: '+273.75', pct: '+23.9%', traders: '2,349+', minDep: '$51',   sparkPositive: true  },
+                  { emoji: '🚀', name: 'BnbRocket USDT', risk: 'Mid',  pnl: '+748.57', pct: '+57.1%', traders: '1,733+', minDep: '$1,941', sparkPositive: true  },
+                  { emoji: '🛡️', name: 'EthShield DAI',  risk: 'Low',  pnl: '+420.02', pct: '+31.8%', traders: '1,821+', minDep: '$297',  sparkPositive: true  },
+                ].map(({ emoji, name, risk, pnl, pct, traders, minDep, sparkPositive }) => {
+                  const riskCls = risk === 'Low' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                  return (
+                    <div key={name} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 flex items-center gap-3 hover:border-blue-500/20 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.09] flex items-center justify-center text-xl flex-shrink-0">{emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-white font-semibold text-sm">{name}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ml-auto ${riskCls}`}>{risk}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-emerald-400 font-bold">{pnl}</span>
+                          <span className="text-white/30">·</span>
+                          <span className="text-emerald-400/80">{pct} / 30d</span>
+                          <span className="text-white/25 ml-auto">👥 {traders}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <Link
+                  href="/register"
+                  className="flex items-center justify-center gap-1.5 w-full h-10 rounded-2xl border border-blue-500/25 bg-blue-500/10 text-blue-300 text-xs font-semibold hover:bg-blue-500/20 transition-colors"
+                >
+                  View all bots <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── FEATURES ── */}
         <section id="features" className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -749,6 +864,12 @@ export default function HomePage() {
                   title: 'Copy trading',
                   desc: 'Follow experienced traders on the platform and automatically mirror their positions. You set the allocation size and can stop copying at any time.',
                   color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+                },
+                {
+                  Icon: Zap,
+                  title: 'AI trading bots',
+                  desc: 'Deploy exclusive algorithmic bots that trade 24/7 on your behalf. Choose your risk level and trading pair, fund your balance, and let the bot execute automatically.',
+                  color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
                 },
               ].map(({ Icon, title, desc, color }) => (
                 <div key={title} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-white/[0.11] transition-colors">

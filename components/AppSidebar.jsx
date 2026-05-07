@@ -26,6 +26,7 @@ import {
   BookOpen,
   Trophy,
   Users,
+  Bot,
 } from 'lucide-react'
 
 // Opens the Tawk.to chat with retry (safe — no-ops if Tawk is not loaded)
@@ -51,6 +52,7 @@ const navGroups = [
     items: [
       { href: '/dashboard',    label: 'Dashboard',    icon: Home    },
       { href: '/markets',      label: 'Markets',      icon: Activity },
+      { href: '/bots',         label: 'AI Bots',      icon: Bot      },
       { href: '/copy-trading', label: 'Copy Trading', icon: Users    },
       { href: '/history',      label: 'Analytics',    icon: History  },
       { href: '/journal',      label: 'Journal',      icon: BookOpen },
