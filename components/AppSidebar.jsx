@@ -21,6 +21,9 @@ import {
   ChevronDown,
   MessageCircle,
   Briefcase,
+  ArrowDownUp,
+  Send,
+  ArrowDownToLine,
   Sun,
   Moon,
   BookOpen,
@@ -66,7 +69,13 @@ const navGroups = [
   {
     id: 'funds',
     label: 'Funds',
-    items: [{ href: '/wallet', label: 'Wallet', icon: Wallet }],
+    items: [
+      { href: '/wallet',         label: 'Wallet',  icon: Wallet          },
+      { href: '/wallet/convert', label: 'Convert', icon: ArrowDownUp      },
+      { href: '/wallet/send',    label: 'Send',    icon: Send             },
+      { href: '/wallet/receive', label: 'Receive', icon: ArrowDownToLine  },
+      { href: '/wallet/history', label: 'History', icon: History          },
+    ],
   },
   {
     id: 'settings',
