@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Menu, Loader2, QrCode, Copy, Check, ArrowDownToLine } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+import TopNav from '@/components/TopNav'
 
 const ASSETS = [
   { asset: 'USDT', name: 'TetherUS' },
@@ -62,12 +63,8 @@ export default function ReceivePage() {
   return (
     <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet/receive" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="flex-1 min-w-0">
-        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1"><Menu className="h-6 w-6" /></button>
-          <span className="font-bold text-foreground text-sm">Receive</span>
-          <span className="w-6" />
-        </div>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopNav user={user} setSidebarOpen={setSidebarOpen} />
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-xl mx-auto">
           <div className="mb-6">

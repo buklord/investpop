@@ -21,9 +21,11 @@ import {
   Send,
   ArrowDownToLine,
   History as HistoryIcon,
-  Coins
+  Coins,
+  ArrowUpFromLine
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+import TopNav from '@/components/TopNav'
 
 export default function WalletPage() {
   const router = useRouter()
@@ -140,34 +142,20 @@ export default function WalletPage() {
     <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      <div className="flex-1 min-w-0">
-        {/* Mobile header */}
-        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1">
-            <Menu className="h-6 w-6" />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-black text-sm leading-none">K</span>
-            </div>
-            <span className="font-bold text-foreground text-sm">Kartomtrades</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={refreshData} disabled={refreshing} className="text-muted-foreground p-1">
-            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopNav user={user} setSidebarOpen={setSidebarOpen} />
 
-        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
           {/* Header */}
           <div className="flex items-center justify-between mb-6 sm:mb-8">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">My Wallets</h1>
-              <p className="text-muted-foreground text-sm">Manage your Real and Demo accounts</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Wallet Overview</h1>
+              <p className="text-muted-foreground text-sm">Your spot balances, trading accounts and activity</p>
             </div>
             <Button variant="ghost" onClick={refreshData} disabled={refreshing}
-              className="hidden lg:flex text-muted-foreground hover:text-foreground">
+              className="flex text-muted-foreground hover:text-foreground">
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
 
@@ -184,15 +172,21 @@ export default function WalletPage() {
               <div className="text-muted-foreground text-sm mt-1">
                 ≈ {Number(spot?.totalBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
-                <Button onClick={() => router.push('/wallet/receive')} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">
-                  <ArrowDownToLine className="h-4 w-4 mr-1" /> Deposit
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-5">
+                <Button onClick={() => router.push('/wallet/deposit')} size="sm" className="bg-emerald-300 hover:bg-emerald-400 text-black font-semibold w-full">
+                  <Plus className="h-4 w-4 mr-1" /> Deposit
+                </Button>
+                <Button onClick={() => router.push('/wallet/withdraw')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
+                  <ArrowUpFromLine className="h-4 w-4 mr-1" /> Withdraw
+                </Button>
+                <Button onClick={() => router.push('/wallet/convert')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
+                  <ArrowDownUp className="h-4 w-4 mr-1" /> Convert
                 </Button>
                 <Button onClick={() => router.push('/wallet/send')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
                   <Send className="h-4 w-4 mr-1" /> Send
                 </Button>
-                <Button onClick={() => router.push('/wallet/convert')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
-                  <ArrowDownUp className="h-4 w-4 mr-1" /> Convert
+                <Button onClick={() => router.push('/wallet/receive')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
+                  <ArrowDownToLine className="h-4 w-4 mr-1" /> Receive
                 </Button>
                 <Button onClick={() => router.push('/wallet/history')} size="sm" className="w-full bg-muted/40 hover:bg-muted/60 text-foreground border border-border">
                   <HistoryIcon className="h-4 w-4 mr-1" /> History
@@ -207,6 +201,7 @@ export default function WalletPage() {
                     <th className="text-right p-4">Amount</th>
                     <th className="text-right p-4">Price</th>
                     <th className="text-right p-4">USD Value</th>
+                    <th className="text-right p-4 hidden sm:table-cell">Allocation</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -232,10 +227,23 @@ export default function WalletPage() {
                       <td className="p-4 text-right text-sm text-foreground font-medium">
                         {formatCurrency(b.valueUsd)}
                       </td>
+                      <td className="p-4 hidden sm:table-cell">
+                        {(() => {
+                          const pct = spot?.totalUsd ? Math.min(100, (Number(b.valueUsd || 0) / spot.totalUsd) * 100) : 0
+                          return (
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div className="h-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-xs text-muted-foreground w-10 text-right">{pct.toFixed(1)}%</span>
+                            </div>
+                          )
+                        })()}
+                      </td>
                     </tr>
                   ))}
                   {(!spot || spot.balances?.length === 0) && (
-                    <tr><td colSpan={4} className="p-6 text-center text-muted-foreground text-sm">Loading balances…</td></tr>
+                    <tr><td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">Loading balances…</td></tr>
                   )}
                 </tbody>
               </table>

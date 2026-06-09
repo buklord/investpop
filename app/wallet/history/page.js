@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Menu, Loader2, RefreshCw, History, ArrowDownUp, Send, ArrowDownToLine, Gift } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+import TopNav from '@/components/TopNav'
 
 const TYPE_META = {
   CONVERT: { label: 'Convert', icon: ArrowDownUp, color: 'text-blue-400' },
@@ -55,14 +56,8 @@ export default function WalletHistoryPage() {
   return (
     <div className="min-h-screen bg-background flex">
       <AppSidebar currentPage="/wallet/history" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="flex-1 min-w-0">
-        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1"><Menu className="h-6 w-6" /></button>
-          <span className="font-bold text-foreground text-sm">Wallet History</span>
-          <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshing} className="text-muted-foreground p-1">
-            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopNav user={user} setSidebarOpen={setSidebarOpen} />
 
         <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-6">
@@ -70,8 +65,8 @@ export default function WalletHistoryPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-foreground">Wallet History</h1>
               <p className="text-muted-foreground text-sm">Converts, transfers, and deposits.</p>
             </div>
-            <Button variant="ghost" onClick={refresh} disabled={refreshing} className="hidden lg:flex text-muted-foreground hover:text-foreground">
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            <Button variant="ghost" onClick={refresh} disabled={refreshing} className="flex text-muted-foreground hover:text-foreground">
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
 

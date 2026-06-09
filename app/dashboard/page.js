@@ -12,6 +12,7 @@ import {
   BrainCircuit, Clock, GripVertical, Sparkles, Timer
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
+import TopNav from '@/components/TopNav'
 
 // ── Sparkline ──────────────────────────────────────────────────────────────────
 function Sparkline({ data = [], width = 72, height = 24, positive = true }) {
@@ -878,20 +879,8 @@ export default function DashboardPage() {
       {showOnboarding && <OnboardingModal onDone={() => setShowOnboarding(false)} />}
       <AppSidebar currentPage="/dashboard" user={user} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} account={account} />
 
-      <div className="flex-1 min-w-0">
-        {/* Mobile header */}
-        <div className="lg:hidden bg-card border-b border-border p-3 flex items-center justify-between sticky top-0 z-40">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground p-1"><Menu className="h-6 w-6" /></button>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-black text-sm leading-none">K</span>
-            </div>
-            <span className="font-bold text-foreground text-sm">Kartomtrades</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={refreshData} disabled={refreshing} className="text-muted-foreground p-1">
-            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopNav user={user} setSidebarOpen={setSidebarOpen} />
 
         {/* Broadcast Banner */}
         {broadcastMessage && (
