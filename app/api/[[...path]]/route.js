@@ -143,6 +143,124 @@ async function getDepositConfig() {
   return fallback
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Binance-style Spot Wallet
+// ─────────────────────────────────────────────────────────────────────────────
+// Self-contained multi-asset wallet (separate from the trading account).
+// Holds real per-coin balances and supports Convert, Send, and Receive.
+const WALLET_CONVERT_FEE = 0.001 // 0.1% fee on conversions (matches trading fee)
+
+// Supported wallet assets. `stable` coins are pegged to $1; others are priced
+// from the market data provider via the `${symbol}USD` quote.
+const WALLET_ASSETS = [
+  { symbol: 'USDT', name: 'TetherUS',  network: 'Tron (TRC20)',      stable: true  },
+  { symbol: 'USDC', name: 'USD Coin',  network: 'Ethereum (ERC20)',  stable: true  },
+  { symbol: 'BTC',  name: 'Bitcoin',   network: 'Bitcoin',           stable: false },
+  { symbol: 'ETH',  name: 'Ethereum',  network: 'Ethereum (ERC20)',  stable: false },
+  { symbol: 'BNB',  name: 'BNB',       network: 'BNB Smart Chain',   stable: false },
+  { symbol: 'SOL',  name: 'Solana',    network: 'Solana',            stable: false },
+  { symbol: 'XRP',  name: 'XRP',       network: 'XRP Ledger',        stable: false },
+]
+const WALLET_ASSET_MAP = Object.fromEntries(WALLET_ASSETS.map((a) => [a.symbol, a]))
+// New wallets are seeded with this much USDT so Convert/Send are usable in the demo.
+const WALLET_SEED_USDT = TRADING_CONFIG.STARTING_BALANCE
+
+let walletSchemaReady = false
+async function ensureWalletSchema() {
+  if (walletSchemaReady) return
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS wallet_balances (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL,
+        asset VARCHAR(20) NOT NULL,
+        balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, asset)
+      )`)
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        asset VARCHAR(20) NOT NULL,
+        amount DOUBLE PRECISION NOT NULL,
+        asset_to VARCHAR(20),
+        amount_to DOUBLE PRECISION,
+        counterparty VARCHAR(255),
+        price_usd DOUBLE PRECISION,
+        balance_after DOUBLE PRECISION,
+        description TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`)
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, created_at DESC)`
+    )
+    walletSchemaReady = true
+  } catch (err) {
+    console.warn('[wallet] ensureWalletSchema:', err.message)
+  }
+}
+
+// Return the USD price for a wallet asset. Stablecoins are $1; everything else
+// is quoted from the market data provider. Falls back to 0 on failure.
+async function getWalletAssetPriceUsd(symbol) {
+  const meta = WALLET_ASSET_MAP[symbol]
+  if (!meta) return 0
+  if (meta.stable) return 1
+  try {
+    const provider = getMarketDataProvider()
+    const quote = await provider.getQuote(`${symbol}USD`, 'crypto')
+    const price = Number(quote?.price)
+    return Number.isFinite(price) && price > 0 ? price : 0
+  } catch (_) {
+    return 0
+  }
+}
+
+// Ensure a user has wallet rows; seed a starting USDT balance on first creation.
+async function ensureWallet(userId) {
+  await ensureWalletSchema()
+  const existing = await prisma.$queryRawUnsafe(
+    `SELECT 1 FROM wallet_balances WHERE user_id = $1 LIMIT 1`,
+    userId
+  )
+  if (existing.length > 0) return
+  for (const a of WALLET_ASSETS) {
+    const seed = a.symbol === 'USDT' ? WALLET_SEED_USDT : 0
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO wallet_balances (user_id, asset, balance)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, asset) DO NOTHING`,
+      userId, a.symbol, seed
+    )
+  }
+  if (WALLET_SEED_USDT > 0) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO wallet_transactions (user_id, type, asset, amount, balance_after, price_usd, description)
+       VALUES ($1, 'SEED', 'USDT', $2, $2, 1, 'Welcome bonus')`,
+      userId, WALLET_SEED_USDT
+    )
+  }
+}
+
+// Deterministic, display-only deposit address for an asset (simulated).
+function walletDepositAddress(asset, cfg) {
+  if (asset === 'BTC') return cfg?.BTC || DEFAULT_DEPOSIT_CONFIG.BTC
+  if (asset === 'USDT') return cfg?.USDT || DEFAULT_DEPOSIT_CONFIG.USDT
+  if (asset === 'USDC') return cfg?.USDC || DEFAULT_DEPOSIT_CONFIG.USDC
+  // Pseudo-addresses for assets without a configured address.
+  const prefixes = { ETH: '0x', BNB: '0x', SOL: '', XRP: 'r' }
+  const chars = 'abcdef0123456789'
+  let body = ''
+  const seedStr = `${asset}-investpop`
+  for (let i = 0; i < 38; i++) {
+    body += chars[(seedStr.charCodeAt(i % seedStr.length) * (i + 7)) % chars.length]
+  }
+  return `${prefixes[asset] ?? ''}${body}`
+}
+
 // Force-settle outcome multipliers (Admin God Mode)
 const FORCE_PROFIT_RATIO = 0.10   // +10% of notional value
 const FORCE_LOSS_RATIO   = 0.05   // -5% of notional value
@@ -1619,6 +1737,260 @@ async function handleRoute(request, context) {
       // Cache account data for 15 seconds (allows dashboard refresh after trades)
       addCacheHeaders(accountResponse, 'minimal')
       return handleCORS(accountResponse)
+    }
+
+    // ============ SPOT WALLET (Binance-style) ============
+
+    // GET /api/wallet/balances — all coin balances with USD valuation + totals
+    if (route === '/wallet/balances' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      await ensureWallet(auth.user.userId)
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT asset, balance FROM wallet_balances WHERE user_id = $1`,
+        auth.user.userId
+      )
+      const balByAsset = Object.fromEntries(rows.map((r) => [r.asset, Number(r.balance) || 0]))
+
+      const prices = await Promise.all(WALLET_ASSETS.map((a) => getWalletAssetPriceUsd(a.symbol)))
+      const btcPrice = await getWalletAssetPriceUsd('BTC')
+
+      let totalUsd = 0
+      const balances = WALLET_ASSETS.map((a, i) => {
+        const balance = balByAsset[a.symbol] ?? 0
+        const priceUsd = prices[i]
+        const valueUsd = balance * priceUsd
+        totalUsd += valueUsd
+        return {
+          asset: a.symbol,
+          name: a.name,
+          network: a.network,
+          stable: a.stable,
+          balance,
+          priceUsd,
+          valueUsd,
+        }
+      })
+      // Sort by USD value descending so funded coins surface first.
+      balances.sort((x, y) => y.valueUsd - x.valueUsd)
+
+      return handleCORS(NextResponse.json({
+        balances,
+        totalUsd,
+        totalBtc: btcPrice > 0 ? totalUsd / btcPrice : 0,
+      }))
+    }
+
+    // GET /api/wallet/transactions — unified wallet activity feed
+    if (route === '/wallet/transactions' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      await ensureWalletSchema()
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT id, type, asset, amount, asset_to, amount_to, counterparty, price_usd, balance_after, description, created_at
+         FROM wallet_transactions WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 100`,
+        auth.user.userId
+      )
+      const transactions = rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        asset: r.asset,
+        amount: Number(r.amount),
+        assetTo: r.asset_to,
+        amountTo: r.amount_to != null ? Number(r.amount_to) : null,
+        counterparty: r.counterparty,
+        priceUsd: r.price_usd != null ? Number(r.price_usd) : null,
+        balanceAfter: r.balance_after != null ? Number(r.balance_after) : null,
+        description: r.description,
+        createdAt: r.created_at,
+      }))
+      return handleCORS(NextResponse.json({ transactions }))
+    }
+
+    // GET /api/wallet/address?asset=BTC — deposit address for receiving
+    if (route === '/wallet/address' && method === 'GET') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const url = new URL(request.url)
+      const asset = String(url.searchParams.get('asset') || 'USDT').toUpperCase()
+      const meta = WALLET_ASSET_MAP[asset]
+      if (!meta) return handleCORS(NextResponse.json({ error: 'Unsupported asset' }, { status: 400 }))
+
+      const cfg = await getDepositConfig()
+      return handleCORS(NextResponse.json({
+        asset,
+        name: meta.name,
+        network: meta.network,
+        address: walletDepositAddress(asset, cfg),
+      }))
+    }
+
+    // POST /api/wallet/convert — swap one asset for another at market price
+    if (route === '/wallet/convert' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const body = await request.json().catch(() => ({}))
+      const fromAsset = String(body.fromAsset || '').toUpperCase()
+      const toAsset = String(body.toAsset || '').toUpperCase()
+      const amount = Number(body.amount)
+
+      if (!WALLET_ASSET_MAP[fromAsset] || !WALLET_ASSET_MAP[toAsset]) {
+        return handleCORS(NextResponse.json({ error: 'Unsupported asset' }, { status: 400 }))
+      }
+      if (fromAsset === toAsset) {
+        return handleCORS(NextResponse.json({ error: 'Choose two different assets' }, { status: 400 }))
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return handleCORS(NextResponse.json({ error: 'Enter a valid amount' }, { status: 400 }))
+      }
+
+      await ensureWallet(auth.user.userId)
+      const [fromPrice, toPrice] = await Promise.all([
+        getWalletAssetPriceUsd(fromAsset),
+        getWalletAssetPriceUsd(toAsset),
+      ])
+      if (fromPrice <= 0 || toPrice <= 0) {
+        return handleCORS(NextResponse.json({ error: 'Price unavailable, try again' }, { status: 503 }))
+      }
+
+      const grossUsd = amount * fromPrice
+      const feeUsd = grossUsd * WALLET_CONVERT_FEE
+      const netUsd = grossUsd - feeUsd
+      const toAmount = netUsd / toPrice
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const balRows = await tx.$queryRawUnsafe(
+            `SELECT balance FROM wallet_balances WHERE user_id = $1 AND asset = $2 FOR UPDATE`,
+            auth.user.userId, fromAsset
+          )
+          const fromBalance = Number(balRows?.[0]?.balance ?? 0)
+          if (fromBalance < amount) {
+            throw new Error('INSUFFICIENT_BALANCE')
+          }
+          const newFrom = fromBalance - amount
+          await tx.$executeRawUnsafe(
+            `UPDATE wallet_balances SET balance = $3, updated_at = NOW() WHERE user_id = $1 AND asset = $2`,
+            auth.user.userId, fromAsset, newFrom
+          )
+          await tx.$executeRawUnsafe(
+            `INSERT INTO wallet_balances (user_id, asset, balance) VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, asset) DO UPDATE SET balance = wallet_balances.balance + $3, updated_at = NOW()`,
+            auth.user.userId, toAsset, toAmount
+          )
+          await tx.$executeRawUnsafe(
+            `INSERT INTO wallet_transactions (user_id, type, asset, amount, asset_to, amount_to, price_usd, balance_after, description)
+             VALUES ($1, 'CONVERT', $2, $3, $4, $5, $6, $7, $8)`,
+            auth.user.userId, fromAsset, -amount, toAsset, toAmount, fromPrice, newFrom,
+            `Converted ${amount} ${fromAsset} to ${toAsset}`
+          )
+          return { newFrom }
+        })
+        return handleCORS(NextResponse.json({
+          message: 'Conversion successful',
+          fromAsset, toAsset,
+          fromAmount: amount,
+          toAmount,
+          rate: (fromPrice / toPrice),
+          feeUsd,
+          fromBalance: result.newFrom,
+        }))
+      } catch (err) {
+        if (err.message === 'INSUFFICIENT_BALANCE') {
+          return handleCORS(NextResponse.json({ error: `Insufficient ${fromAsset} balance` }, { status: 400 }))
+        }
+        console.error('[wallet/convert]', err.message)
+        return handleCORS(NextResponse.json({ error: 'Conversion failed' }, { status: 500 }))
+      }
+    }
+
+    // POST /api/wallet/send — transfer an asset to another user by email
+    if (route === '/wallet/send' && method === 'POST') {
+      const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+
+      const body = await request.json().catch(() => ({}))
+      const asset = String(body.asset || '').toUpperCase()
+      const amount = Number(body.amount)
+      const recipientEmail = String(body.recipientEmail || '').trim().toLowerCase()
+
+      if (!WALLET_ASSET_MAP[asset]) {
+        return handleCORS(NextResponse.json({ error: 'Unsupported asset' }, { status: 400 }))
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return handleCORS(NextResponse.json({ error: 'Enter a valid amount' }, { status: 400 }))
+      }
+      if (!recipientEmail || !recipientEmail.includes('@')) {
+        return handleCORS(NextResponse.json({ error: 'Enter a valid recipient email' }, { status: 400 }))
+      }
+
+      const recipientRows = await prisma.$queryRawUnsafe(
+        `SELECT id, email FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+        recipientEmail
+      )
+      const recipient = recipientRows?.[0]
+      if (!recipient) {
+        return handleCORS(NextResponse.json({ error: 'No investpop user with that email' }, { status: 404 }))
+      }
+      if (recipient.id === auth.user.userId) {
+        return handleCORS(NextResponse.json({ error: 'You cannot send to yourself' }, { status: 400 }))
+      }
+
+      await ensureWallet(auth.user.userId)
+      await ensureWallet(recipient.id)
+      const priceUsd = await getWalletAssetPriceUsd(asset)
+
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const balRows = await tx.$queryRawUnsafe(
+            `SELECT balance FROM wallet_balances WHERE user_id = $1 AND asset = $2 FOR UPDATE`,
+            auth.user.userId, asset
+          )
+          const senderBalance = Number(balRows?.[0]?.balance ?? 0)
+          if (senderBalance < amount) {
+            throw new Error('INSUFFICIENT_BALANCE')
+          }
+          const newSender = senderBalance - amount
+          await tx.$executeRawUnsafe(
+            `UPDATE wallet_balances SET balance = $3, updated_at = NOW() WHERE user_id = $1 AND asset = $2`,
+            auth.user.userId, asset, newSender
+          )
+          await tx.$executeRawUnsafe(
+            `INSERT INTO wallet_balances (user_id, asset, balance) VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, asset) DO UPDATE SET balance = wallet_balances.balance + $3, updated_at = NOW()`,
+            recipient.id, asset, amount
+          )
+          await tx.$executeRawUnsafe(
+            `INSERT INTO wallet_transactions (user_id, type, asset, amount, counterparty, price_usd, balance_after, description)
+             VALUES ($1, 'SEND', $2, $3, $4, $5, $6, $7)`,
+            auth.user.userId, asset, -amount, recipient.email, priceUsd, newSender,
+            `Sent ${amount} ${asset} to ${recipient.email}`
+          )
+          await tx.$executeRawUnsafe(
+            `INSERT INTO wallet_transactions (user_id, type, asset, amount, counterparty, price_usd, description)
+             VALUES ($1, 'RECEIVE', $2, $3, $4, $5, $6)`,
+            recipient.id, asset, amount, auth.user.email, priceUsd,
+            `Received ${amount} ${asset} from ${auth.user.email}`
+          )
+          return { newSender }
+        })
+        return handleCORS(NextResponse.json({
+          message: `Sent ${amount} ${asset} to ${recipient.email}`,
+          asset, amount, recipientEmail: recipient.email,
+          balance: result.newSender,
+        }))
+      } catch (err) {
+        if (err.message === 'INSUFFICIENT_BALANCE') {
+          return handleCORS(NextResponse.json({ error: `Insufficient ${asset} balance` }, { status: 400 }))
+        }
+        console.error('[wallet/send]', err.message)
+        return handleCORS(NextResponse.json({ error: 'Transfer failed' }, { status: 500 }))
+      }
     }
 
     // POST /api/account/switch-mode — switch between DEMO and REAL wallets

@@ -18,6 +18,36 @@ module.exports = {
     	},
     	extend: {
     		colors: {
+    			// ── Binance hybrid brand palette ──────────────────────────────
+    			// `emerald` is remapped to Binance gold so every existing
+    			// emerald-* usage (logo, CTAs, active nav) turns gold app-wide.
+    			emerald: {
+    				50:  '#FFFBEB',
+    				100: '#FEF3C7',
+    				200: '#FDE68A',
+    				300: '#FCD535',
+    				400: '#F0B90B',
+    				500: '#E0A800',
+    				600: '#C68A00',
+    				700: '#9E6F00',
+    				800: '#6B4B00',
+    				900: '#422F00',
+    				950: '#241A00'
+    			},
+    			brand: {
+    				DEFAULT: '#FCD535',
+    				hover: '#F0B90B',
+    				foreground: '#0B0E11'
+    			},
+    			up: '#0ECB81',
+    			down: '#F6465D',
+    			binance: {
+    				bg: '#0B0E11',
+    				panel: '#181A20',
+    				card: '#1E2329',
+    				border: '#2B3139',
+    				muted: '#848E9C'
+    			},
     			border: 'hsl(var(--border))',
     			input: 'hsl(var(--input))',
     			ring: 'hsl(var(--ring))',
