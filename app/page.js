@@ -103,24 +103,24 @@ function EquityCurve({ animate = true }) {
 // ─── FAQ content ─────────────────────────────────────────────────────────
 const FAQ_ITEMS = [
   {
-    q: 'Is the demo account free?',
-    a: 'Yes. Your demo account is completely free and comes pre-loaded with $100,000 in virtual funds. No payment, no card, no time limit.',
+    q: 'Is the account free?',
+    a: 'Yes. Your account is completely free with a multi-asset crypto wallet. You also get $100,000 in virtual funds for optional trading practice. No payment, no card, no time limit.',
   },
   {
     q: 'Do I need a credit card to start?',
-    a: 'No. You can create an account and start trading the demo immediately with no card required. A deposit is only needed if you choose to open a live account later.',
+    a: 'No. You can create an account and start using your wallet immediately with no card required. A deposit is only needed if you choose to fund your wallet with real crypto or open a live trading account.',
   },
   {
     q: 'How does the live account work?',
-    a: 'To open a live account, you need to complete identity verification (KYC) and make a deposit. Live accounts use real funds, with real profit and loss. Withdrawals go through an admin review workflow.',
+    a: 'To open a live account for trading, you need to complete identity verification (KYC) and make a deposit. Live accounts use real funds, with real profit and loss. Withdrawals go through an admin review workflow.',
   },
   {
     q: 'What markets can I trade?',
-    a: 'Vaultquokka gives you access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
+    a: 'Vaultquokka gives you optional access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
   },
   {
     q: 'How does the crypto wallet work?',
-    a: 'Your spot wallet holds real per-coin balances (BTC, ETH, USDT, BNB, SOL, XRP and more), each valued live in USD. You can Convert between coins at market rates, Send funds to other users by email, Receive on the correct network, and review everything in a unified transaction history — alongside your trading account.',
+    a: 'Your spot wallet holds real per-coin balances (BTC, ETH, USDT, BNB, SOL, XRP and more), each valued live in USD. You can Convert between coins at market rates, Send funds to other users by email, Receive on the correct network, and review everything in a unified transaction history.',
   },
   {
     q: 'How does copy trading work?',
@@ -132,11 +132,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Do I need verification before trading live?',
-    a: 'Yes. Identity verification (KYC) is required before you can fund or trade a live account. This is a mandatory step to protect all users on the platform. The demo account does not require any verification.',
+    a: 'Yes. Identity verification (KYC) is required before you can fund your wallet with real crypto or trade a live account. This is a mandatory step to protect all users on the platform. The wallet and demo trading do not require any verification.',
   },
   {
     q: 'Is this platform suitable for beginners?',
-    a: 'Yes. The demo account is specifically designed for traders who want to build confidence before risking real money. You can trade in live market conditions without financial risk using virtual funds.',
+    a: 'Yes. The account is designed for users who want to build confidence with both wallet management and trading. You can use your wallet and trade in live market conditions without financial risk using virtual funds.',
   },
 ]
 
@@ -369,7 +369,7 @@ export default function HomePage() {
               <button
                 onClick={focusEmailForm}
                 className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-              >Start free demo <ArrowRight className="w-3.5 h-3.5" /></button>
+              >Start <ArrowRight className="w-3.5 h-3.5" /></button>
             </div>
             <button
               className="lg:hidden text-white/60"
@@ -397,7 +397,7 @@ export default function HomePage() {
                 href="/register"
                 className="w-full text-center block bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
                 onClick={() => setMobileMenu(false)}
-              >Start free demo</Link>
+              >Start</Link>
             </div>
           </div>
         )}
@@ -442,7 +442,7 @@ export default function HomePage() {
                     onClick={focusEmailForm}
                     className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(16,185,129,0.22)]"
                   >
-                    Start free demo <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                    Start <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </button>
                   <a
                     href="#how-it-works"
@@ -488,7 +488,7 @@ export default function HomePage() {
                         </button>
                       </div>
                       {error && <p className="text-red-400 text-xs">{error}</p>}
-                      <p className="text-white/25 text-xs">Free account. No card. $100,000 demo balance loaded instantly.</p>
+                      <p className="text-white/25 text-xs">Free account with wallet. No card. $100,000 virtual balance for optional trading.</p>
                     </form>
                   ) : (
                     <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-3">
@@ -523,7 +523,7 @@ export default function HomePage() {
                       >
                         {submitting ? (
                           <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" /> Creating your account&hellip;</>
-                        ) : <>Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
+                        ) : <>Create account <ArrowRight className="w-4 h-4" aria-hidden="true" /></>}
                       </button>
                       <p className="text-white/20 text-xs text-center">By registering you agree to our{' '}<Link href="/terms" className="underline hover:text-white/40">Terms of Service</Link>{' '}and{' '}<Link href="/risk-disclosure" className="underline hover:text-white/40">Risk Disclosure</Link>.</p>
                     </form>
@@ -545,7 +545,7 @@ export default function HomePage() {
                         <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                         <div className="w-3 h-3 rounded-full bg-emerald-500/60" />
                       </div>
-                      <span className="text-xs text-white/30 ml-1">Portfolio &middot; Demo Account</span>
+                      <span className="text-xs text-white/30 ml-1">Portfolio &middot; Virtual Account</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
                       <Activity className="w-3 h-3" aria-hidden="true" /> Live
@@ -588,7 +588,7 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
-                <p className="text-center text-[11px] text-white/20 mt-3">Demo account &mdash; no real funds at risk</p>
+                <p className="text-center text-[11px] text-white/20 mt-3">Virtual account &mdash; no real funds at risk</p>
               </div>
 
             </div>
@@ -675,7 +675,7 @@ export default function HomePage() {
                     { Icon: LineChart,  label: 'Live markets & charts' },
                     { Icon: Globe2,     label: 'Forex · Crypto · Stocks' },
                     { Icon: TrendingUp, label: 'Leverage with SL/TP' },
-                    { Icon: Gamepad2,   label: 'Demo & Real accounts' },
+                    { Icon: Gamepad2,   label: 'Virtual & Real accounts' },
                     { Icon: BookOpen,   label: 'Trading journal' },
                     { Icon: Activity,   label: 'Performance analytics' },
                   ],
@@ -818,7 +818,7 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-center text-[11px] text-white/20 mt-3">Demo wallet &mdash; seeded with virtual funds</p>
+                <p className="text-center text-[11px] text-white/20 mt-3">Virtual wallet &mdash; seeded with virtual funds</p>
               </div>
             </div>
           </div>
@@ -1083,8 +1083,8 @@ export default function HomePage() {
                 },
                 {
                   Icon: RefreshCw,
-                  title: 'Demo and live account switching',
-                  desc: 'Switch between your demo and live accounts in one click from the same terminal. No separate logins, no separate interfaces to learn.',
+                  title: 'Virtual and live account switching',
+                  desc: 'Switch between your virtual and live accounts in one click from the same terminal. No separate logins, no separate interfaces to learn.',
                   color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
                 },
                 {
@@ -1168,7 +1168,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div className="px-5 pb-4">
-                  <p className="text-white/25 text-xs">Demo account &mdash; virtual funds only</p>
+                  <p className="text-white/25 text-xs">Virtual account &mdash; virtual funds only</p>
                 </div>
               </div>
 
@@ -1216,7 +1216,7 @@ export default function HomePage() {
                       { label: 'Balance',  value: '$100,284.00', color: 'text-white' },
                       { label: 'Equity',   value: '$100,411.50', color: 'text-emerald-400' },
                       { label: 'Open P&L', value: '+$127.50',    color: 'text-emerald-400' },
-                      { label: 'Account',  value: 'Demo',        color: 'text-amber-400' },
+                      { label: 'Account',  value: 'Virtual',     color: 'text-amber-400' },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="rounded-xl bg-white/[0.03] border border-white/[0.05] px-3 py-2.5">
                         <div className="text-[10px] text-white/25 mb-1">{label}</div>
@@ -1253,21 +1253,21 @@ export default function HomePage() {
             </div>
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Account types</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Start on demo. Go live when you are ready.</h2>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Start on virtual. Go live when you are ready.</h2>
               <p className="mt-3 text-white/40 text-base">
-                Demo and live accounts share the same wallet + trading interface. The difference is what is at stake.
+                Virtual and live accounts share the same wallet + trading interface. The difference is what is at stake.
               </p>
             </div>
             <div className="grid md:grid-cols-2 gap-5 max-w-2xl">
 
-              {/* Demo account */}
+              {/* Virtual account */}
               <div className="rounded-2xl border border-white/[0.10] bg-white/[0.03] p-7">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
                     <Gamepad2 className="w-5 h-5 text-amber-400" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="text-white font-semibold">Demo account</div>
+                    <div className="text-white font-semibold">Virtual account</div>
                     <div className="text-white/30 text-xs">Start immediately &mdash; no deposit</div>
                   </div>
                 </div>
@@ -1291,7 +1291,7 @@ export default function HomePage() {
                   onClick={focusEmailForm}
                   className="mt-7 w-full h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-300 text-sm font-semibold hover:bg-amber-500/25 transition-colors"
                 >
-                  Open demo account
+                  Open virtual account
                 </button>
               </div>
 
@@ -1321,7 +1321,7 @@ export default function HomePage() {
                     'Deposit via crypto (BTC / USDT)',
                     'Real profit and loss on every trade',
                     'Withdrawal subject to admin review',
-                    'Same terminal as your demo account',
+                    'Same terminal as your virtual account',
                   ].map(t => (
                     <li key={t} className="flex items-start gap-2.5 text-sm text-white/55">
                       <CheckCircle className="w-4 h-4 text-emerald-400/80 flex-shrink-0 mt-0.5" aria-hidden="true" />
@@ -1333,7 +1333,7 @@ export default function HomePage() {
                   onClick={focusEmailForm}
                   className="mt-7 w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-colors"
                 >
-                  Start with a demo first
+                  Start with a virtual account first
                 </button>
               </div>
 
@@ -1355,9 +1355,9 @@ export default function HomePage() {
                   crypto &mdash; with a full trading platform connected to live market data, in a single account.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
-                  The platform is designed for retail traders who want to build genuine skills before committing real capital.
-                  Whether you are completely new to trading or returning after a break, the demo environment gives you a realistic
-                  space to trade without financial pressure.
+                  The platform is designed for users who want to build genuine skills with wallet management and trading before committing real capital.
+                  Whether you are completely new to crypto or returning after a break, the virtual environment gives you a realistic
+                  space to practice without financial pressure.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed">
                   Live trading is available after completing identity verification. This step exists to protect all users.
@@ -1368,19 +1368,19 @@ export default function HomePage() {
                 {[
                   {
                     title: 'What is Vaultquokka?',
-                    body: 'A trading platform that uses live market data. You can trade across multiple asset classes in a realistic environment before deciding whether to open a live account.',
+                    body: 'A multi-asset crypto wallet with optional trading access. You can hold, convert, send and receive crypto, and optionally trade across multiple asset classes in a realistic environment before deciding whether to open a live account.',
                   },
                   {
                     title: 'Who is it for?',
-                    body: 'Beginner and intermediate retail traders who want to build confidence before risking real money. Also suitable for experienced traders who want to test new strategies without financial risk.',
+                    body: 'Beginner and intermediate users who want to build confidence with wallet management and trading before risking real money. Also suitable for experienced users who want to test new strategies without financial risk.',
                   },
                   {
-                    title: 'What does "demo-first" mean?',
-                    body: 'Every account starts as a demo account with $100,000 in virtual funds. You are never required to deposit. Moving to a live account is a separate, voluntary step.',
+                    title: 'What does "virtual-first" mean?',
+                    body: 'Every account starts as a virtual account with $100,000 in virtual funds. You are never required to deposit. Moving to a live account is a separate, voluntary step.',
                   },
                   {
                     title: 'What requires verification?',
-                    body: 'Identity verification (KYC) is required only before opening a live account or making a deposit. The demo account can be used indefinitely without any verification.',
+                    body: 'Identity verification (KYC) is required only before opening a live account or making a deposit. The virtual account can be used indefinitely without any verification.',
                   },
                 ].map(({ title, body }) => (
                   <div key={title} className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-5 py-4">
@@ -1461,7 +1461,7 @@ export default function HomePage() {
               </form>
               {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
               <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
-                {['No card required', 'Instant demo account', 'Live market environment'].map(item => (
+                {['No card required', 'Instant virtual account', 'Live market environment'].map(item => (
                   <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/30">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-500/50" aria-hidden="true" />
                     {item}
@@ -1519,7 +1519,7 @@ export default function HomePage() {
             </p>
             <p className="text-white/15 text-xs leading-relaxed max-w-4xl">
               Vaultquokka is a simulation platform intended for educational and simulated trading purposes.
-              Virtual demo trading does not guarantee equivalent results in live markets.
+              Virtual trading does not guarantee equivalent results in live markets.
               Past performance of any trading strategy or instrument is not a reliable indicator of future results.
               This platform does not provide financial advice.
             </p>
