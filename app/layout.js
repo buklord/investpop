@@ -5,23 +5,23 @@ import { ThemeProvider } from '@/components/theme-provider'
 export const metadata = {
   metadataBase: new URL('https://www.vaultquokka.com'),
   title: {
-    default: 'Vaultquokka — Trading with Live Market Data',
+    default: 'Vaultquokka — Multi-Asset Crypto Wallet',
     template: '%s | Vaultquokka',
   },
-  description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Trade in live market conditions and upgrade to a live account only when you are ready.',
-  keywords: ['trading platform', 'demo trading', 'forex trading', 'crypto trading', 'live trading', 'virtual trading', 'Vaultquokka'],
+  description: 'Hold, convert, send and receive crypto with your multi-asset wallet. Optional trading access to Forex, Crypto, Stocks, Indices and Commodities. No card required.',
+  keywords: ['crypto wallet', 'multi-asset wallet', 'convert crypto', 'send crypto', 'receive crypto', 'Vaultquokka'],
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://www.vaultquokka.com',
     siteName: 'Vaultquokka',
-    title: 'Vaultquokka — Trading with Live Market Data',
-    description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Demo-first platform with live market prices.',
+    title: 'Vaultquokka — Multi-Asset Crypto Wallet',
+    description: 'Hold, convert, send and receive crypto with your multi-asset wallet. Optional trading access to Forex, Crypto, Stocks, Indices and Commodities. No card required.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Vaultquokka — Trading with Live Market Data',
-    description: 'Start trading Forex, Crypto, Stocks, Indices and Commodities with $100,000 in virtual funds. No card required. Demo-first platform with live market prices.',
+    title: 'Vaultquokka — Multi-Asset Crypto Wallet',
+    description: 'Hold, convert, send and receive crypto with your multi-asset wallet. Optional trading access to Forex, Crypto, Stocks, Indices and Commodities. No card required.',
   },
   robots: {
     index: true,

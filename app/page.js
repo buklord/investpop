@@ -418,7 +418,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-center gap-2 mb-6">
                   <div className="inline-flex items-center gap-2 text-[11px] font-semibold bg-white/[0.05] text-white/55 border border-white/[0.09] rounded-full px-3 py-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
-                    Wallet + Trading platform
+                    Vaultquokka
                   </div>
                   <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/[0.05] text-white/40 border border-white/[0.09] rounded-full px-3 py-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" aria-hidden="true" />
@@ -426,14 +426,14 @@ export default function HomePage() {
                   </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
-                  Your crypto wallet{' '}
+                  Your multi-asset{' '}
                   <br className="hidden sm:block" />
-                  <span className="text-emerald-400">and trading, in one place</span>
+                  <span className="text-emerald-400">crypto wallet</span>
                 </h1>
                 <p className="mt-5 text-base md:text-lg text-white/50 max-w-lg leading-relaxed">
-                  Hold real multi-asset balances, <span className="text-white font-semibold">Convert, Send &amp; Receive</span> crypto &mdash;
-                  then trade Forex, Crypto, Stocks, Indices, and Commodities in live market conditions.
-                  One account for your wallet and your trades.
+                  Hold, <span className="text-white font-semibold">Convert, Send &amp; Receive</span> crypto &mdash;
+                  with optional trading access to Forex, Crypto, Stocks, Indices, and Commodities in live market conditions.
+                  One account for everything.
                 </p>
 
                 {/* Primary + secondary CTAs */}
