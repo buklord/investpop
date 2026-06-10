@@ -20,6 +20,9 @@ import {
   withdrawalRequestReceivedEmail,
 } from '@/lib/emailTemplates'
 
+// Demo trading starts with practice funds; real & spot wallets start at 0.
+const DEMO_STARTING_BALANCE = 100000
+
 async function sendEmailBestEffort(payload, label = '') {
   try {
     const result = await sendEmail(payload)
@@ -974,7 +977,7 @@ async function handleRoute(request, context) {
       try {
         await prisma.$executeRaw`
           INSERT INTO virtual_accounts (user_id, balance, demo_balance, real_balance, trading_mode)
-          VALUES (${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 0, 'DEMO')
+          VALUES (${userId}, ${DEMO_STARTING_BALANCE}, ${DEMO_STARTING_BALANCE}, 0, 'DEMO')
           ON CONFLICT (user_id) DO NOTHING
         `
       } catch (vaErr) {
@@ -986,7 +989,7 @@ async function handleRoute(request, context) {
         const snapshotId = uuidv4()
         await prisma.$executeRaw`
           INSERT INTO account_snapshots (id, user_id, equity, balance, snapshot_type)
-          VALUES (${snapshotId}, ${userId}, ${TRADING_CONFIG.STARTING_BALANCE}, ${TRADING_CONFIG.STARTING_BALANCE}, 'REGISTRATION')
+          VALUES (${snapshotId}, ${userId}, ${DEMO_STARTING_BALANCE}, ${DEMO_STARTING_BALANCE}, 'REGISTRATION')
         `
       } catch (_) {}
 
