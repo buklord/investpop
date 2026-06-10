@@ -5,6 +5,6 @@ export default function robots() {
       allow: '/',
       disallow: ['/dashboard', '/portfolio', '/trade', '/wallet', '/history', '/journal', '/settings', '/kyc', '/admin', '/copy-trading', '/leaderboard', '/markets', '/api/'],
     },
-    sitemap: 'https://www.kartomtrades.com/sitemap.xml',
+    sitemap: 'https://www.vaultquokka.com/sitemap.xml',
   }
 }

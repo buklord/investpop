@@ -1,4 +1,4 @@
-# Kartomtrades — Setup & Deployment Guide
+# Vaultquokka — Setup & Deployment Guide
 
 ---
 
@@ -107,7 +107,7 @@ Replace `your@email.com` with your account email. After running it, log out and 
 
 ## 🚀 Deploy to Vercel (Go Live — Public URL)
 
-Vercel gives you a free public URL (e.g. `kartomtrades.vercel.app`) that anyone can visit — no Codespaces required.
+Vercel gives you a free public URL (e.g. `vaultquokka.vercel.app`) that anyone can visit — no Codespaces required.
 
 ### Step 1 — Merge this branch first
 In GitHub, open the Pull Request for `copilot/add-live-trade-monitor` and click **Merge**. This puts all your code onto `main`.
@@ -127,7 +127,7 @@ Before the first deploy succeeds you must add these in Vercel → Project → **
 |---|---|
 | `DATABASE_URL` | Supabase → Project → Settings → Database → **Transaction pooler** connection string |
 | `SESSION_SECRET` | Any random string (32+ chars). E.g. `inv3st_s3cr3t_2025_rand0m_xyz` |
-| `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://kartomtrades.vercel.app` |
+| `NEXT_PUBLIC_BASE_URL` | Your Vercel URL, e.g. `https://vaultquokka.vercel.app` |
 | `NEXT_PUBLIC_TAWK_SRC` | `https://embed.tawk.to/6998b1189d60291c30385ff5/1jhu77ivk` (already configured — just paste this) |
 | `RESEND_API_KEY` | Resend → API Keys (optional; enables email notifications) |
 | `EMAIL_FROM` | Verified sender, e.g. `noreply@yourdomain.com` (optional; enables email notifications) |

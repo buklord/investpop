@@ -306,9 +306,9 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-300 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(240,185,11,0.45)]">
-                <span className="text-black font-black text-lg leading-none">K</span>
+                <span className="text-black font-black text-lg leading-none">V</span>
               </div>
-              {!collapsed && <span className="text-xl font-bold text-sidebar-foreground truncate">Kartomtrades</span>}
+              {!collapsed && <span className="text-xl font-bold text-sidebar-foreground truncate">Vaultquokka</span>}
             </Link>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted-foreground ml-auto">
               <X className="h-5 w-5" />

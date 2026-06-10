@@ -116,7 +116,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What markets can I trade?',
-    a: 'Kartomtrades gives you access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
+    a: 'Vaultquokka gives you access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
   },
   {
     q: 'How does the crypto wallet work?',
@@ -349,9 +349,9 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-black text-lg leading-none">K</span>
+                <span className="text-white font-black text-lg leading-none">V</span>
               </div>
-              <span className="text-lg font-bold tracking-tight">Kartomtrades</span>
+              <span className="text-lg font-bold tracking-tight">Vaultquokka</span>
             </div>
             <div className="hidden lg:flex items-center gap-7">
               <a href="#overview"     className="text-white/50 hover:text-white transition-colors text-sm">Overview</a>
@@ -1351,7 +1351,7 @@ export default function HomePage() {
                   A wallet and a trading desk, working together
                 </h2>
                 <p className="text-white/50 text-base leading-relaxed mb-5">
-                  Kartomtrades pairs a powerful multi-asset crypto wallet &mdash; hold, convert, send and receive
+                  Vaultquokka pairs a powerful multi-asset crypto wallet &mdash; hold, convert, send and receive
                   crypto &mdash; with a full trading platform connected to live market data, in a single account.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
@@ -1367,7 +1367,7 @@ export default function HomePage() {
               <div className="space-y-3">
                 {[
                   {
-                    title: 'What is Kartomtrades?',
+                    title: 'What is Vaultquokka?',
                     body: 'A trading platform that uses live market data. You can trade across multiple asset classes in a realistic environment before deciding whether to open a live account.',
                   },
                   {
@@ -1481,9 +1481,9 @@ export default function HomePage() {
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-black text-lg leading-none">K</span>
+                  <span className="text-white font-black text-lg leading-none">V</span>
                 </div>
-                <span className="text-lg font-bold">Kartomtrades</span>
+                <span className="text-lg font-bold">Vaultquokka</span>
               </div>
               <p className="text-white/30 text-xs max-w-xs leading-relaxed">
                 A hybrid crypto wallet and trading platform. Hold, convert, send and receive crypto, and trade live
@@ -1518,12 +1518,12 @@ export default function HomePage() {
               You should carefully consider whether trading is appropriate for you in light of your financial situation, experience, and risk tolerance.
             </p>
             <p className="text-white/15 text-xs leading-relaxed max-w-4xl">
-              Kartomtrades is a simulation platform intended for educational and simulated trading purposes.
+              Vaultquokka is a simulation platform intended for educational and simulated trading purposes.
               Virtual demo trading does not guarantee equivalent results in live markets.
               Past performance of any trading strategy or instrument is not a reliable indicator of future results.
               This platform does not provide financial advice.
             </p>
-            <p className="text-white/15 text-xs">&copy; {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
+            <p className="text-white/15 text-xs">&copy; {new Date().getFullYear()} Vaultquokka. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -196,7 +196,7 @@ export default function DepositPage() {
 
           <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-2">Deposit Funds</h1>
           <p className="text-muted-foreground text-sm mb-6">
-            Send crypto to your Kartomtrades wallet. Funds are credited after admin verification.
+            Send crypto to your Vaultquokka wallet. Funds are credited after admin verification.
           </p>
 
           {/* Step 1: Select amount + method */}

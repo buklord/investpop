@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Terms of Service — Kartomtrades',
-  description: 'Terms and conditions governing use of the Kartomtrades trading platform.',
+  title: 'Terms of Service — Vaultquokka',
+  description: 'Terms and conditions governing use of the Vaultquokka trading platform.',
 }
 
 export default function TermsPage() {
@@ -14,9 +14,9 @@ export default function TermsPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-black text-base leading-none">K</span>
+              <span className="text-white font-black text-base leading-none">V</span>
             </div>
-            <span className="text-sm font-bold">Kartomtrades</span>
+            <span className="text-sm font-bold">Vaultquokka</span>
           </Link>
           <Link href="/" className="text-white/40 hover:text-white text-sm transition-colors">← Back to home</Link>
         </div>
@@ -34,7 +34,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-white text-lg font-semibold mb-3">1. About the platform</h2>
             <p>
-              Kartomtrades provides a simulated trading platform for educational and simulated trading purposes
+              Vaultquokka provides a simulated trading platform for educational and simulated trading purposes
               (the &ldquo;Platform&rdquo;). By creating an account, you accept these Terms of Service in full.
               If you do not agree, do not use the Platform.
             </p>
@@ -172,7 +172,7 @@ export default function TermsPage() {
 
       <footer className="border-t border-border/50 py-8 mt-8">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 flex flex-wrap gap-4 justify-between items-center">
-          <p className="text-white/20 text-xs">&copy; {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
+          <p className="text-white/20 text-xs">&copy; {new Date().getFullYear()} Vaultquokka. All rights reserved.</p>
           <div className="flex gap-5 text-xs">
             <Link href="/privacy-policy"   className="text-white/30 hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/risk-disclosure"  className="text-white/30 hover:text-white transition-colors">Risk Disclosure</Link>

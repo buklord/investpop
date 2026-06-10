@@ -1,5 +1,5 @@
 export default function sitemap() {
-  const base = 'https://www.kartomtrades.com'
+  const base = 'https://www.vaultquokka.com'
   const now = new Date().toISOString()
 
   return [

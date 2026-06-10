@@ -1,7 +1,7 @@
 // 🔧 Browser Console Debug Script
 // Copy and paste this into your browser console to test the login API
 
-console.log('%c🔍 Testing Kartomtrades Login API', 'font-size: 16px; color: #00ff00; font-weight: bold');
+console.log('%c🔍 Testing Vaultquokka Login API', 'font-size: 16px; color: #00ff00; font-weight: bold');
 
 (async () => {
   try {
