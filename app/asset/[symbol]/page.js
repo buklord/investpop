@@ -282,9 +282,9 @@ export default function AssetPage() {
               </Link>
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-black text-sm leading-none">K</span>
+                  <span className="text-white font-black text-sm leading-none">V</span>
                 </div>
-                <span className="font-bold text-white text-sm">Kartomtrades</span>
+                <span className="font-bold text-white text-sm">Vaultquokka</span>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">

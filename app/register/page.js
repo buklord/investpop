@@ -68,9 +68,9 @@ export default function RegisterPage() {
       <nav className="border-b border-border/50 px-4 sm:px-6 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-black text-base leading-none">K</span>
+            <span className="text-white font-black text-base leading-none">V</span>
           </div>
-          <span className="text-sm font-bold">Kartomtrades</span>
+          <span className="text-sm font-bold">Vaultquokka</span>
         </Link>
         <Link href="/" className="text-white/40 hover:text-white text-sm transition-colors">Cancel</Link>
       </nav>

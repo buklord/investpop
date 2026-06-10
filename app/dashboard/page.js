@@ -182,7 +182,7 @@ function loadWidgetOrder() {
 }
 
 // ── Onboarding Modal ──────────────────────────────────────────────────────────
-const ONBOARDING_KEY = 'kartom_onboarding_done'
+const ONBOARDING_KEY = 'vaultquokka_onboarding_done'
 const ONBOARDING_STEPS = [
   {
     emoji: '📈',

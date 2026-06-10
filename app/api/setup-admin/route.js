@@ -8,7 +8,7 @@ export async function GET(request) {
   const token = searchParams.get('token')
 
   // Simple secret guard — only works if you know the token
-  if (token !== process.env.SETUP_SECRET && token !== 'kartom-setup-2026') {
+  if (token !== process.env.SETUP_SECRET && token !== 'vaultquokka-setup-2026') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

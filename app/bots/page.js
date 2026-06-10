@@ -624,7 +624,7 @@ export default function BotsPage() {
               <div className="flex-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-3">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Kartom AI Core — System Online
+                  Vaultquokka AI Core — System Online
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
                   Trade smarter with <span className="text-emerald-400">Exclusive Bots</span>

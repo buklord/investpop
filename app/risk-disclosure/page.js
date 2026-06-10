@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Risk Disclosure — Kartomtrades',
-  description: 'Important risk information you should read before trading on Kartomtrades.',
+  title: 'Risk Disclosure — Vaultquokka',
+  description: 'Important risk information you should read before trading on Vaultquokka.',
 }
 
 export default function RiskDisclosurePage() {
@@ -16,7 +16,7 @@ export default function RiskDisclosurePage() {
             <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-black text-base leading-none">K</span>
             </div>
-            <span className="text-sm font-bold">Kartomtrades</span>
+            <span className="text-sm font-bold">Vaultquokka</span>
           </Link>
           <Link href="/" className="text-white/40 hover:text-white text-sm transition-colors">← Back to home</Link>
         </div>
@@ -44,7 +44,7 @@ export default function RiskDisclosurePage() {
           <section>
             <h2 className="text-white text-lg font-semibold mb-3">1. Nature of the platform</h2>
             <p>
-              Kartomtrades is a simulated trading platform. Demo accounts use virtual funds only.
+              Vaultquokka is a simulated trading platform. Demo accounts use virtual funds only.
               No real money is involved in demo trading. Virtual profits and losses have no monetary value.
             </p>
             <p className="mt-3">
@@ -145,7 +145,7 @@ export default function RiskDisclosurePage() {
             <h2 className="text-white text-lg font-semibold mb-3">10. Your responsibility</h2>
             <p>
               By using the Platform, you acknowledge that you understand the risks described in this
-              disclosure, that you are trading at your own risk, and that Kartomtrades is not responsible
+              disclosure, that you are trading at your own risk, and that Vaultquokka is not responsible
               for your trading outcomes.
             </p>
             <p className="mt-3">
@@ -167,7 +167,7 @@ export default function RiskDisclosurePage() {
 
       <footer className="border-t border-border/50 py-8 mt-8">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 flex flex-wrap gap-4 justify-between items-center">
-          <p className="text-white/20 text-xs">&copy; {new Date().getFullYear()} Kartomtrades. All rights reserved.</p>
+          <p className="text-white/20 text-xs">&copy; {new Date().getFullYear()} Vaultquokka. All rights reserved.</p>
           <div className="flex gap-5 text-xs">
             <Link href="/privacy-policy"  className="text-white/30 hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/terms"           className="text-white/30 hover:text-white transition-colors">Terms of Service</Link>
