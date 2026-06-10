@@ -353,10 +353,10 @@ export default function HomePage() {
               <span className="text-lg font-bold tracking-tight">Kartomtrades</span>
             </div>
             <div className="hidden lg:flex items-center gap-7">
+              <a href="#wallet"       className="text-white/50 hover:text-white transition-colors text-sm">Wallet</a>
+              <a href="#trade"        className="text-white/50 hover:text-white transition-colors text-sm">Trade</a>
+              <a href="#earn"         className="text-white/50 hover:text-white transition-colors text-sm">Earn</a>
               <Link href="/markets"   className="text-white/50 hover:text-white transition-colors text-sm">Markets</Link>
-              <a href="#features"     className="text-white/50 hover:text-white transition-colors text-sm">Features</a>
-              <a href="#how-it-works" className="text-white/50 hover:text-white transition-colors text-sm">How it works</a>
-              <a href="#accounts"     className="text-white/50 hover:text-white transition-colors text-sm">Accounts</a>
               <a href="#faq"          className="text-white/50 hover:text-white transition-colors text-sm">FAQ</a>
             </div>
             <div className="hidden lg:flex items-center gap-3">
@@ -380,10 +380,10 @@ export default function HomePage() {
         </div>
         {mobileMenu && (
           <div className="lg:hidden bg-background border-t border-border/50 px-4 py-4 space-y-2">
+            <a href="#wallet"       className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Wallet</a>
+            <a href="#trade"        className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Trade</a>
+            <a href="#earn"         className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Earn</a>
             <Link href="/markets"   className="block text-white/60 hover:text-white text-sm py-1.5">Markets</Link>
-            <a href="#features"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Features</a>
-            <a href="#how-it-works" className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>How it works</a>
-            <a href="#accounts"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Accounts</a>
             <a href="#faq"          className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>FAQ</a>
             <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
               <Link
@@ -613,13 +613,44 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── PILLARS ── */}
+        <section className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="max-w-xl mb-12">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">One hybrid platform</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Hold. Trade. Grow. <span className="text-emerald-400">All in one account.</span></h2>
+              <p className="mt-3 text-white/40 text-base">A Binance-style crypto wallet fused with a full trading desk &mdash; your funds and your strategies live side by side.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-5">
+              {[
+                { n: '01', Icon: Wallet,   tag: 'Wallet', title: 'Hold & move crypto',  desc: 'Real multi-asset balances. Convert, send and receive coins instantly with a unified history.', href: '#wallet' },
+                { n: '02', Icon: Activity, tag: 'Trade',  title: 'Trade live markets',  desc: 'Trade Forex, crypto, stocks, indices and commodities at live prices with charts, SL/TP and leverage.', href: '#trade' },
+                { n: '03', Icon: Zap,      tag: 'Earn',   title: 'Automate & grow',     desc: 'Copy top traders, deploy AI bots, and get AI coaching — put your wallet to work 24/7.', href: '#earn' },
+              ].map(({ n, Icon, tag, title, desc, href }) => (
+                <a key={n} href={href} className="group rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 hover:border-emerald-500/30 hover:bg-white/[0.04] transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <Icon className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <span className="text-2xl font-extrabold text-white/10 group-hover:text-emerald-500/30 transition-colors">{n}</span>
+                  </div>
+                  <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400/80 mb-1">{tag}</div>
+                  <div className="text-white font-semibold text-lg mb-1.5">{title}</div>
+                  <p className="text-white/40 text-sm leading-relaxed mb-3">{desc}</p>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-white/50 group-hover:text-emerald-300 transition-colors">Explore <ArrowRight className="w-4 h-4" aria-hidden="true" /></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── WALLET (HYBRID) ── */}
         <section id="wallet" className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Left: copy + features */}
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">New &mdash; Spot Wallet</div>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">01 · Wallet</div>
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
                   A real crypto wallet,{' '}
                   <span className="text-emerald-400">built in.</span>
@@ -753,29 +784,29 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-14">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">How it works</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Three steps to your first trade</h2>
-              <p className="mt-3 text-white/40 text-base">Start on demo. Go live only when you are confident.</p>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">From wallet to trade in three steps</h2>
+              <p className="mt-3 text-white/40 text-base">Open an account, fund your wallet, and put your balance to work.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 relative">
               <div className="hidden md:block absolute top-9 left-[calc(16.67%+1.5rem)] right-[calc(16.67%+1.5rem)] h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" aria-hidden="true" />
               {[
                 {
                   step: '01',
-                  title: 'Create your free demo account',
-                  body: 'Sign up with just an email address. No card, no deposit, no wait. Your account is ready in seconds with $100,000 in virtual funds.',
+                  title: 'Create your free account',
+                  body: 'Sign up with just an email — no card, no deposit. Your wallet and trading account are ready in seconds with $100,000 in virtual funds.',
                   Icon: UserCheck,
                 },
                 {
                   step: '02',
-                  title: 'Trade with virtual funds at live prices',
-                  body: 'Trade Forex, crypto, stocks, indices, and commodities at real market prices. Use stop loss, take profit, copy trading, and the AI trade coach to build real skills.',
-                  Icon: TrendingUp,
+                  title: 'Fund your wallet & hold crypto',
+                  body: 'Hold real balances across BTC, ETH, USDT and more. Convert between coins at live rates, or send and receive with other users instantly.',
+                  Icon: Wallet,
                 },
                 {
                   step: '03',
-                  title: 'Upgrade to a live account after verification',
-                  body: "When you're ready, complete identity verification and make a deposit. Same terminal, same interface. No new learning curve.",
-                  Icon: Shield,
+                  title: 'Trade markets & put funds to work',
+                  body: 'Trade live Forex, crypto, stocks and indices, copy top traders, or deploy AI bots — then go live after verification on the same interface.',
+                  Icon: TrendingUp,
                 },
               ].map(({ step, title, body, Icon }) => (
                 <div key={step} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-7">
@@ -793,13 +824,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── MARKETS STRIP ── */}
-        <section className="py-14 border-b border-border/40 bg-white/[0.01]">
+        {/* ── TRADE PILLAR (MARKETS) ── */}
+        <section id="trade" className="py-14 border-b border-border/40 bg-white/[0.01]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-end justify-between mb-8">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-2">Live Markets</div>
-                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">One account. Every market.</h2>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-2">02 · Trade</div>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Trade every market, straight from your wallet</h2>
+                <p className="mt-2 text-white/40 text-sm max-w-lg">Move funds from your spot wallet into live Forex, crypto, stocks, indices and commodities &mdash; one account, one balance.</p>
               </div>
               <Link href="/markets" className="hidden sm:flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
                 View all <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -843,23 +875,23 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── AI TRADING BOTS TEASER ── */}
-        <section className="py-20 border-b border-border/40">
+        {/* ── EARN PILLAR (BOTS) ── */}
+        <section id="earn" className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-12">
               {/* Left: copy */}
               <div className="flex-1">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
-                  Now available — AI Trading Bots
+                  03 · Earn & automate
                 </div>
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-                  Let AI trade for you <br className="hidden sm:block" />
+                  Put your wallet to work <br className="hidden sm:block" />
                   <span className="text-emerald-400">24 hours a day, 7 days a week</span>
                 </h2>
                 <p className="text-white/45 text-base leading-relaxed mb-6 max-w-lg">
-                  Choose from a library of exclusive algorithmic bots, each built around a specific trading pair and
-                  risk profile. Set your allocation, activate, and watch the bot execute in real time.
+                  Grow your balance hands-free: copy top-performing traders, or deploy exclusive AI bots built around
+                  a specific pair and risk profile. Set your allocation, activate, and let them run.
                 </p>
                 <div className="grid grid-cols-2 gap-3 mb-7 max-w-sm">
                   {[
@@ -1009,8 +1041,8 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Inside the platform</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">What you get when you sign up</h2>
-              <p className="mt-3 text-white/40 text-base">A realistic trading environment from day one — no configuration needed.</p>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Your wallet and trading desk, in one app</h2>
+              <p className="mt-3 text-white/40 text-base">Manage balances and fire trades from the same place — no configuration needed.</p>
             </div>
             <div className="grid md:grid-cols-2 gap-5">
 
@@ -1129,7 +1161,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <div className="text-white font-bold text-lg leading-snug">100% bonus on your first deposit</div>
-                  <div className="text-white/45 text-sm mt-0.5">Deposit any amount &mdash; we match it. Deposit $500, start trading with $1,000.</div>
+                  <div className="text-white/45 text-sm mt-0.5">Deposit any amount &mdash; we match it. Deposit $500, fund your wallet with $1,000.</div>
                 </div>
               </div>
               <button
@@ -1141,7 +1173,7 @@ export default function HomePage() {
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Account types</div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Start on demo. Go live when you are ready.</h2>
               <p className="mt-3 text-white/40 text-base">
-                Demo and live accounts share the same interface. The difference is what is at stake.
+                Demo and live accounts share the same wallet + trading interface. The difference is what is at stake.
               </p>
             </div>
             <div className="grid md:grid-cols-2 gap-5 max-w-2xl">
@@ -1162,9 +1194,9 @@ export default function HomePage() {
                 <ul className="space-y-3">
                   {[
                     'No credit card or deposit required',
+                    'Hold, convert, send & receive crypto',
                     'Trade at real live market prices',
-                    'Reset your balance at any time',
-                    'Full access to all platform tools',
+                    'Full access to wallet + trading tools',
                     'Switch to a live account when ready',
                   ].map(t => (
                     <li key={t} className="flex items-start gap-2.5 text-sm text-white/55">
@@ -1372,17 +1404,17 @@ export default function HomePage() {
                 <span className="text-lg font-bold">Kartomtrades</span>
               </div>
               <p className="text-white/30 text-xs max-w-xs leading-relaxed">
-                A simulated trading platform for education and demo trading.
-                All trading is conducted using virtual funds unless you open a live account after completing identity verification.
+                A hybrid crypto wallet and trading platform. Hold, convert, send and receive crypto, and trade live
+                markets &mdash; using virtual funds unless you open a live account after completing identity verification.
               </p>
             </div>
             <div>
               <div className="text-white/20 text-[10px] font-semibold uppercase tracking-wider mb-4">Platform</div>
               <div className="space-y-2.5">
-                <Link href="/markets"                     className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
-                <Link href="/login"                      className="block text-white/40 hover:text-white text-xs transition-colors">Log in</Link>
-                <Link href="/register"                     className="block text-white/40 hover:text-white text-xs transition-colors">Register</Link>
-                <a href="#how-it-works"                    className="block text-white/40 hover:text-white text-xs transition-colors">How it works</a>
+                <a href="#wallet"                          className="block text-white/40 hover:text-white text-xs transition-colors">Wallet</a>
+                <a href="#trade"                           className="block text-white/40 hover:text-white text-xs transition-colors">Trade</a>
+                <a href="#earn"                            className="block text-white/40 hover:text-white text-xs transition-colors">Earn</a>
+                <Link href="/markets"                      className="block text-white/40 hover:text-white text-xs transition-colors">Markets</Link>
                 <a href="#faq"                             className="block text-white/40 hover:text-white text-xs transition-colors">FAQ</a>
               </div>
             </div>
