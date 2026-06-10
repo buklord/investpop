@@ -35,6 +35,8 @@ import {
   CreditCard,
   ArrowUpFromLine,
   Sparkles,
+  PiggyBank,
+  Lock,
 } from 'lucide-react'
 
 // Opens the Tawk.to chat with retry (safe — no-ops if Tawk is not loaded)
@@ -53,8 +55,8 @@ function openTawk() {
   tryOpen()
 }
 
-// Binance-style hybrid IA: Wallet is the front door, Trade keeps the existing
-// trading platform, Rewards + Account round it out.
+// Hybrid IA: Wallet is the front door, Trade keeps the existing trading
+// platform, Earn/Rewards + Account round it out.
 const navGroups = [
   {
     id: 'wallet',
@@ -88,7 +90,9 @@ const navGroups = [
     label: 'Earn',
     icon: Sparkles,
     items: [
-      { href: '/wallet',      label: 'Simple Earn', icon: Sparkles, soon: true },
+      { href: '/earn', label: 'Overview',    icon: Sparkles            },
+      { href: '/earn', label: 'Simple Earn', icon: PiggyBank, soon: true },
+      { href: '/earn', label: 'Staking',     icon: Lock,      soon: true },
     ],
   },
   {
@@ -117,10 +121,9 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const [collapsed, setCollapsed] = useState(false)
   const [openGroups, setOpenGroups] = useState({ wallet: true, trade: true, earn: false, rewards: false, account: false, help: false })
   const [pendingDeposits, setPendingDeposits] = useState(0)
+  const [spotUsd, setSpotUsd] = useState(null)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
-  const [spotBalances, setSpotBalances] = useState(null)
-  const [spotLoading, setSpotLoading] = useState(false)
   const [alertCount, setAlertCount] = useState(0)
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
@@ -148,24 +151,16 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     return () => { cancelled = true }
   }, [pathname, accountProp])
 
-  // Fetch spot wallet balances
+  // Fetch spot wallet total (for the hybrid balance card)
   useEffect(() => {
     if (!user) return
     let cancelled = false
-    const fetchSpot = async () => {
-      setSpotLoading(true)
-      try {
-        const res = await fetch('/api/wallet/balances', { cache: 'no-store' })
-        if (res.ok && !cancelled) {
-          const data = await res.json()
-          setSpotBalances(data.balances || [])
-        }
-      } catch (_) {}
-      if (!cancelled) setSpotLoading(false)
-    }
-    fetchSpot()
+    fetch('/api/wallet/balances', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d) setSpotUsd(Number(d.totalUsd || 0)) })
+      .catch(() => {})
     return () => { cancelled = true }
-  }, [user])
+  }, [user, pathname])
 
   // Fetch active price alert count
   useEffect(() => {
@@ -211,10 +206,6 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const equity      = account != null
     ? (account.balance || 0) + (account.openPnl || 0)
     : null
-
-  // Calculate total spot wallet value (sum of all asset balances in USD)
-  const spotTotal = spotBalances?.reduce((sum, b) => sum + (b.usdValue || 0), 0) || 0
-  const totalBalance = (spotTotal || 0) + (equity || 0)
 
   const fmt = (v) => v != null
     ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -345,29 +336,38 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </div>
               </div>
 
-              <div className="mt-3 rounded-xl border border-sidebar-border bg-gradient-to-br from-emerald-400/10 via-sidebar-accent/40 to-transparent p-3 text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Total Balance</span>
-                  <span className="text-sidebar-foreground font-mono font-semibold">{fmt(totalBalance)}</span>
+              <div className="mt-3 rounded-2xl border border-sidebar-border bg-gradient-to-br from-emerald-400/15 via-sidebar-accent/40 to-transparent p-3.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-muted-foreground font-medium">Total Balance</span>
+                  {tradingMode && (
+                    <span className={`font-semibold px-1.5 py-0.5 rounded text-[10px] ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                      {tradingMode === 'REAL' ? 'Real' : 'Demo'}
+                    </span>
+                  )}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Spot Wallet</span>
-                  <span className="text-sidebar-foreground font-mono">{fmt(spotTotal)}</span>
+                <div className="text-xl font-bold text-sidebar-foreground font-mono tabular-nums leading-tight">
+                  {(spotUsd == null && account == null) ? '—' : fmt((spotUsd ?? 0) + (equity ?? 0))}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Trading</span>
-                  <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
+                <div className="mt-2.5 space-y-1.5 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-muted-foreground"><Wallet className="h-3 w-3 text-emerald-400" /> Spot Wallet</span>
+                    <span className="text-sidebar-foreground font-mono">{fmt(spotUsd)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-muted-foreground"><Activity className="h-3 w-3 text-emerald-400" /> Trading</span>
+                    <span className="font-mono text-sidebar-foreground">{fmt(equity)}</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-1">
+                <div className="mt-3 grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => router.push('/wallet/deposit')}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-300 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-emerald-400"
+                    className="flex items-center justify-center gap-1 rounded-lg bg-emerald-300 py-1.5 text-[11px] font-semibold text-black transition-colors hover:bg-emerald-400"
                   >
                     <CreditCard className="h-3.5 w-3.5" /> Deposit
                   </button>
                   <button
                     onClick={() => router.push('/wallet')}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent py-1.5 text-xs font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80"
+                    className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
                   >
                     <Wallet className="h-3.5 w-3.5" /> Wallet
                   </button>

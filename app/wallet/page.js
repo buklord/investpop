@@ -159,18 +159,36 @@ export default function WalletPage() {
             </Button>
           </div>
 
-          {/* Spot Wallet (Binance-style multi-asset) */}
+          {/* Unified wallet — estimated total value across spot + trading */}
           <Card className="bg-card border-border mb-6 overflow-hidden">
             <div className="bg-gradient-to-br from-emerald-500/10 to-transparent p-5 sm:p-6">
               <div className="flex items-center gap-2 mb-1">
-                <Coins className="h-4 w-4 text-emerald-400" />
-                <span className="text-muted-foreground text-sm">Spot Wallet · Estimated Balance</span>
+                <Wallet className="h-4 w-4 text-emerald-400" />
+                <span className="text-muted-foreground text-sm">Estimated Total Value</span>
               </div>
               <div className="text-3xl sm:text-4xl font-bold text-foreground">
-                {formatCurrency(spot?.totalUsd)}
+                {formatCurrency((spot?.totalUsd || 0) + activeEquity)}
               </div>
               <div className="text-muted-foreground text-sm mt-1">
-                ≈ {Number(spot?.totalBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC
+                ≈ {Number(spot?.totalBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC in spot
+              </div>
+              {/* Hybrid breakdown: spot wallet + trading + earn */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
+                  <Coins className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs text-muted-foreground">Spot Wallet</span>
+                  <span className="text-xs font-semibold text-foreground">{formatCurrency(spot?.totalUsd)}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
+                  <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs text-muted-foreground">Trading</span>
+                  <span className="text-xs font-semibold text-foreground">{formatCurrency(activeEquity)}</span>
+                </div>
+                <button onClick={() => router.push('/earn')} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5 transition-colors hover:border-emerald-500/30">
+                  <ArrowUpRight className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs text-muted-foreground">Earn</span>
+                  <span className="text-[10px] font-bold uppercase text-amber-300 bg-amber-400/15 px-1.5 py-0.5 rounded">Soon</span>
+                </button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-5">
                 <Button onClick={() => router.push('/wallet/deposit')} size="sm" className="bg-emerald-300 hover:bg-emerald-400 text-black font-semibold w-full">
@@ -202,7 +220,7 @@ export default function WalletPage() {
                     <th className="text-right p-4">Price</th>
                     <th className="text-right p-4">USD Value</th>
                     <th className="text-right p-4 hidden sm:table-cell">Allocation</th>
-                    <th className="text-right p-4">Actions</th>
+                    <th className="text-right p-4 hidden md:table-cell">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,29 +259,11 @@ export default function WalletPage() {
                           )
                         })()}
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 hidden md:table-cell">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => router.push('/wallet/convert')}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="Convert"
-                          >
-                            <ArrowDownUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => router.push('/wallet/send')}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="Send"
-                          >
-                            <Send className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => router.push('/wallet/receive')}
-                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            title="Receive"
-                          >
-                            <ArrowDownToLine className="h-4 w-4" />
-                          </button>
+                          <button title="Convert" onClick={() => router.push('/wallet/convert')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownUp className="h-3.5 w-3.5" /></button>
+                          <button title="Send" onClick={() => router.push('/wallet/send')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><Send className="h-3.5 w-3.5" /></button>
+                          <button title="Receive" onClick={() => router.push('/wallet/receive')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownToLine className="h-3.5 w-3.5" /></button>
                         </div>
                       </td>
                     </tr>

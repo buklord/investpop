@@ -13,7 +13,8 @@ import {
   Menu, X, ArrowRight, MessageCircle, Shield, Zap, LineChart,
   CheckCircle, Lock, Globe2, Gamepad2, DollarSign, Activity,
   Copy, ChevronRight, BookOpen, UserCheck, TrendingUp,
-  RefreshCw, Star, Wallet, Coins, ArrowDownUp, Send, ArrowDownToLine, History
+  RefreshCw, Star, Wallet, Coins, ArrowDownUp, Send, ArrowDownToLine, History,
+  Bot, Gift, Bell, Sparkles, PiggyBank, CreditCard, ArrowUpFromLine, Users, Layers, Trophy
 } from 'lucide-react'
 
 // ─── Animated equity curve ────────────────────────────────────────────────
@@ -353,6 +354,7 @@ export default function HomePage() {
               <span className="text-lg font-bold tracking-tight">Kartomtrades</span>
             </div>
             <div className="hidden lg:flex items-center gap-7">
+              <a href="#overview"     className="text-white/50 hover:text-white transition-colors text-sm">Overview</a>
               <a href="#wallet"       className="text-white/50 hover:text-white transition-colors text-sm">Wallet</a>
               <a href="#trade"        className="text-white/50 hover:text-white transition-colors text-sm">Trade</a>
               <a href="#earn"         className="text-white/50 hover:text-white transition-colors text-sm">Earn</a>
@@ -380,6 +382,7 @@ export default function HomePage() {
         </div>
         {mobileMenu && (
           <div className="lg:hidden bg-background border-t border-border/50 px-4 py-4 space-y-2">
+            <a href="#overview"     className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Overview</a>
             <a href="#wallet"       className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Wallet</a>
             <a href="#trade"        className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Trade</a>
             <a href="#earn"         className="block text-white/60 hover:text-white text-sm py-1.5" onClick={() => setMobileMenu(false)}>Earn</a>
@@ -613,69 +616,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── ALL YOUR OFFERS ── */}
-        <section className="py-16 border-b border-border/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <div className="text-center mb-10">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Platform Overview</div>
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">All your offers, on one screen</h2>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Wallet */}
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-emerald-500/30 hover:bg-white/[0.04] transition-all">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <h3 className="text-white font-semibold text-base mb-2">Wallet</h3>
-                <p className="text-white/40 text-sm leading-relaxed mb-3">Multi-asset spot wallet with Convert, Send, Receive, and full transaction history.</p>
-                <div className="text-xs text-emerald-400 font-medium">Available now</div>
-              </div>
-
-              {/* Trade */}
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-emerald-500/30 hover:bg-white/[0.04] transition-all">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <h3 className="text-white font-semibold text-base mb-2">Trade</h3>
-                <p className="text-white/40 text-sm leading-relaxed mb-3">Live markets, TradingView charts, AI bots, copy trading, and full analytics.</p>
-                <div className="text-xs text-emerald-400 font-medium">Available now</div>
-              </div>
-
-              {/* Earn */}
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-emerald-500/30 hover:bg-white/[0.04] transition-all">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <h3 className="text-white font-semibold text-base mb-2">Earn</h3>
-                <p className="text-white/40 text-sm leading-relaxed mb-3">AI Trading Bots and Copy Trading available now. Simple Earn, Staking, Savings Vaults, Launchpad coming soon.</p>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Bots</span>
-                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">Copy Trading</span>
-                  <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Simple Earn</span>
-                  <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Staking</span>
-                </div>
-              </div>
-
-              {/* Rewards & More */}
-              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-emerald-500/30 hover:bg-white/[0.04] transition-all">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
-                  <Gift className="w-5 h-5" />
-                </div>
-                <h3 className="text-white font-semibold text-base mb-2">Rewards & More</h3>
-                <p className="text-white/40 text-sm leading-relaxed mb-3">Leaderboard, referral program, trading journal, price alerts, and KYC verification.</p>
-                <div className="text-xs text-emerald-400 font-medium">Available now</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ── PILLARS ── */}
         <section className="py-20 border-b border-border/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">One hybrid platform</div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Hold. Trade. Grow. <span className="text-emerald-400">All in one account.</span></h2>
-              <p className="mt-3 text-white/40 text-base">A multi-asset crypto wallet fused with a full trading desk &mdash; your funds and your strategies live side by side.</p>
+              <p className="mt-3 text-white/40 text-base">A full multi-asset crypto wallet fused with a complete trading desk &mdash; your funds and your strategies live side by side.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-5">
               {[
@@ -695,6 +642,85 @@ export default function HomePage() {
                   <p className="text-white/40 text-sm leading-relaxed mb-3">{desc}</p>
                   <span className="inline-flex items-center gap-1.5 text-sm text-white/50 group-hover:text-emerald-300 transition-colors">Explore <ArrowRight className="w-4 h-4" aria-hidden="true" /></span>
                 </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── EVERYTHING IN ONE PLATFORM (full offer overview) ── */}
+        <section id="overview" className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="max-w-2xl mb-12">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Everything in one place</div>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">All your offers, on one screen</h2>
+              <p className="mt-3 text-white/40 text-base">From holding crypto to trading live markets and growing your balance &mdash; here&rsquo;s everything the platform does today, plus what&rsquo;s landing next.</p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[
+                {
+                  tag: 'Wallet', Icon: Wallet,
+                  items: [
+                    { Icon: Coins,           label: 'Multi-asset balances' },
+                    { Icon: CreditCard,      label: 'Deposit crypto' },
+                    { Icon: ArrowUpFromLine, label: 'Withdraw' },
+                    { Icon: ArrowDownUp,     label: 'Instant Convert' },
+                    { Icon: Send,            label: 'Send to anyone' },
+                    { Icon: ArrowDownToLine, label: 'Receive on-chain' },
+                    { Icon: History,         label: 'Unified history' },
+                  ],
+                },
+                {
+                  tag: 'Trade', Icon: Activity,
+                  items: [
+                    { Icon: LineChart,  label: 'Live markets & charts' },
+                    { Icon: Globe2,     label: 'Forex · Crypto · Stocks' },
+                    { Icon: TrendingUp, label: 'Leverage with SL/TP' },
+                    { Icon: Gamepad2,   label: 'Demo & Real accounts' },
+                    { Icon: BookOpen,   label: 'Trading journal' },
+                    { Icon: Activity,   label: 'Performance analytics' },
+                  ],
+                },
+                {
+                  tag: 'Earn', Icon: Sparkles,
+                  items: [
+                    { Icon: Bot,       label: 'AI trading bots' },
+                    { Icon: Users,     label: 'Copy trading' },
+                    { Icon: PiggyBank, label: 'Simple Earn', soon: true },
+                    { Icon: Lock,      label: 'Staking', soon: true },
+                    { Icon: Layers,    label: 'Savings vaults', soon: true },
+                    { Icon: Zap,       label: 'Launchpad', soon: true },
+                  ],
+                },
+                {
+                  tag: 'Rewards & more', Icon: Gift,
+                  items: [
+                    { Icon: Trophy,    label: 'Leaderboard' },
+                    { Icon: Gift,      label: 'Referral program' },
+                    { Icon: Bell,      label: 'Price alerts' },
+                    { Icon: Shield,    label: 'KYC & security' },
+                    { Icon: MessageCircle, label: '24/7 support' },
+                  ],
+                },
+              ].map(({ tag, Icon, items }) => (
+                <div key={tag} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6">
+                  <div className="flex items-center gap-2.5 mb-5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <Icon className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <span className="text-white font-semibold">{tag}</span>
+                  </div>
+                  <ul className="space-y-2.5">
+                    {items.map(({ Icon: ItemIcon, label, soon }) => (
+                      <li key={label} className="flex items-center gap-2.5 text-sm text-white/60">
+                        <ItemIcon className="w-4 h-4 text-emerald-400/70 flex-shrink-0" aria-hidden="true" />
+                        <span className="flex-1">{label}</span>
+                        {soon && (
+                          <span className="rounded-md bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-300">Soon</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
             </div>
           </div>
@@ -824,7 +850,7 @@ export default function HomePage() {
           <div className="relative">
             <div className="flex w-max" style={{ animation: 'ticker 30s linear infinite' }}>
               {[...Array(2)].map((_, r) => (
-                ['TradingView', 'OpenAI', 'Bloomberg', 'Coinbase', 'Kraken', 'CoinGecko', 'MetaMask', 'Chainlink'].map((name, i) => (
+                ['TradingView', 'OpenAI', 'Bloomberg', 'Coinbase', 'Polygon', 'Kraken', 'CoinGecko', 'MetaMask'].map((name, i) => (
                   <div key={`${r}-${i}`} className="mx-8 flex items-center gap-2 text-white/25 font-semibold text-sm whitespace-nowrap">
                     <span className="w-2 h-2 rounded-full bg-white/15" aria-hidden="true" />
                     {name}
@@ -1325,7 +1351,7 @@ export default function HomePage() {
                   A wallet and a trading desk, working together
                 </h2>
                 <p className="text-white/50 text-base leading-relaxed mb-5">
-                  Kartomtrades pairs a multi-asset wallet &mdash; hold, convert, send and receive
+                  Kartomtrades pairs a powerful multi-asset crypto wallet &mdash; hold, convert, send and receive
                   crypto &mdash; with a full trading platform connected to live market data, in a single account.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
