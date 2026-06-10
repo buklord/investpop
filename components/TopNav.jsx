@@ -33,8 +33,8 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 
-// Binance-style global top navigation bar. Lives at the top of the content
-// column on app pages (hybrid shell: works alongside the existing sidebar).
+// Global top navigation bar. Lives at the top of the content column on app
+// pages (hybrid shell: works alongside the existing sidebar).
 export default function TopNav({ user, setSidebarOpen }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -119,10 +119,10 @@ export default function TopNav({ user, setSidebarOpen }) {
 
           <Link href="/wallet/convert" className={linkCls('/wallet/convert')}>Convert</Link>
 
-          <span className="flex items-center gap-1 text-sm font-medium text-foreground/40 cursor-default">
+          <Link href="/earn" className={`flex items-center gap-1 ${linkCls('/earn')}`}>
             Earn
             <span className="text-[9px] font-bold uppercase bg-emerald-400/15 text-emerald-400 rounded px-1 py-0.5">Soon</span>
-          </span>
+          </Link>
         </nav>
 
         {/* Right cluster */}
