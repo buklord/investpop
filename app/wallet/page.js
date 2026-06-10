@@ -202,6 +202,7 @@ export default function WalletPage() {
                     <th className="text-right p-4">Price</th>
                     <th className="text-right p-4">USD Value</th>
                     <th className="text-right p-4 hidden sm:table-cell">Allocation</th>
+                    <th className="text-right p-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -240,10 +241,35 @@ export default function WalletPage() {
                           )
                         })()}
                       </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => router.push('/wallet/convert')}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Convert"
+                          >
+                            <ArrowDownUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => router.push('/wallet/send')}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Send"
+                          >
+                            <Send className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => router.push('/wallet/receive')}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Receive"
+                          >
+                            <ArrowDownToLine className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {(!spot || spot.balances?.length === 0) && (
-                    <tr><td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">Loading balances…</td></tr>
+                    <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">Loading balances…</td></tr>
                   )}
                 </tbody>
               </table>

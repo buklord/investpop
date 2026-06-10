@@ -119,6 +119,8 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const [pendingDeposits, setPendingDeposits] = useState(0)
   const [selfAccount, setSelfAccount] = useState(null)
   const [accountLoading, setAccountLoading] = useState(false)
+  const [spotBalances, setSpotBalances] = useState(null)
+  const [spotLoading, setSpotLoading] = useState(false)
   const [alertCount, setAlertCount] = useState(0)
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'
 
@@ -145,6 +147,25 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
     // Re-fetch whenever pathname changes (user navigated to a new page)
     return () => { cancelled = true }
   }, [pathname, accountProp])
+
+  // Fetch spot wallet balances
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const fetchSpot = async () => {
+      setSpotLoading(true)
+      try {
+        const res = await fetch('/api/wallet/balances', { cache: 'no-store' })
+        if (res.ok && !cancelled) {
+          const data = await res.json()
+          setSpotBalances(data.balances || [])
+        }
+      } catch (_) {}
+      if (!cancelled) setSpotLoading(false)
+    }
+    fetchSpot()
+    return () => { cancelled = true }
+  }, [user])
 
   // Fetch active price alert count
   useEffect(() => {
@@ -190,6 +211,10 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
   const equity      = account != null
     ? (account.balance || 0) + (account.openPnl || 0)
     : null
+
+  // Calculate total spot wallet value (sum of all asset balances in USD)
+  const spotTotal = spotBalances?.reduce((sum, b) => sum + (b.usdValue || 0), 0) || 0
+  const totalBalance = (spotTotal || 0) + (equity || 0)
 
   const fmt = (v) => v != null
     ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -320,31 +345,33 @@ export default function AppSidebar({ user, sidebarOpen, setSidebarOpen, account:
                 </div>
               </div>
 
-              <div className="mt-3 rounded-xl border border-sidebar-border bg-gradient-to-br from-emerald-400/10 via-sidebar-accent/40 to-transparent p-3 text-xs space-y-1.5">
+              <div className="mt-3 rounded-xl border border-sidebar-border bg-gradient-to-br from-emerald-400/10 via-sidebar-accent/40 to-transparent p-3 text-xs space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Mode</span>
-                  {accountLoading || tradingMode === null ? (
-                    <span className="text-muted-foreground text-xs italic">Loading…</span>
-                  ) : (
-                    <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${tradingMode === 'REAL' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                      {tradingMode === 'REAL' ? '💼 Real' : '🎯 Demo'}
-                    </span>
-                  )}
+                  <span className="text-muted-foreground font-medium">Total Balance</span>
+                  <span className="text-sidebar-foreground font-mono font-semibold">{fmt(totalBalance)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">{tradingMode === 'DEMO' ? 'Practice Bal.' : 'Available'}</span>
-                  <span className="text-sidebar-foreground font-mono">{fmt(available)}</span>
+                  <span className="text-muted-foreground">Spot Wallet</span>
+                  <span className="text-sidebar-foreground font-mono">{fmt(spotTotal)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Equity</span>
+                  <span className="text-muted-foreground">Trading</span>
                   <span className={`font-mono ${equity != null && equity >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(equity)}</span>
                 </div>
-                <button
-                  onClick={() => router.push('/wallet/deposit')}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-300 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-emerald-400"
-                >
-                  <CreditCard className="h-3.5 w-3.5" /> Deposit
-                </button>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    onClick={() => router.push('/wallet/deposit')}
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-300 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-emerald-400"
+                  >
+                    <CreditCard className="h-3.5 w-3.5" /> Deposit
+                  </button>
+                  <button
+                    onClick={() => router.push('/wallet')}
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent py-1.5 text-xs font-semibold text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80"
+                  >
+                    <Wallet className="h-3.5 w-3.5" /> Wallet
+                  </button>
+                </div>
               </div>
             </div>
           )}
