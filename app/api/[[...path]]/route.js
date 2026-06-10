@@ -3792,6 +3792,72 @@ async function handleRoute(request, context) {
       }))
     }
 
+    // POST /api/admin/adjust-spot-wallet - Override/adjust a user's spot wallet balance
+    if (route === '/admin/adjust-spot-wallet' && method === 'POST') {
+      const admin = await requireAdminAuth()
+      if (admin.error) {
+        return handleCORS(NextResponse.json({ error: admin.error }, { status: admin.status }))
+      }
+
+      const body = await request.json()
+      const { targetUserId, asset, amount, reason } = body
+
+      if (!targetUserId || !asset || amount === undefined || amount === null) {
+        return handleCORS(NextResponse.json({ error: 'targetUserId, asset and amount are required' }, { status: 400 }))
+      }
+
+      const numAmount = parseFloat(amount)
+      if (isNaN(numAmount)) {
+        return handleCORS(NextResponse.json({ error: 'amount must be a number' }, { status: 400 }))
+      }
+
+      // Check target user exists
+      const targetUsers = await prisma.$queryRaw`
+        SELECT id FROM users WHERE id = ${targetUserId}
+      `
+      if (targetUsers.length === 0) {
+        return handleCORS(NextResponse.json({ error: 'Target user not found' }, { status: 404 }))
+      }
+
+      const assetSymbol = String(asset).toUpperCase()
+      await ensureWallet(targetUserId)
+
+      // Upsert spot wallet balance (adds amount to existing balance)
+      await prisma.$executeRaw`
+        INSERT INTO wallet_balances (id, user_id, asset, balance)
+        VALUES (gen_random_uuid()::text, ${targetUserId}, ${assetSymbol}, ${numAmount})
+        ON CONFLICT (user_id, asset)
+        DO UPDATE SET balance = wallet_balances.balance + EXCLUDED.balance, updated_at = NOW()
+      `
+
+      // Get new balance for ledger snapshot
+      const balRows = await prisma.$queryRaw`
+        SELECT balance FROM wallet_balances WHERE user_id = ${targetUserId} AND asset = ${assetSymbol}
+      `
+      const newBalance = parseFloat(balRows[0]?.balance || 0)
+
+      // Record transaction
+      await prisma.$executeRaw`
+        INSERT INTO wallet_transactions (id, user_id, type, asset, amount, balance_after, price_usd, description)
+        VALUES (gen_random_uuid()::text, ${targetUserId}, 'ADMIN_ADJUSTMENT', ${assetSymbol}, ${numAmount}, ${newBalance}, 1, ${reason || 'Admin spot wallet adjustment'})
+      `
+
+      // Create audit log entry
+      const auditId = uuidv4()
+      await prisma.$executeRaw`
+        INSERT INTO audit_logs (id, admin_id, action, target_id, details, created_at)
+        VALUES (${auditId}, ${admin.user.userId}, 'ADJUST_SPOT_WALLET',
+                ${targetUserId}, ${JSON.stringify({ asset: assetSymbol, amount: numAmount, reason: reason || null, newBalance })}::jsonb, NOW())
+      `
+
+      return handleCORS(NextResponse.json({
+        message: 'Spot wallet adjusted successfully',
+        asset: assetSymbol,
+        amount: numAmount,
+        newBalance
+      }))
+    }
+
     // POST /api/admin/suspend-user - Suspend or re-activate a user
     if (route === '/admin/suspend-user' && method === 'POST') {
       const admin = await requireAdminAuth()

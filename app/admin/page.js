@@ -31,6 +31,7 @@ import {
   Crown,
   KeyRound,
   Trash2,
+  Wallet,
   TrendingUp as BullIcon,
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
@@ -164,6 +165,14 @@ export default function AdminPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [adjustLoading, setAdjustLoading] = useState(false)
   const [adjustMsg, setAdjustMsg] = useState(null)
+
+  // Adjust spot wallet state
+  const [adjustSpotUserId, setAdjustSpotUserId] = useState('')
+  const [adjustSpotAsset, setAdjustSpotAsset] = useState('USDT')
+  const [adjustSpotAmount, setAdjustSpotAmount] = useState('')
+  const [adjustSpotReason, setAdjustSpotReason] = useState('')
+  const [adjustSpotLoading, setAdjustSpotLoading] = useState(false)
+  const [adjustSpotMsg, setAdjustSpotMsg] = useState(null)
 
   // Broadcast state
   const [broadcastText, setBroadcastText] = useState('')
@@ -513,6 +522,20 @@ export default function AdminPage() {
       else setAdjustMsg({ type: 'error', text: data.error || 'Failed.' })
     } catch { setAdjustMsg({ type: 'error', text: 'An error occurred.' }) }
     finally { setAdjustLoading(false) }
+  }
+
+  const handleAdjustSpotWallet = async (e) => {
+    e.preventDefault(); setAdjustSpotMsg(null); setAdjustSpotLoading(true)
+    try {
+      const res = await fetch('/api/admin/adjust-spot-wallet', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: adjustSpotUserId, asset: adjustSpotAsset, amount: parseFloat(adjustSpotAmount), reason: adjustSpotReason })
+      })
+      const data = await res.json()
+      if (res.ok) { setAdjustSpotMsg({ type: 'success', text: `Spot wallet adjusted. New ${data.asset} balance: ${data.newBalance}` }); setAdjustSpotUserId(''); setAdjustSpotAmount(''); setAdjustSpotReason(''); loadData() }
+      else setAdjustSpotMsg({ type: 'error', text: data.error || 'Failed.' })
+    } catch { setAdjustSpotMsg({ type: 'error', text: 'An error occurred.' }) }
+    finally { setAdjustSpotLoading(false) }
   }
 
   const handleBroadcast = async (e) => {
@@ -1016,6 +1039,57 @@ export default function AdminPage() {
                   <Button type="submit" disabled={adjustLoading} className="bg-amber-600 hover:bg-amber-700 text-white w-full">
                     {adjustLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     Apply Adjustment
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Adjust Spot Wallet */}
+            <Card className="bg-[#161b22] border-slate-800">
+              <CardHeader>
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-emerald-400" />
+                  Adjust Spot Wallet
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-3">
+                  Add or subtract from a user&apos;s spot-wallet crypto balance. Use negative for deduction.
+                </p>
+                <form onSubmit={handleAdjustSpotWallet} className="space-y-3">
+                  <Input
+                    value={adjustSpotUserId}
+                    onChange={e => setAdjustSpotUserId(e.target.value)}
+                    placeholder="Target User UUID"
+                    required
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 font-mono text-sm"
+                  />
+                  <select
+                    value={adjustSpotAsset}
+                    onChange={e => setAdjustSpotAsset(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {['USDT','USDC','BTC','ETH','BNB','SOL','XRP'].map(sym => (
+                      <option key={sym} value={sym}>{sym}</option>
+                    ))}
+                  </select>
+                  <Input
+                    value={adjustSpotAmount}
+                    onChange={e => setAdjustSpotAmount(e.target.value)}
+                    placeholder="Amount (negative to subtract)"
+                    type="number" step="0.000001" required
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                  <Input
+                    value={adjustSpotReason}
+                    onChange={e => setAdjustSpotReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                  <Msg msg={adjustSpotMsg} />
+                  <Button type="submit" disabled={adjustSpotLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">
+                    {adjustSpotLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Apply Spot Adjustment
                   </Button>
                 </form>
               </CardContent>
