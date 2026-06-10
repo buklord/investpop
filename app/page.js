@@ -13,7 +13,7 @@ import {
   Menu, X, ArrowRight, MessageCircle, Shield, Zap, LineChart,
   CheckCircle, Lock, Globe2, Gamepad2, DollarSign, Activity,
   Copy, ChevronRight, BookOpen, UserCheck, TrendingUp,
-  RefreshCw, Star
+  RefreshCw, Star, Wallet, Coins, ArrowDownUp, Send, ArrowDownToLine, History
 } from 'lucide-react'
 
 // ─── Animated equity curve ────────────────────────────────────────────────
@@ -82,16 +82,16 @@ function EquityCurve({ animate = true }) {
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-[100px]">
         <defs>
           <linearGradient id="curveGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+            <stop offset="0%" stopColor="#F0B90B" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#F0B90B" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={areaPath} fill="url(#curveGrad)" />
-        <path d={linePath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke="#F0B90B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         {coords.length > 0 && (
           <g>
-            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="5" fill="#10b981" opacity="0.3" />
-            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="3" fill="#10b981" />
+            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="5" fill="#F0B90B" opacity="0.3" />
+            <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="3" fill="#F0B90B" />
           </g>
         )}
       </svg>
@@ -116,6 +116,10 @@ const FAQ_ITEMS = [
   {
     q: 'What markets can I trade?',
     a: 'Kartomtrades gives you access to Forex pairs, cryptocurrencies, equities, stock indices, and commodities — all from a single account.',
+  },
+  {
+    q: 'How does the crypto wallet work?',
+    a: 'Your spot wallet holds real per-coin balances (BTC, ETH, USDT, BNB, SOL, XRP and more), each valued live in USD. You can Convert between coins at market rates, Send funds to other users by email, Receive on the correct network, and review everything in a unified transaction history — alongside your trading account.',
   },
   {
     q: 'How does copy trading work?',
@@ -411,7 +415,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-center gap-2 mb-6">
                   <div className="inline-flex items-center gap-2 text-[11px] font-semibold bg-white/[0.05] text-white/55 border border-white/[0.09] rounded-full px-3 py-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" aria-hidden="true" />
-                    Demo-first trading platform
+                    Wallet + Trading platform
                   </div>
                   <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/[0.05] text-white/40 border border-white/[0.09] rounded-full px-3 py-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" aria-hidden="true" />
@@ -419,14 +423,14 @@ export default function HomePage() {
                   </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
-                  Trading with{' '}
+                  Your crypto wallet{' '}
                   <br className="hidden sm:block" />
-                  <span className="text-emerald-400">live market conditions</span>
+                  <span className="text-emerald-400">and trading, in one place</span>
                 </h1>
                 <p className="mt-5 text-base md:text-lg text-white/50 max-w-lg leading-relaxed">
-                  Start with <span className="text-white font-semibold">$100,000 in virtual funds</span> across Forex,
-                  Crypto, Stocks, Indices, and Commodities. No card required.
-                  Move to a live account only when you are ready.
+                  Hold real multi-asset balances, <span className="text-white font-semibold">Convert, Send &amp; Receive</span> crypto &mdash;
+                  then trade Forex, Crypto, Stocks, Indices, and Commodities in live market conditions.
+                  One account for your wallet and your trades.
                 </p>
 
                 {/* Primary + secondary CTAs */}
@@ -447,7 +451,7 @@ export default function HomePage() {
 
                 {/* Trust microcopy */}
                 <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                  {['No card required', 'Instant account', 'Live market conditions'].map((item) => (
+                  {['Multi-asset wallet', 'Convert · Send · Receive', 'Live market trading'].map((item) => (
                     <span key={item} className="flex items-center gap-1.5 text-[12px] text-white/35">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-500/60 flex-shrink-0" aria-hidden="true" />
                       {item}
@@ -593,12 +597,12 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 items-center">
               {[
-                { icon: <Gamepad2 className="w-4 h-4" aria-hidden="true" />,  label: 'Demo-first platform' },
-                { icon: <Activity  className="w-4 h-4" aria-hidden="true" />,  label: 'Live market data' },
-                { icon: <LineChart className="w-4 h-4" aria-hidden="true" />,  label: 'TradingView charts' },
-                { icon: <UserCheck className="w-4 h-4" aria-hidden="true" />,  label: 'KYC before live account' },
-                { icon: <Shield    className="w-4 h-4" aria-hidden="true" />,  label: 'Crypto deposits supported' },
-                { icon: <BookOpen  className="w-4 h-4" aria-hidden="true" />,  label: 'Free to start, no deposit needed' },
+                { icon: <Wallet      className="w-4 h-4" aria-hidden="true" />,  label: 'Multi-asset spot wallet' },
+                { icon: <ArrowDownUp className="w-4 h-4" aria-hidden="true" />,  label: 'Instant Convert' },
+                { icon: <Send        className="w-4 h-4" aria-hidden="true" />,  label: 'Send & Receive crypto' },
+                { icon: <Activity    className="w-4 h-4" aria-hidden="true" />,  label: 'Live market trading' },
+                { icon: <LineChart   className="w-4 h-4" aria-hidden="true" />,  label: 'TradingView charts' },
+                { icon: <Shield      className="w-4 h-4" aria-hidden="true" />,  label: 'Crypto deposits supported' },
               ].map(({ icon, label }) => (
                 <div key={label} className="flex items-center gap-2 text-white/40 text-sm">
                   <span className="text-emerald-500/60">{icon}</span>
@@ -609,14 +613,112 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── WALLET (HYBRID) ── */}
+        <section id="wallet" className="py-20 border-b border-border/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              {/* Left: copy + features */}
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">New &mdash; Spot Wallet</div>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+                  A real crypto wallet,{' '}
+                  <span className="text-emerald-400">built in.</span>
+                </h2>
+                <p className="mt-4 text-white/45 text-base leading-relaxed max-w-lg">
+                  Hold actual balances in BTC, ETH, USDT, BNB, SOL, XRP and more &mdash; not just a single cash
+                  balance. Convert between coins at live prices, send to other users instantly, and receive on
+                  the right network.
+                </p>
+                <div className="mt-7 space-y-3 max-w-lg">
+                  {[
+                    { Icon: Coins,       title: 'Multi-asset balances', desc: 'Real per-coin holdings with live USD valuation and a running portfolio total.' },
+                    { Icon: ArrowDownUp, title: 'Instant Convert',      desc: 'Swap any coin to another at live market rates — no order book needed.' },
+                    { Icon: Send,        title: 'Send & Receive',       desc: 'Transfer crypto to other users by email, or receive on the correct network.' },
+                    { Icon: History,     title: 'Unified history',      desc: 'Deposits, withdrawals, converts and transfers in one activity feed.' },
+                  ].map(({ Icon, title, desc }) => (
+                    <div key={title} className="flex items-start gap-3">
+                      <div className="w-9 h-9 flex-shrink-0 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                        <Icon className="w-4 h-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold text-sm">{title}</div>
+                        <div className="text-white/40 text-sm leading-relaxed">{desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={focusEmailForm}
+                  className="mt-8 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-lg text-sm transition-colors shadow-[0_2px_16px_rgba(16,185,129,0.22)]"
+                >
+                  Open your wallet <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Right: wallet card */}
+              <div className="relative">
+                <div className="relative rounded-2xl border border-white/[0.08] bg-[#0d1117]/80 backdrop-blur overflow-hidden shadow-2xl">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+                    <span className="text-xs text-white/40 font-semibold">Wallet &middot; Spot</span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+                      <Activity className="w-3 h-3" aria-hidden="true" /> Live
+                    </span>
+                  </div>
+                  <div className="px-5 py-5">
+                    <div className="text-[11px] text-white/40 font-medium mb-1">Estimated Balance</div>
+                    <div className="flex items-end gap-2">
+                      <div className="text-3xl font-extrabold text-white tabular-nums">$128,640.00</div>
+                      <div className="text-xs text-emerald-400 font-bold mb-1">+2.4%</div>
+                    </div>
+                    <div className="text-xs text-white/30 mt-0.5">&asymp; 1.9210 BTC</div>
+
+                    <div className="mt-5 space-y-2">
+                      {[
+                        { sym: 'USDT', name: 'TetherUS', amt: '64,320.00',  usd: '$64,320.00', color: 'bg-emerald-500/15 text-emerald-400' },
+                        { sym: 'BTC',  name: 'Bitcoin',  amt: '0.78420000', usd: '$52,180.40', color: 'bg-amber-500/15 text-amber-400' },
+                        { sym: 'ETH',  name: 'Ethereum', amt: '3.4100',     usd: '$11,705.60', color: 'bg-cyan-500/15 text-cyan-400' },
+                      ].map((a) => (
+                        <div key={a.sym} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold ${a.color}`}>{a.sym}</span>
+                            <div>
+                              <div className="text-xs font-semibold text-white">{a.sym} <span className="text-white/30 font-normal">{a.name}</span></div>
+                              <div className="text-[10px] text-white/30 tabular-nums">{a.amt}</div>
+                            </div>
+                          </div>
+                          <div className="text-xs font-semibold text-white tabular-nums">{a.usd}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {[
+                        { Icon: ArrowDownUp,     label: 'Convert' },
+                        { Icon: Send,            label: 'Send' },
+                        { Icon: ArrowDownToLine, label: 'Receive' },
+                      ].map(({ Icon, label }) => (
+                        <button key={label} onClick={focusEmailForm} className="flex flex-col items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.06] py-2.5 text-[11px] font-semibold text-white/70 transition-colors">
+                          <Icon className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-center text-[11px] text-white/20 mt-3">Demo wallet &mdash; seeded with virtual funds</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── STATS SECTION ── */}
         <section className="py-16 border-b border-border/40 bg-white/[0.01]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-3 gap-6 md:gap-12 text-center">
               {[
+                { value: '7+',     label: 'Coins supported in your spot wallet — BTC, ETH, USDT, BNB, SOL, XRP & more.' },
                 { value: '$5.28M', label: '$5.28M currently managed by AI-powered trading bots.' },
-                { value: '20×',    label: '20× Faster Trades, lightning-fast trades powered by AI-driven analysis.' },
-                { value: '5,000+', label: '5,000+ Happy Traders. Join thousands of users achieving amazing results.' },
+                { value: '5,000+', label: '5,000+ users managing their wallet and trades in one place.' },
               ].map(({ value, label }) => (
                 <div key={value}>
                   <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-2 tabular-nums">{value}</div>
@@ -824,11 +926,29 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="max-w-xl mb-12">
               <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">Platform features</div>
-              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Built for trading, analysis, and disciplined execution</h2>
-              <p className="mt-3 text-white/40 text-base">Every tool is designed to help you develop real trading skills.</p>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Everything from your wallet to the trading desk</h2>
+              <p className="mt-3 text-white/40 text-base">Manage real balances and trade live markets — all from one account.</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
+                {
+                  Icon: Wallet,
+                  title: 'Multi-asset spot wallet',
+                  desc: 'Hold real balances in BTC, ETH, USDT, BNB, SOL, XRP and more, each valued live in USD with a running portfolio total.',
+                  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+                },
+                {
+                  Icon: ArrowDownUp,
+                  title: 'Instant Convert',
+                  desc: 'Swap any coin into another at live market rates in one tap — no order book, no spreads to chase.',
+                  color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+                },
+                {
+                  Icon: Send,
+                  title: 'Send & Receive crypto',
+                  desc: 'Send funds to another user instantly by email, or receive on the correct network with a per-asset deposit address.',
+                  color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+                },
                 {
                   Icon: Globe2,
                   title: 'Multi-asset market access',
@@ -1114,11 +1234,11 @@ export default function HomePage() {
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-emerald-400 mb-3">About the platform</div>
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-5">
-                  Built for traders who want to learn properly
+                  A wallet and a trading desk, working together
                 </h2>
                 <p className="text-white/50 text-base leading-relaxed mb-5">
-                  Kartomtrades is a trading platform that connects you to live market data so you can trade
-                  in realistic conditions before committing real capital.
+                  Kartomtrades pairs a Binance-style multi-asset wallet &mdash; hold, convert, send and receive
+                  crypto &mdash; with a full trading platform connected to live market data, in a single account.
                 </p>
                 <p className="text-white/40 text-sm leading-relaxed mb-5">
                   The platform is designed for retail traders who want to build genuine skills before committing real capital.
@@ -1197,13 +1317,13 @@ export default function HomePage() {
           <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
             <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-10 md:p-14">
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
-                Start your free demo account
+                Your wallet and trading, in one account
               </h2>
               <p className="text-white/45 text-base mb-2">
                 $100,000 in virtual funds. No card required. Instant access.
               </p>
               <p className="text-white/25 text-sm mb-8">
-                Trade in live market conditions before risking real money.
+                Hold crypto, convert, send &amp; receive, and trade live markets &mdash; all in one place.
               </p>
               <form
                 onSubmit={step === 1 ? handleRegisterStep1 : handleRegisterSubmit}
