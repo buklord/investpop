@@ -74,7 +74,7 @@ export async function POST(request) {
 
     // Set session cookie
     const cookieOptions = getSessionCookieOptions()
-    response.cookies.set(cookieOptions.name, session.token, cookieOptions.options)
+    response.cookies.set(cookieOptions.name, session, cookieOptions)
 
     return response
 
