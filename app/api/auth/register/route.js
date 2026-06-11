@@ -94,16 +94,24 @@ export async function POST(request) {
       try {
         await sendEmail({
           to: email,
-          subject: 'Welcome to Vaultquokka - Verify your email',
+          subject: 'Verify your Vaultquokka account',
+          text: `Welcome to Vaultquokka!\n\nPlease verify your email address by clicking this link:\n${verificationUrl}\n\nThis link expires in 24 hours.\n\nIf you didn't create this account, please ignore this email.`,
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #10b981;">Welcome to Vaultquokka!</h1>
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
+              <h2 style="color: #111827;">Welcome to Vaultquokka</h2>
               <p>Thank you for signing up. Please verify your email address to activate your account.</p>
-              <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;margin: 16px 0;">Verify Email Address</a>
+              <p>
+                <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;font-weight:600;">Verify Email</a>
+              </p>
               <p style="color: #6b7280; font-size: 14px;">Or copy and paste this URL into your browser:</p>
-              <p style="color: #6b7280; font-size: 14px; word-break: break-all;">${verificationUrl}</p>
+              <p style="color: #6b7280; font-size: 13px; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 6px;">${verificationUrl}</p>
               <p style="color: #6b7280; font-size: 14px;">This link expires in 24 hours.</p>
-            </div>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+              <p style="color: #9ca3af; font-size: 12px;">Vaultquokka &mdash; Multi-asset crypto wallet</p>
+            </body>
+            </html>
           `
         })
       } catch (e) {

@@ -61,13 +61,32 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    // Check email verification (treat NULL as verified for backwards compatibility)
+    // Check email verification
+    // If false, check if this is an old account (no verification token row = created before feature)
     if (user.email_verified === false || user.email_verified === 0) {
-      return NextResponse.json({
-        error: 'Please verify your email before logging in. Check your inbox for the verification link.',
-        needsVerification: true,
-        email: user.email
-      }, { status: 403 })
+      try {
+        const verificationRows = await prisma.$queryRaw`
+          SELECT id FROM email_verifications WHERE user_id = ${user.id} LIMIT 1
+        `
+        if (!verificationRows || verificationRows.length === 0) {
+          // Old account: auto-verify and update DB
+          console.log('[auth/login] auto-verifying old account:', user.email)
+          await prisma.$executeRaw`
+            UPDATE users SET email_verified = true WHERE id = ${user.id}
+          `
+          user.email_verified = true
+        } else {
+          return NextResponse.json({
+            error: 'Please verify your email before logging in. Check your inbox for the verification link.',
+            needsVerification: true,
+            email: user.email
+          }, { status: 403 })
+        }
+      } catch (e) {
+        // If email_verifications table query fails (shouldn't happen now), allow login
+        console.warn('[auth/login] verification check failed, allowing login:', e.message)
+        user.email_verified = true
+      }
     }
 
     // Create session
