@@ -25,6 +25,8 @@ model User {
   firstName    String?  @map("first_name")
   lastName     String?  @map("last_name")
   role         UserRole @default(USER)
+  isSuspended   Boolean  @default(false) @map("is_suspended")
+  emailVerified Boolean  @default(false) @map("email_verified")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -93,6 +95,7 @@ enum LedgerEntryType {
   WITHDRAWAL
   TRADE_BUY
   TRADE_SELL
+  TRADE_PNL
   FEE
   ADMIN_ADJUSTMENT
 }
@@ -147,4 +150,286 @@ model DepositRequest {
   updatedAt DateTime      @updatedAt @map("updated_at")
 
   @@map("deposit_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Missing tables - added to complete the schema
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  PENDING
+  EXECUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum TradingMode {
+  REAL
+  DEMO
+}
+
+enum CopyTradingStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+// Virtual accounts - dual balance system (demo + real)
+model VirtualAccount {
+  id              String      @id @default(uuid())
+  userId          String      @unique @map("user_id")
+  tradingMode     TradingMode @default(REAL) @map("trading_mode")
+  currency        String      @default("USD")
+  balance         Float       @default(0)
+  demoBalance     Float       @default(100000) @map("demo_balance")
+  realBalance     Float       @default(0) @map("real_balance")
+  marginReserved  Float       @default(0) @map("margin_reserved")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@map("virtual_accounts")
+}
+
+// Trading positions - open/closed CFD positions
+model TradingPosition {
+  id                String         @id @default(uuid())
+  userId            String         @map("user_id")
+  assetId           String         @map("asset_id")
+  side              String         // 'LONG'
+  quantity          Float
+  entryPrice        Float          @map("entry_price")
+  totalInvested     Float?         @map("total_invested")
+  totalFees         Float?         @map("total_fees")
+  takeProfit        Float?         @map("take_profit")
+  stopLoss          Float?         @map("stop_loss")
+  leverage          Float          @default(1)
+  status            PositionStatus @default(OPEN)
+  realizedPnl       Float?         @map("realized_pnl")
+  exitPrice         Float?         @map("exit_price")
+  accountType       String?        @map("account_type") // 'REAL' or 'DEMO'
+  leaderPositionId  String?        @map("leader_position_id")
+  openedAt          DateTime       @default(now()) @map("opened_at")
+  closedAt          DateTime?      @map("closed_at")
+  marginUsed        Float?         @map("margin_used")
+
+  @@map("trading_positions")
+}
+
+// Trades - individual buy/sell executions
+model Trade {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  assetId     String    @map("asset_id")
+  positionId  String    @map("position_id")
+  side        TradeSide
+  quantity    Float
+  price       Float
+  totalValue  Float     @map("total_value")
+  feeAmount   Float     @map("fee_amount")
+  slippage    Float
+  marketPrice Float     @map("market_price")
+  accountType String?   @map("account_type") // 'REAL' or 'DEMO'
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("trades")
+}
+
+// Pending orders - limit orders waiting for execution
+model PendingOrder {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  assetId     String      @map("asset_id")
+  orderType   OrderType   @map("order_type")
+  side        TradeSide
+  quantity    Float
+  limitPrice  Float?      @map("limit_price")
+  expiresAt   DateTime?   @map("expires_at")
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  executedAt  DateTime?   @map("executed_at")
+
+  @@map("pending_orders")
+}
+
+// Account snapshots - equity tracking after each trade
+model AccountSnapshot {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  equity        Float
+  balance       Float
+  positionsValue Float   @map("positions_value")
+  openPnl       Float    @map("open_pnl")
+  realizedPnl   Float    @map("realized_pnl")
+  tradeId       String?  @map("trade_id")
+  snapshotType  String   @default("TRADE") @map("snapshot_type")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("account_snapshots")
+}
+
+// Daily performance - per-day trading stats
+model DailyPerformance {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  date            DateTime @db.Date
+  startingEquity  Float    @map("starting_equity")
+  endingEquity    Float    @map("ending_equity")
+  dailyPnl        Float    @map("daily_pnl")
+  dailyReturnPct  Float    @map("daily_return_pct")
+  tradesCount     Int      @default(0) @map("trades_count")
+  feesPaid        Float    @default(0) @map("fees_paid")
+
+  @@unique([userId, date])
+  @@map("daily_performance")
+}
+
+// Copy trading followers
+model CopyTradingFollower {
+  id          String             @id @default(uuid())
+  leaderId    String             @map("leader_id")
+  followerId  String             @map("follower_id")
+  copyRatio   Float              @default(1) @map("copy_ratio")
+  status      CopyTradingStatus  @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@unique([leaderId, followerId])
+  @@map("copy_trading_followers")
+}
+
+// Copy trading leaders stats
+model CopyTradingLeader {
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  totalFollowers    Int      @default(0) @map("total_followers")
+  totalCopiedVolume Float    @default(0) @map("total_copied_volume")
+  performanceRating Float    @default(0) @map("performance_rating")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("copy_trading_leaders")
+}
+
+// Copy trade history
+model CopyTradeHistory {
+  id             String   @id @default(uuid())
+  leaderId       String   @map("leader_id")
+  followerId     String   @map("follower_id")
+  leaderTradeId  String   @map("leader_trade_id")
+  followerTradeId String  @map("follower_trade_id")
+  symbol         String
+  side           TradeSide
+  quantity       Float
+  price          Float
+  pnl            Float
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("copy_trade_history")
+}
+
+// Copy trade events
+model CopyTradeEvent {
+  id         String   @id @default(uuid())
+  leaderId   String   @map("leader_id")
+  followerId String   @map("follower_id")
+  eventType  String   @map("event_type")
+  symbol     String?
+  quantity   Float?
+  price      Float?
+  pnl        Float?
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("copy_trade_events")
+}
+
+// System settings - admin-configurable key/value pairs
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// Wallet balances - per-coin spot wallet
+model WalletBalance {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  asset     String   // e.g. 'USDT', 'BTC'
+  balance   Float    @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, asset])
+  @@map("wallet_balances")
+}
+
+// Wallet transactions - convert, send, receive history
+model WalletTransaction {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  type          String   // 'CONVERT', 'SEND', 'RECEIVE', 'ADMIN_ADJUSTMENT'
+  asset         String
+  amount        Float
+  assetTo       String?  @map("asset_to")
+  amountTo      Float?   @map("amount_to")
+  counterparty  String?
+  priceUsd      Float?   @map("price_usd")
+  balanceAfter  Float?   @map("balance_after")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("wallet_transactions")
+}
+
+// Email verifications - signup verification tokens
+model EmailVerification {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("email_verifications")
+}
+
+// Withdrawal requests - user-submitted withdrawal requests
+model WithdrawalRequest {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  amount      Float
+  method      String           // 'BTC' or 'USDT'
+  address     String           // destination wallet address
+  status      WithdrawalStatus @default(PENDING)
+  notes       String?
+  processedBy String?          @map("processed_by")
+  processedAt DateTime?        @map("processed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("withdrawal_requests")
 }
