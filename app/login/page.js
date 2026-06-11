@@ -11,10 +11,12 @@ export default function LoginPage() {
   const [password, setPassword]   = useState('')
   const [error, setError]         = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
+    setNeedsVerification(false)
     setSubmitting(true)
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), 90000)
@@ -27,12 +29,36 @@ export default function LoginPage() {
       })
       clearTimeout(t)
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(data.error || 'Login failed. Check your email and password.'); return }
+      if (!res.ok) {
+        if (data.needsVerification) {
+          setNeedsVerification(true)
+        }
+        setError(data.error || 'Login failed. Check your email and password.')
+        return
+      }
       router.push('/dashboard')
     } catch (err) {
       clearTimeout(t)
       setError(err?.name === 'AbortError' ? 'Server timeout — try again.' : 'Network error. Check your connection.')
     } finally { setSubmitting(false) }
+  }
+
+  const handleResendVerification = async () => {
+    try {
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      if (res.ok) {
+        setError('Verification email resent. Please check your inbox.')
+        setNeedsVerification(false)
+      } else {
+        setError('Failed to resend verification email. Please try again.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    }
   }
 
   return (
@@ -86,7 +112,18 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+              <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <p>{error}</p>
+                {needsVerification && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className="text-emerald-400 hover:text-emerald-300 underline mt-1"
+                  >
+                    Resend verification email
+                  </button>
+                )}
+              </div>
             )}
 
             <button
@@ -104,7 +141,7 @@ export default function LoginPage() {
           <p className="text-center text-sm text-white/30 mt-6">
             No account yet?{' '}
             <Link href="/#hero-form" className="text-emerald-400 hover:text-emerald-300 underline">
-              Create a free demo account
+              Create an account
             </Link>
           </p>
 

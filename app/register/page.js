@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [step, setStep]           = useState(1)
   const [error, setError]         = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [registered, setRegistered] = useState(false)
 
   const handleStep1 = (e) => {
     e.preventDefault()
@@ -48,7 +49,7 @@ export default function RegisterPage() {
         setError(data.error || 'Registration failed. Please try again.')
         return
       }
-      router.push('/markets')
+      setRegistered(true)
     } catch (err) {
       clearTimeout(t)
       setError(
@@ -81,8 +82,8 @@ export default function RegisterPage() {
 
           {/* Heading */}
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold tracking-tight mb-1">Open your free demo account</h1>
-            <p className="text-white/40 text-sm">Trading with live market conditions. No card required.</p>
+            <h1 className="text-2xl font-bold tracking-tight mb-1">Create your Vaultquokka account</h1>
+            <p className="text-white/40 text-sm">Multi-asset crypto wallet with optional trading. No card required.</p>
           </div>
 
           {/* Trust signals */}
@@ -209,16 +210,55 @@ export default function RegisterPage() {
             </form>
           )}
 
-          <p className="mt-6 text-center text-xs text-white/25">
-            Already have an account?{' '}
-            <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline transition-colors">
-              Log in
-            </Link>
-          </p>
+          {registered && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-emerald-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Account Created!</h2>
+              <p className="text-white/60 text-sm mb-4">
+                Please check your email <strong className="text-white">{email}</strong> and click the verification link to activate your account.
+              </p>
+              <p className="text-white/40 text-xs mb-6">
+                Did not receive it? Check your spam folder or{' '}
+                <button 
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/auth/resend-verification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                      })
+                      alert('Verification email resent!')
+                    } catch {
+                      alert('Failed to resend. Please try again.')
+                    }
+                  }}
+                  className="text-emerald-400 hover:text-emerald-300 underline"
+                >
+                  resend verification email
+                </button>
+              </p>
+              <Link href="/login">
+                <button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
+                  Go to Login
+                </button>
+              </Link>
+            </div>
+          )}
+
+          {!registered && (
+            <p className="mt-6 text-center text-xs text-white/25">
+              Already have an account?{' '}
+              <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline transition-colors">
+                Log in
+              </Link>
+            </p>
+          )}
 
           {/* Fine print */}
           <p className="mt-8 text-center text-[11px] text-white/15 leading-relaxed">
-            Demo accounts use virtual funds only. No real money is involved until you choose
+            Virtual accounts use virtual funds only. No real money is involved until you choose
             to open a live account after completing identity verification.
           </p>
         </div>
