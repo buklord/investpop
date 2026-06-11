@@ -20,6 +20,8 @@ import {
   withdrawalRequestReceivedEmail,
 } from '@/lib/emailTemplates'
 
+export const dynamic = 'force-dynamic'
+
 // Demo trading starts with practice funds; real & spot wallets start at 0.
 const DEMO_STARTING_BALANCE = 100000
 

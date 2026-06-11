@@ -4,6 +4,8 @@ import { requireAdminAuth } from '@/lib/auth'
 import { sendEmail } from '@/lib/email'
 import { withdrawalDecisionEmail } from '@/lib/emailTemplates'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
   try {
     const auth = await requireAdminAuth()

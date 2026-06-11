@@ -5,6 +5,8 @@ import { sendEmail } from '@/lib/email'
 import { withdrawalRequestReceivedEmail } from '@/lib/emailTemplates'
 import { v4 as uuidv4 } from 'uuid'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
   try {
     const auth = await requireAuth()
