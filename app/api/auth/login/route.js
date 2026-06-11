@@ -25,7 +25,7 @@ export async function POST(request) {
       users = await prisma.$queryRaw`
         SELECT id, email, password_hash, first_name, last_name, role, email_verified, is_suspended
         FROM users
-        WHERE email = ${email.toLowerCase()}
+        WHERE LOWER(email) = ${email.toLowerCase()}
       `
     } catch (dbErr) {
       const msg = String(dbErr?.message || dbErr).toLowerCase()
@@ -33,7 +33,7 @@ export async function POST(request) {
         users = await prisma.$queryRaw`
           SELECT id, email, password_hash, first_name, last_name, role, is_suspended
           FROM users
-          WHERE email = ${email.toLowerCase()}
+          WHERE LOWER(email) = ${email.toLowerCase()}
         `
         if (users?.[0]) users[0].email_verified = true
       } else {
@@ -42,6 +42,7 @@ export async function POST(request) {
     }
 
     if (!users || users.length === 0) {
+      console.log('[auth/login] user not found for email:', email.toLowerCase())
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
@@ -53,8 +54,10 @@ export async function POST(request) {
     }
 
     // Verify password
+    console.log('[auth/login] attempting password verify for user:', user.email, 'hash length:', String(user.password_hash || '').length)
     const valid = await verifyPassword(password, user.password_hash)
     if (!valid) {
+      console.log('[auth/login] password verification failed for user:', user.email, 'hash starts with:', String(user.password_hash || '').substring(0, 7))
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 

@@ -25,9 +25,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
 
-    // Check if user exists
+    // Check if user exists (case-insensitive)
     const existing = await prisma.$queryRaw`
-      SELECT id FROM users WHERE email = ${email.toLowerCase()}
+      SELECT id FROM users WHERE LOWER(email) = ${email.toLowerCase()}
     `
 
     if (existing && existing.length > 0) {
