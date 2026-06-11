@@ -38,52 +38,84 @@ export async function POST(request) {
     const passwordHash = await hashPassword(password)
     const userId = uuidv4()
 
-    // Create user (not verified yet)
-    await prisma.$executeRaw`
-      INSERT INTO users (id, email, password_hash, first_name, last_name, role, email_verified, is_suspended, created_at, updated_at)
-      VALUES (${userId}, ${email.toLowerCase()}, ${passwordHash}, ${firstName || null}, ${lastName || null}, 'USER', false, false, NOW(), NOW())
-    `
-
-    // Create virtual account
-    await prisma.$executeRaw`
-      INSERT INTO virtual_accounts (id, user_id, balance, demo_balance, real_balance, trading_mode)
-      VALUES (gen_random_uuid()::text, ${userId}, 0, 100000, 0, 'REAL')
-    `
-
-    // Create email verification token
-    const token = uuidv4()
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-
-    await prisma.$executeRaw`
-      INSERT INTO email_verifications (id, user_id, token, expires_at, created_at)
-      VALUES (gen_random_uuid()::text, ${userId}, ${token}, ${expiresAt}, NOW())
-    `
-
-    // Send verification email
-    const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.vaultquokka.com'}/verify-email?token=${token}`
-    
+    // Create user (backwards-compatible with old schema)
     try {
-      await sendEmail({
-        to: email,
-        subject: 'Welcome to Vaultquokka - Verify your email',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #10b981;">Welcome to Vaultquokka!</h1>
-            <p>Thank you for signing up. Please verify your email address to activate your account.</p>
-            <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;margin: 16px 0;">Verify Email Address</a>
-            <p style="color: #6b7280; font-size: 14px;">Or copy and paste this URL into your browser:</p>
-            <p style="color: #6b7280; font-size: 14px; word-break: break-all;">${verificationUrl}</p>
-            <p style="color: #6b7280; font-size: 14px;">This link expires in 24 hours.</p>
-          </div>
+      await prisma.$executeRaw`
+        INSERT INTO users (id, email, password_hash, first_name, last_name, role, email_verified, is_suspended, created_at, updated_at)
+        VALUES (${userId}, ${email.toLowerCase()}, ${passwordHash}, ${firstName || null}, ${lastName || null}, 'USER', false, false, NOW(), NOW())
+      `
+    } catch (dbErr) {
+      const msg = String(dbErr?.message || dbErr).toLowerCase()
+      if (msg.includes('email_verified') || msg.includes('is_suspended') || msg.includes('column') || msg.includes('does not exist')) {
+        await prisma.$executeRaw`
+          INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at, updated_at)
+          VALUES (${userId}, ${email.toLowerCase()}, ${passwordHash}, ${firstName || null}, ${lastName || null}, 'USER', NOW(), NOW())
         `
-      })
+      } else {
+        throw dbErr
+      }
+    }
+
+    // Create virtual account (backwards-compatible with old schema)
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO virtual_accounts (id, user_id, balance, demo_balance, real_balance, trading_mode)
+        VALUES (gen_random_uuid()::text, ${userId}, 0, 100000, 0, 'REAL')
+      `
+    } catch (dbErr) {
+      const msg = String(dbErr?.message || dbErr).toLowerCase()
+      if (msg.includes('demo_balance') || msg.includes('real_balance') || msg.includes('trading_mode') || msg.includes('column') || msg.includes('does not exist')) {
+        await prisma.$executeRaw`
+          INSERT INTO virtual_accounts (id, user_id, balance)
+          VALUES (gen_random_uuid()::text, ${userId}, 0)
+        `
+      } else {
+        throw dbErr
+      }
+    }
+
+    // Create email verification token (best-effort; skip if table doesn't exist yet)
+    let token
+    try {
+      token = uuidv4()
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      await prisma.$executeRaw`
+        INSERT INTO email_verifications (id, user_id, token, expires_at, created_at)
+        VALUES (gen_random_uuid()::text, ${userId}, ${token}, ${expiresAt}, NOW())
+      `
     } catch (e) {
-      console.warn('[register] verification email failed:', e.message)
+      console.warn('[register] email_verifications table not ready:', e.message)
+      token = null
+    }
+
+    // Send verification email (only if token was created)
+    if (token) {
+      const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.vaultquokka.com'}/verify-email?token=${token}`
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'Welcome to Vaultquokka - Verify your email',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h1 style="color: #10b981;">Welcome to Vaultquokka!</h1>
+              <p>Thank you for signing up. Please verify your email address to activate your account.</p>
+              <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;margin: 16px 0;">Verify Email Address</a>
+              <p style="color: #6b7280; font-size: 14px;">Or copy and paste this URL into your browser:</p>
+              <p style="color: #6b7280; font-size: 14px; word-break: break-all;">${verificationUrl}</p>
+              <p style="color: #6b7280; font-size: 14px;">This link expires in 24 hours.</p>
+            </div>
+          `
+        })
+      } catch (e) {
+        console.warn('[register] verification email failed:', e.message)
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your account.',
+      message: token
+        ? 'Account created successfully. Please check your email to verify your account.'
+        : 'Account created successfully.',
       userId
     }, { status: 201 })
 

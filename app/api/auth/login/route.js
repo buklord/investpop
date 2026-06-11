@@ -19,12 +19,27 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
-    // Find user
-    const users = await prisma.$queryRaw`
-      SELECT id, email, password_hash, first_name, last_name, role, email_verified, is_suspended
-      FROM users
-      WHERE email = ${email.toLowerCase()}
-    `
+    // Find user (backwards-compatible with old schema)
+    let users
+    try {
+      users = await prisma.$queryRaw`
+        SELECT id, email, password_hash, first_name, last_name, role, email_verified, is_suspended
+        FROM users
+        WHERE email = ${email.toLowerCase()}
+      `
+    } catch (dbErr) {
+      const msg = String(dbErr?.message || dbErr).toLowerCase()
+      if (msg.includes('email_verified') || msg.includes('column') || msg.includes('does not exist')) {
+        users = await prisma.$queryRaw`
+          SELECT id, email, password_hash, first_name, last_name, role, is_suspended
+          FROM users
+          WHERE email = ${email.toLowerCase()}
+        `
+        if (users?.[0]) users[0].email_verified = true
+      } else {
+        throw dbErr
+      }
+    }
 
     if (!users || users.length === 0) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
@@ -43,9 +58,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    // Check email verification
-    if (!user.email_verified) {
-      return NextResponse.json({ 
+    // Check email verification (treat NULL as verified for backwards compatibility)
+    if (user.email_verified === false || user.email_verified === 0) {
+      return NextResponse.json({
         error: 'Please verify your email before logging in. Check your inbox for the verification link.',
         needsVerification: true,
         email: user.email
