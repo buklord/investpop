@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
-import { verifyPassword, createSession, getSessionCookieOptions } from '@/lib/auth'
+import { verifyPassword, createSession, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
 import { rateLimit } from '@/lib/rateLimit'
 
 export async function POST(request) {
@@ -89,7 +89,8 @@ export async function POST(request) {
 
     // Set session cookie
     const cookieOptions = getSessionCookieOptions()
-    response.cookies.set(cookieOptions.name, session, cookieOptions)
+    console.log('[auth/login] setting cookie', COOKIE_NAME, 'with options:', JSON.stringify(cookieOptions))
+    response.cookies.set(COOKIE_NAME, session, cookieOptions)
 
     return response
 
