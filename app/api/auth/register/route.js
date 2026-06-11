@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { hashPassword, createSession, getSessionCookieOptions } from '@/lib/auth'
 import { sendEmail } from '@/lib/email'
+import { verificationEmail } from '@/lib/emailTemplates'
 import { v4 as uuidv4 } from 'uuid'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -92,20 +93,12 @@ export async function POST(request) {
     if (token) {
       const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.vaultquokka.com'}/verify-email?token=${token}`
       try {
+        const template = verificationEmail({ verificationUrl, firstName, lastName })
         await sendEmail({
           to: email,
-          subject: 'Welcome to Vaultquokka - Verify your email',
-          text: `Welcome to Vaultquokka!\n\nPlease verify your email address by clicking this link:\n${verificationUrl}\n\nThis link expires in 24 hours.`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #10b981;">Welcome to Vaultquokka!</h1>
-              <p>Thank you for signing up. Please verify your email address to activate your account.</p>
-              <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;margin: 16px 0;">Verify Email Address</a>
-              <p style="color: #6b7280; font-size: 14px;">Or copy and paste this URL into your browser:</p>
-              <p style="color: #6b7280; font-size: 14px; word-break: break-all;">${verificationUrl}</p>
-              <p style="color: #6b7280; font-size: 14px;">This link expires in 24 hours.</p>
-            </div>
-          `
+          subject: template.subject,
+          text: template.text,
+          html: template.html
         })
       } catch (e) {
         console.warn('[register] verification email failed:', e.message)

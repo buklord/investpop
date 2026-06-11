@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { sendEmail } from '@/lib/email'
+import { verificationEmail } from '@/lib/emailTemplates'
 import { v4 as uuidv4 } from 'uuid'
 
 export async function POST(request) {
@@ -46,16 +47,12 @@ export async function POST(request) {
     const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.vaultquokka.com'}/verify-email?token=${token}`
     
     try {
+      const template = verificationEmail({ verificationUrl })
       await sendEmail({
         to: email,
-        subject: 'Verify your Vaultquokka account',
-        html: `
-          <h1>Verify your email</h1>
-          <p>Click the link below to verify your Vaultquokka account:</p>
-          <a href="${verificationUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:white;text-decoration:none;border-radius:8px;">Verify Email</a>
-          <p>Or copy and paste this URL: ${verificationUrl}</p>
-          <p>This link expires in 24 hours.</p>
-        `
+        subject: template.subject,
+        text: template.text,
+        html: template.html
       })
     } catch (e) {
       console.warn('[resend-verification] email failed:', e.message)
