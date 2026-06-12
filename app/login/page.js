@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [error, setError]         = useState('')
@@ -15,12 +14,14 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false)
 
   useEffect(() => {
-    const urlError = searchParams.get('error')
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const urlError = params.get('error')
     if (urlError === 'google_denied') setError('Google sign-in was cancelled.')
     else if (urlError === 'google_failed') setError('Google sign-in failed. Please try again.')
     else if (urlError === 'suspended') setError('Account is suspended. Contact support.')
     else if (urlError === 'no_email') setError('Could not retrieve email from Google. Please try again.')
-  }, [searchParams])
+  }, [])
 
   const handleLogin = async (e) => {
     e.preventDefault()
