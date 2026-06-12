@@ -45,9 +45,8 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/login?error=missing_code', request.url))
     }
 
-    // Determine redirect URI (must match what was used in the auth request)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `https://${request.headers.get('host')}`
-    const redirectUri = `${baseUrl}/api/auth/google/callback`
+    // Use the actual request URL as redirect URI (must exactly match what Google received)
+    const redirectUri = request.url.split('?')[0]
 
     // Exchange code for tokens
     const tokenData = await getGoogleToken(code, redirectUri)
@@ -142,7 +141,9 @@ export async function GET(request) {
     return response
 
   } catch (err) {
-    console.error('[google/callback] error:', err)
+    console.error('[google/callback] error:', err?.message || err)
+    // Log the redirect URI that was used for debugging
+    console.error('[google/callback] redirectUri used:', request.url.split('?')[0])
     return NextResponse.redirect(new URL('/login?error=google_failed', request.url))
   }
 }
