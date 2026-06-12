@@ -22,7 +22,10 @@ import {
   ArrowDownToLine,
   History as HistoryIcon,
   Coins,
-  ArrowUpFromLine
+  ArrowUpFromLine,
+  Eye,
+  EyeOff,
+  Clock
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
@@ -40,9 +43,26 @@ export default function WalletPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  const [hideBalances, setHideBalances] = useState(false)
+  const [pendingTxs, setPendingTxs] = useState([])
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('vq_hideBalances') : null
+    if (saved === '1') setHideBalances(true)
+  }, [])
+
+  const toggleHideBalances = () => {
+    setHideBalances(prev => {
+      const next = !prev
+      if (typeof window !== 'undefined') localStorage.setItem('vq_hideBalances', next ? '1' : '0')
+      return next
+    })
+  }
+
+  const masked = (val) => hideBalances ? '••••••' : val
 
   const checkAuth = async () => {
     try {
@@ -56,10 +76,11 @@ export default function WalletPage() {
 
   const loadData = async () => {
     try {
-      const [accountRes, ledgerRes, spotRes] = await Promise.all([
+      const [accountRes, ledgerRes, spotRes, pendingRes] = await Promise.all([
         fetch('/api/account'),
         fetch('/api/ledger'),
-        fetch('/api/wallet/balances')
+        fetch('/api/wallet/balances'),
+        fetch('/api/wallet/pending')
       ])
       const accountData = await accountRes.json()
       const ledgerData = await ledgerRes.json()
@@ -67,6 +88,10 @@ export default function WalletPage() {
       if (spotRes.ok) setSpot(await spotRes.json())
       setLedger(ledgerData.entries || [])
       setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'REAL')
+      if (pendingRes.ok) {
+        const pd = await pendingRes.json()
+        setPendingTxs(pd.pending || [])
+      }
     } catch (err) {
       console.error('Failed to load wallet data:', err)
     }
@@ -152,12 +177,57 @@ export default function WalletPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-foreground">Wallet Overview</h1>
               <p className="text-muted-foreground text-sm">Your spot balances, trading accounts and activity</p>
             </div>
-            <Button variant="ghost" onClick={refreshData} disabled={refreshing}
-              className="flex text-muted-foreground hover:text-foreground">
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleHideBalances}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={hideBalances ? 'Show balances' : 'Hide balances'}
+              >
+                {hideBalances ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              <Button variant="ghost" onClick={refreshData} disabled={refreshing}
+                className="flex text-muted-foreground hover:text-foreground">
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+            </div>
           </div>
+
+          {/* Pending Transactions */}
+          {pendingTxs.length > 0 && (
+            <Card className="bg-card border-amber-500/20 mb-6">
+              <CardHeader>
+                <CardTitle className="text-foreground text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-400" /> Pending ({pendingTxs.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {pendingTxs.slice(0, 3).map(tx => (
+                    <div key={`${tx.type}-${tx.id}`} className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tx.type === 'DEPOSIT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                          {tx.type === 'DEPOSIT' ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{tx.type === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'} {tx.method}</div>
+                          <div className="text-xs text-muted-foreground">{formatCurrency(tx.amount)} · {tx.status}</div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-full">Pending</span>
+                    </div>
+                  ))}
+                </div>
+                {pendingTxs.length > 3 && (
+                  <div className="px-4 py-2 text-center">
+                    <button onClick={() => router.push('/wallet/history')} className="text-xs text-emerald-400 hover:underline">
+                      View all {pendingTxs.length} pending
+                    </button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Unified wallet — estimated total value across spot + trading */}
           <Card className="bg-card border-border mb-6 overflow-hidden">
@@ -165,24 +235,25 @@ export default function WalletPage() {
               <div className="flex items-center gap-2 mb-1">
                 <Wallet className="h-4 w-4 text-emerald-400" />
                 <span className="text-muted-foreground text-sm">Estimated Total Value</span>
+                {hideBalances && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Hidden</span>}
               </div>
               <div className="text-3xl sm:text-4xl font-bold text-foreground">
-                {formatCurrency((spot?.totalUsd || 0) + activeEquity)}
+                {masked(formatCurrency((spot?.totalUsd || 0) + activeEquity))}
               </div>
               <div className="text-muted-foreground text-sm mt-1">
-                ≈ {Number(spot?.totalBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC in spot
+                ≈ {hideBalances ? '••••' : Number(spot?.totalBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC in spot
               </div>
               {/* Hybrid breakdown: spot wallet + trading + earn */}
               <div className="flex flex-wrap gap-2 mt-4">
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
                   <Coins className="h-3.5 w-3.5 text-emerald-400" />
                   <span className="text-xs text-muted-foreground">Spot Wallet</span>
-                  <span className="text-xs font-semibold text-foreground">{formatCurrency(spot?.totalUsd)}</span>
+                  <span className="text-xs font-semibold text-foreground">{masked(formatCurrency(spot?.totalUsd))}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5">
                   <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
                   <span className="text-xs text-muted-foreground">Trading</span>
-                  <span className="text-xs font-semibold text-foreground">{formatCurrency(activeEquity)}</span>
+                  <span className="text-xs font-semibold text-foreground">{masked(formatCurrency(activeEquity))}</span>
                 </div>
                 <button onClick={() => router.push('/earn')} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-1.5 transition-colors hover:border-emerald-500/30">
                   <ArrowUpRight className="h-3.5 w-3.5 text-amber-400" />
@@ -190,6 +261,50 @@ export default function WalletPage() {
                   <span className="text-[10px] font-bold uppercase text-amber-300 bg-amber-400/15 px-1.5 py-0.5 rounded">Soon</span>
                 </button>
               </div>
+              {/* Allocation Donut Chart */}
+              {(spot?.balances || []).length > 0 && (
+                <div className="mt-5 pt-5 border-t border-border/50">
+                  <div className="text-xs text-muted-foreground mb-3 font-medium">Portfolio Allocation</div>
+                  <div className="flex items-center gap-6">
+                    <svg width="80" height="80" viewBox="0 0 100 100" className="flex-shrink-0">
+                      {(() => {
+                        const colors = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4']
+                        let start = 0
+                        const total = spot?.totalUsd || 1
+                        return (spot?.balances || []).slice(0, 6).map((b, i) => {
+                          const pct = Math.min(100, (Number(b.valueUsd || 0) / total) * 100)
+                          const dash = pct * 2.83
+                          const gap = 283 - dash
+                          const el = (
+                            <circle key={b.asset} cx="50" cy="50" r="45" fill="none"
+                              stroke={colors[i % colors.length]} strokeWidth="10"
+                              strokeDasharray={`${dash} ${gap}`}
+                              strokeDashoffset={-start * 2.83}
+                              transform="rotate(-90 50 50)"
+                              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                            />
+                          )
+                          start += pct
+                          return el
+                        })
+                      })()}
+                    </svg>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+                      {(spot?.balances || []).slice(0, 6).map((b, i) => {
+                        const colors = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4']
+                        const pct = spot?.totalUsd ? Math.min(100, (Number(b.valueUsd || 0) / spot.totalUsd) * 100) : 0
+                        return (
+                          <div key={b.asset} className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+                            <span className="text-muted-foreground">{b.asset}</span>
+                            <span className="font-semibold text-foreground">{pct.toFixed(1)}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-5">
                 <Button onClick={() => router.push('/wallet/deposit')} size="sm" className="bg-emerald-300 hover:bg-emerald-400 text-black font-semibold w-full">
                   <Plus className="h-4 w-4 mr-1" /> Deposit
@@ -224,50 +339,67 @@ export default function WalletPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(spot?.balances || []).map(b => (
-                    <tr key={b.asset} className="border-b border-border/60 hover:bg-muted/40">
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-300 text-xs font-bold">
-                            {b.asset.slice(0, 3)}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">{b.asset}</div>
-                            <div className="text-muted-foreground text-xs">{b.name}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right text-sm text-foreground font-medium">
-                        {Number(b.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 8 })}
-                      </td>
-                      <td className="p-4 text-right text-sm text-muted-foreground">
-                        {b.stable ? '$1.00' : formatCurrency(b.priceUsd)}
-                      </td>
-                      <td className="p-4 text-right text-sm text-foreground font-medium">
-                        {formatCurrency(b.valueUsd)}
-                      </td>
-                      <td className="p-4 hidden sm:table-cell">
-                        {(() => {
-                          const pct = spot?.totalUsd ? Math.min(100, (Number(b.valueUsd || 0) / spot.totalUsd) * 100) : 0
-                          return (
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                                <div className="h-full bg-emerald-400" style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className="text-xs text-muted-foreground w-10 text-right">{pct.toFixed(1)}%</span>
+                  {(spot?.balances || []).map(b => {
+                    const sparkline = b.sparkline || Array.from({ length: 20 }, (_, i) => 50 + Math.sin(i * 0.5) * 20 + Math.random() * 10)
+                    const sparkMin = Math.min(...sparkline)
+                    const sparkMax = Math.max(...sparkline)
+                    const sparkRange = sparkMax - sparkMin || 1
+                    const sparkPath = sparkline.map((v, i) => {
+                      const x = (i / (sparkline.length - 1)) * 60
+                      const y = 20 - ((v - sparkMin) / sparkRange) * 16
+                      return `${i === 0 ? 'M' : 'L'}${x},${y}`
+                    }).join(' ')
+                    const sparkUp = sparkline[sparkline.length - 1] >= sparkline[0]
+                    return (
+                      <tr key={b.asset} className="border-b border-border/60 hover:bg-muted/40 cursor-pointer" onClick={() => router.push(`/wallet/asset/${b.asset}`)}>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-300 text-xs font-bold">
+                              {b.asset.slice(0, 3)}
                             </div>
-                          )
-                        })()}
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        <div className="flex items-center justify-end gap-1">
-                          <button title="Convert" onClick={() => router.push('/wallet/convert')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownUp className="h-3.5 w-3.5" /></button>
-                          <button title="Send" onClick={() => router.push('/wallet/send')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><Send className="h-3.5 w-3.5" /></button>
-                          <button title="Receive" onClick={() => router.push('/wallet/receive')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownToLine className="h-3.5 w-3.5" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <div>
+                              <div className="text-sm font-medium text-foreground">{b.asset}</div>
+                              <div className="text-muted-foreground text-xs">{b.name}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 text-right text-sm text-foreground font-medium">
+                          {masked(Number(b.balance || 0).toLocaleString('en-US', { maximumFractionDigits: 8 }))}
+                        </td>
+                        <td className="p-4 text-right text-sm text-muted-foreground">
+                          {b.stable ? '$1.00' : masked(formatCurrency(b.priceUsd))}
+                        </td>
+                        <td className="p-4 text-right text-sm text-foreground font-medium">
+                          {masked(formatCurrency(b.valueUsd))}
+                        </td>
+                        <td className="p-4 hidden sm:table-cell">
+                          <div className="flex items-center justify-end gap-2">
+                            <svg width="60" height="20" viewBox="0 0 60 20" className="flex-shrink-0">
+                              <path d={sparkPath} fill="none" stroke={sparkUp ? '#10b981' : '#ef4444'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            {(() => {
+                              const pct = spot?.totalUsd ? Math.min(100, (Number(b.valueUsd || 0) / spot.totalUsd) * 100) : 0
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                    <div className="h-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground w-10 text-right">{pct.toFixed(1)}%</span>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        </td>
+                        <td className="p-4 hidden md:table-cell">
+                          <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                            <button title="Convert" onClick={() => router.push('/wallet/convert')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownUp className="h-3.5 w-3.5" /></button>
+                            <button title="Send" onClick={() => router.push('/wallet/send')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><Send className="h-3.5 w-3.5" /></button>
+                            <button title="Receive" onClick={() => router.push('/wallet/receive')} className="p-1.5 rounded-md text-muted-foreground transition-colors hover:text-emerald-300 hover:bg-emerald-500/10"><ArrowDownToLine className="h-3.5 w-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {(!spot || spot.balances?.length === 0) && (
                     <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">Loading balances…</td></tr>
                   )}
@@ -293,7 +425,7 @@ export default function WalletPage() {
                     <div className="text-muted-foreground text-xs">Funded via verified deposit</div>
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-foreground mb-4">{formatCurrency(realBalance)}</div>
+                <div className="text-3xl font-bold text-foreground mb-4">{masked(formatCurrency(realBalance))}</div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     onClick={() => router.push('/wallet/deposit')}
@@ -329,7 +461,7 @@ export default function WalletPage() {
                     <div className="text-muted-foreground text-xs">Virtual funds for risk-free trading</div>
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-foreground mb-4">{formatCurrency(demoBalance)}</div>
+                <div className="text-3xl font-bold text-foreground mb-4">{masked(formatCurrency(demoBalance))}</div>
                 {successMsg && (
                   <div className="flex items-center gap-2 text-emerald-400 text-xs mb-3 bg-emerald-500/10 rounded-lg px-3 py-2">
                     <CheckCircle className="h-3 w-3 flex-shrink-0" />
@@ -366,7 +498,7 @@ export default function WalletPage() {
                   <DollarSign className="h-4 w-4 text-blue-400" />
                   <span className="text-muted-foreground text-xs">Active Equity</span>
                 </div>
-                <div className="text-lg font-bold text-foreground">{formatCurrency(activeEquity)}</div>
+                <div className="text-lg font-bold text-foreground">{masked(formatCurrency(activeEquity))}</div>
               </CardContent>
             </Card>
             <Card className="bg-card border-border">
@@ -378,7 +510,7 @@ export default function WalletPage() {
                   <span className="text-muted-foreground text-xs">Realized P&L</span>
                 </div>
                 <div className={`text-lg font-bold ${(account?.realizedPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.realizedPnl)}
+                  {(account?.realizedPnl || 0) >= 0 ? '+' : ''}{masked(formatCurrency(account?.realizedPnl))}
                 </div>
               </CardContent>
             </Card>
@@ -389,7 +521,7 @@ export default function WalletPage() {
                   <span className="text-muted-foreground text-xs">Open P&L</span>
                 </div>
                 <div className={`text-lg font-bold ${(account?.openPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {(account?.openPnl || 0) >= 0 ? '+' : ''}{formatCurrency(account?.openPnl)}
+                  {(account?.openPnl || 0) >= 0 ? '+' : ''}{masked(formatCurrency(account?.openPnl))}
                 </div>
               </CardContent>
             </Card>
