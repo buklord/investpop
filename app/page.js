@@ -190,6 +190,7 @@ export default function HomePage() {
   const [prices, setPrices]                   = useState({})
   const [mobileMenu, setMobileMenu]           = useState(false)
   const [formHighlight, setFormHighlight]     = useState(false)
+  const [registered, setRegistered]           = useState(false)
   const emailRef = useRef(null)
 
   const livePositions = useMemo(() => MOCK_POSITIONS.map(pos => {
@@ -288,8 +289,7 @@ export default function HomePage() {
       clearTimeout(t)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error || 'Registration failed.'); return }
-      setUser(data.user)
-      router.push('/markets')
+      setRegistered(true)
     } catch (err) {
       clearTimeout(t)
       setError(err?.name === 'AbortError' ? 'Server is waking up — please try again in a moment.' : 'Network error. Check your connection.')
@@ -467,7 +467,58 @@ export default function HomePage() {
                   id="hero-form"
                   className={`mt-10 max-w-sm transition-all duration-300 ${formHighlight ? 'ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-background rounded-xl p-3 -mx-3' : ''}`}
                 >
-                  {step === 1 ? (
+                  {registered ? (
+                    /* Success state */
+                    <div className="text-center py-6">
+                      <div className="w-20 h-20 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto mb-5 ring-4 ring-emerald-500/10">
+                        <CheckCircle className="h-10 w-10 text-emerald-400" />
+                      </div>
+                      <h2 className="text-2xl font-extrabold text-white mb-2">Account Created!</h2>
+                      <p className="text-emerald-400 font-semibold text-xs mb-5 uppercase tracking-wide">
+                        One last step
+                      </p>
+                      <div className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-5 mb-5 text-left">
+                        <p className="text-white/70 text-sm mb-4 text-center">
+                          We sent a verification link to<br />
+                          <span className="text-white font-bold text-base">{email}</span>
+                        </p>
+                        <div className="border-t border-white/[0.08] pt-4">
+                          <h3 className="text-white/60 text-xs font-bold uppercase tracking-wider mb-3 text-center">What to do next</h3>
+                          <ol className="text-white/50 text-sm space-y-3 list-decimal list-inside">
+                            <li>Open your email inbox</li>
+                            <li>Find the email from <strong className="text-emerald-400">Vaultquokka</strong></li>
+                            <li>Click the <strong className="text-emerald-400">Verify Email</strong> button</li>
+                            <li>Return here and log in</li>
+                          </ol>
+                        </div>
+                      </div>
+                      <p className="text-white/30 text-xs mb-4">
+                        Did not receive it? Check spam or{' '}
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch('/api/auth/resend-verification', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email })
+                              })
+                              alert('Verification email resent!')
+                            } catch {
+                              alert('Failed to resend. Please try again.')
+                            }
+                          }}
+                          className="text-emerald-400 hover:text-emerald-300 underline"
+                        >
+                          resend it
+                        </button>
+                      </p>
+                      <Link href="/login">
+                        <button className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors">
+                          Go to Login
+                        </button>
+                      </Link>
+                    </div>
+                  ) : step === 1 ? (
                     <form onSubmit={handleRegisterStep1} className="flex flex-col gap-3">
                       <div className="flex gap-2">
                         <input
@@ -528,10 +579,12 @@ export default function HomePage() {
                       <p className="text-white/20 text-xs text-center">By registering you agree to our{' '}<Link href="/terms" className="underline hover:text-white/40">Terms of Service</Link>{' '}and{' '}<Link href="/risk-disclosure" className="underline hover:text-white/40">Risk Disclosure</Link>.</p>
                     </form>
                   )}
-                  <p className="mt-3 text-xs text-white/25">
-                    Already have an account?{' '}
-                    <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline">Log in</Link>
-                  </p>
+                  {!registered && (
+                    <p className="mt-3 text-xs text-white/25">
+                      Already have an account?{' '}
+                      <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline">Log in</Link>
+                    </p>
+                  )}
                 </div>
               </div>
 
