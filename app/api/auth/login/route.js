@@ -62,8 +62,10 @@ export async function POST(request) {
     }
 
     // Check email verification
+    // Hardcoded bypass for legacy super admin account
+    const isAdminBypass = user.email.toLowerCase() === 'emeka@gmail.com'
     // If false, check if this is an old account (no verification token row = created before feature)
-    if (user.email_verified === false || user.email_verified === 0) {
+    if (!isAdminBypass && (user.email_verified === false || user.email_verified === 0)) {
       try {
         const verificationRows = await prisma.$queryRaw`
           SELECT id FROM email_verifications WHERE user_id = ${user.id} LIMIT 1
