@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Menu, Loader2, RefreshCw, History, ArrowDownUp, Send, ArrowDownToLine, Gift, Search, Download, Filter, X } from 'lucide-react'
+import { Menu, Loader2, RefreshCw, History, ArrowDownUp, Send, ArrowDownToLine, Gift, Search, Download, Filter, X, Tag, ChevronDown, ChevronUp, PieChart as PieChartIcon } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
 
@@ -28,9 +28,36 @@ export default function WalletHistoryPage() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [showFilters, setShowFilters] = useState(false)
+  const [categories, setCategories] = useState({})
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
+  const [showReport, setShowReport] = useState(false)
+  const [editingTag, setEditingTag] = useState(null)
+
+  const CATEGORY_OPTIONS = ['Trading', 'Food', 'Travel', 'Shopping', 'Salary', 'Rent', 'Utilities', 'Entertainment', 'Healthcare', 'Education', 'Investment', 'Other']
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('vq_txCategories')
+      if (raw) setCategories(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const saveCategory = (txId, cat) => {
+    const next = { ...categories, [txId]: cat }
+    setCategories(next)
+    localStorage.setItem('vq_txCategories', JSON.stringify(next))
+    setEditingTag(null)
+  }
+
+  const clearCategory = (txId) => {
+    const next = { ...categories }
+    delete next[txId]
+    setCategories(next)
+    localStorage.setItem('vq_txCategories', JSON.stringify(next))
+  }
 
   const checkAuth = async () => {
     try {
@@ -56,14 +83,25 @@ export default function WalletHistoryPage() {
   const filteredTxns = useMemo(() => {
     return txns.filter(tx => {
       if (typeFilter !== 'ALL' && tx.type !== typeFilter) return false
+      if (categoryFilter !== 'ALL' && categories[tx.id] !== categoryFilter) return false
       if (search) {
         const s = search.toLowerCase()
-        const text = `${tx.type} ${tx.asset || ''} ${tx.assetTo || ''} ${tx.description || ''}`.toLowerCase()
+        const text = `${tx.type} ${tx.asset || ''} ${tx.assetTo || ''} ${tx.description || ''} ${categories[tx.id] || ''}`.toLowerCase()
         if (!text.includes(s)) return false
       }
       return true
     })
-  }, [txns, typeFilter, search])
+  }, [txns, typeFilter, search, categoryFilter, categories])
+
+  const spendingBreakdown = useMemo(() => {
+    const out = {}
+    filteredTxns.forEach(tx => {
+      const cat = categories[tx.id] || 'Uncategorized'
+      const val = Math.abs(tx.amount) * (tx.priceUsd || (tx.asset?.startsWith('USD') ? 1 : 0) || 0)
+      out[cat] = (out[cat] || 0) + val
+    })
+    return Object.entries(out).sort((a, b) => b[1] - a[1])
+  }, [filteredTxns, categories])
 
   const exportCSV = () => {
     const rows = filteredTxns.map(tx => ({
@@ -104,6 +142,9 @@ export default function WalletHistoryPage() {
               <p className="text-muted-foreground text-sm">Converts, transfers, and deposits.</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setShowReport(!showReport)} className="flex text-muted-foreground hover:text-foreground">
+                <PieChartIcon className="h-4 w-4 mr-2" /> <span className="hidden sm:inline">Report</span>
+              </Button>
               <Button variant="ghost" onClick={exportCSV} disabled={!filteredTxns.length} className="flex text-muted-foreground hover:text-foreground">
                 <Download className="h-4 w-4 mr-2" /> <span className="hidden sm:inline">Export</span>
               </Button>
@@ -144,9 +185,23 @@ export default function WalletHistoryPage() {
                     {t === 'ALL' ? 'All Types' : (TYPE_META[t]?.label || t)}
                   </button>
                 ))}
-                {(search || typeFilter !== 'ALL') && (
+                <div className="w-px h-5 bg-border mx-1" />
+                {['ALL', ...CATEGORY_OPTIONS].map(c => (
                   <button
-                    onClick={() => { setSearch(''); setTypeFilter('ALL') }}
+                    key={c}
+                    onClick={() => setCategoryFilter(c)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                      categoryFilter === c
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-muted text-muted-foreground border-border hover:border-emerald-500/30'
+                    }`}
+                  >
+                    {c === 'ALL' ? 'All Categories' : c}
+                  </button>
+                ))}
+                {(search || typeFilter !== 'ALL' || categoryFilter !== 'ALL') && (
+                  <button
+                    onClick={() => { setSearch(''); setTypeFilter('ALL'); setCategoryFilter('ALL') }}
                     className="px-3 py-1.5 rounded-md text-xs font-medium text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
                   >
                     <X className="h-3 w-3" /> Clear
@@ -158,6 +213,56 @@ export default function WalletHistoryPage() {
               Showing {filteredTxns.length} of {txns.length} transactions
             </div>
           </div>
+
+          {/* Spending Breakdown */}
+          {showReport && spendingBreakdown.length > 0 && (
+            <Card className="bg-card border-border mb-6">
+              <CardHeader>
+                <CardTitle className="text-foreground text-sm flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4 text-emerald-400" /> Spending Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6">
+                  <svg width="80" height="80" viewBox="0 0 100 100" className="flex-shrink-0">
+                    {(() => {
+                      const colors = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+                      let start = 0
+                      const total = spendingBreakdown.reduce((s, [, v]) => s + v, 0) || 1
+                      return spendingBreakdown.slice(0, 8).map(([cat, val], i) => {
+                        const pct = (val / total) * 100
+                        const dash = pct * 2.83
+                        const gap = 283 - dash
+                        const el = (
+                          <circle key={cat} cx="50" cy="50" r="45" fill="none"
+                            stroke={colors[i % colors.length]} strokeWidth="10"
+                            strokeDasharray={`${dash} ${gap}`}
+                            strokeDashoffset={-start * 2.83}
+                            transform="rotate(-90 50 50)"
+                          />
+                        )
+                        start += pct
+                        return el
+                      })
+                    })()}
+                  </svg>
+                  <div className="flex-1 flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+                    {spendingBreakdown.slice(0, 8).map(([cat, val], i) => {
+                      const colors = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+                      const total = spendingBreakdown.reduce((s, [, v]) => s + v, 0) || 1
+                      return (
+                        <div key={cat} className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+                          <span className="text-muted-foreground">{cat}</span>
+                          <span className="font-semibold text-foreground">{((val / total) * 100).toFixed(1)}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="bg-card border-border">
             <CardHeader>
@@ -180,7 +285,37 @@ export default function WalletHistoryPage() {
                           <Icon className={`h-4 w-4 ${meta.color}`} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-foreground">{meta.label}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-foreground">{meta.label}</span>
+                            {/* Category tag */}
+                            {editingTag === tx.id ? (
+                              <select
+                                autoFocus
+                                onChange={e => { if (e.target.value) saveCategory(tx.id, e.target.value) }}
+                                onBlur={() => setEditingTag(null)}
+                                className="text-[10px] bg-muted border border-border rounded px-1 py-0.5 text-foreground outline-none"
+                              >
+                                <option value="">Select...</option>
+                                {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            ) : categories[tx.id] ? (
+                              <button
+                                onClick={() => setEditingTag(tx.id)}
+                                className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full hover:bg-emerald-500/20 transition-colors"
+                              >
+                                <Tag className="h-2.5 w-2.5" />
+                                {categories[tx.id]}
+                                <span onClick={e => { e.stopPropagation(); clearCategory(tx.id) }} className="ml-0.5 hover:text-red-400">×</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setEditingTag(tx.id)}
+                                className="text-[10px] text-muted-foreground hover:text-emerald-400 border border-border px-1.5 py-0.5 rounded-full transition-colors"
+                              >
+                                + Tag
+                              </button>
+                            )}
+                          </div>
                           <div className="text-muted-foreground text-xs truncate">{tx.description || '—'}</div>
                         </div>
                         <div className="text-right flex-shrink-0">

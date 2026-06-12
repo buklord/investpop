@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Menu, Loader2, QrCode, Copy, Check, ArrowDownToLine } from 'lucide-react'
+import { Loader2, QrCode, Copy, Check, ArrowDownToLine, Link2, Share2, Plus, X } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
 
@@ -29,9 +30,21 @@ export default function ReceivePage() {
   const [info, setInfo] = useState(null)
   const [fetching, setFetching] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [requestAmount, setRequestAmount] = useState('')
+  const [showRequest, setShowRequest] = useState(false)
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadAddress(asset) }, [user, asset])
+
+  const paymentLink = info?.address
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/wallet/send?asset=${asset}&amount=${requestAmount || ''}&to=${encodeURIComponent(info.address)}`
+    : ''
+
+  const copyLink = async () => {
+    if (!paymentLink) return
+    try { await navigator.clipboard.writeText(paymentLink); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) } catch (_) {}
+  }
 
   const checkAuth = async () => {
     try {
@@ -91,11 +104,65 @@ export default function ReceivePage() {
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
               ) : info ? (
                 <>
-                  <div className="flex flex-col items-center gap-3 py-2">
-                    <div className="w-40 h-40 rounded-lg bg-white flex items-center justify-center border border-border">
-                      <QrCode className="h-28 w-28 text-black" />
+                  {/* Request Amount Toggle */}
+                  <button
+                    onClick={() => setShowRequest(!showRequest)}
+                    className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                  >
+                    {showRequest ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                    {showRequest ? 'Remove request amount' : 'Request a specific amount'}
+                  </button>
+
+                  {showRequest && (
+                    <div>
+                      <label className="text-muted-foreground text-xs mb-1.5 block">Request amount ({asset})</label>
+                      <Input
+                        type="number"
+                        placeholder="0.00"
+                        value={requestAmount}
+                        onChange={e => setRequestAmount(e.target.value)}
+                        className="text-sm"
+                      />
                     </div>
-                    <span className="text-muted-foreground text-xs">Scan to get the address</span>
+                  )}
+
+                  <div className="flex flex-col items-center gap-3 py-2">
+                    <div className="w-48 h-48 rounded-xl bg-white flex items-center justify-center border-2 border-border p-3">
+                      {/* QR-like visual pattern */}
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <rect width="100" height="100" fill="white" />
+                        {/* Position patterns */}
+                        <rect x="5" y="5" width="25" height="25" fill="black" />
+                        <rect x="10" y="10" width="15" height="15" fill="white" />
+                        <rect x="13" y="13" width="9" height="9" fill="black" />
+                        <rect x="70" y="5" width="25" height="25" fill="black" />
+                        <rect x="75" y="10" width="15" height="15" fill="white" />
+                        <rect x="78" y="13" width="9" height="9" fill="black" />
+                        <rect x="5" y="70" width="25" height="25" fill="black" />
+                        <rect x="10" y="75" width="15" height="15" fill="white" />
+                        <rect x="13" y="78" width="9" height="9" fill="black" />
+                        {/* Data pattern (pseudo-random based on address) */}
+                        {info.address.split('').map((ch, i) => (
+                          <rect key={i}
+                            x={35 + (i % 8) * 4}
+                            y={5 + Math.floor(i / 8) * 4}
+                            width="3"
+                            height="3"
+                            fill={ch.charCodeAt(0) % 2 === 0 ? 'black' : 'white'}
+                          />
+                        ))}
+                        {/* Bottom-right mini pattern */}
+                        <rect x="70" y="70" width="25" height="25" fill="black" opacity="0.3" />
+                        {requestAmount && (
+                          <text x="50" y="95" textAnchor="middle" fontSize="6" fill="black" fontFamily="monospace">
+                            {requestAmount} {asset}
+                          </text>
+                        )}
+                      </svg>
+                    </div>
+                    <span className="text-muted-foreground text-xs">
+                      {requestAmount ? `Scan to send ${requestAmount} ${asset}` : 'Scan to get the address'}
+                    </span>
                   </div>
 
                   <div>
@@ -112,6 +179,19 @@ export default function ReceivePage() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Payment Request Link */}
+                  {paymentLink && (
+                    <div>
+                      <label className="text-muted-foreground text-xs mb-1.5 block">Shareable payment link</label>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 text-xs text-foreground bg-muted/40 rounded-lg px-3 py-2 break-all font-mono truncate">{paymentLink}</div>
+                        <Button variant="outline" size="icon" onClick={copyLink} className="border-border flex-shrink-0">
+                          {linkCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Link2 className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="text-amber-300 text-xs bg-amber-500/10 rounded-lg px-3 py-2">
                     Send only {info.asset} via {info.network} to this address. Sending any other coin may result in loss.
