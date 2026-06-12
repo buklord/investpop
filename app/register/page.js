@@ -155,7 +155,8 @@ export default function RegisterPage() {
                     alert('Google sign-up is not configured yet. Use email/password instead.')
                     return
                   }
-                  const redirectUri = `${window.location.origin}/api/auth/google/callback`
+                  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
+                  const redirectUri = `${baseUrl}/api/auth/google/callback`
                   const scope = 'openid email profile'
                   const state = btoa(Math.random().toString()).slice(0, 16)
                   sessionStorage.setItem('google_oauth_state', state)
