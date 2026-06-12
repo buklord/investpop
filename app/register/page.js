@@ -80,148 +80,31 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
 
-          {/* Heading */}
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold tracking-tight mb-1">Create your Vaultquokka account</h1>
-            <p className="text-white/40 text-sm">Multi-asset crypto wallet with optional trading. No card required.</p>
-          </div>
-
-          {/* Trust signals */}
-          <div className="mb-8 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 grid grid-cols-2 gap-3">
-            {[
-              '$100,000 virtual funds',
-              'No card required',
-              'Live market conditions',
-              'Upgrade to live after KYC',
-            ].map((item) => (
-              <div key={item} className="flex items-start gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500/70 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                <span className="text-white/50 text-xs leading-snug">{item}</span>
+          {registered ? (
+            /* Success state - completely replaces form */
+            <div className="text-center">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                <CheckCircle className="h-10 w-10 text-emerald-400" />
               </div>
-            ))}
-          </div>
-
-          {/* Form */}
-          {step === 1 ? (
-            <form onSubmit={handleStep1} className="flex flex-col gap-4">
-              <div>
-                <label className="block text-xs text-white/40 mb-1.5" htmlFor="email">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError('') }}
-                  className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
-                />
-              </div>
-              {error && <p className="text-red-400 text-xs">{error}</p>}
-              <button
-                type="submit"
-                className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                Continue <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {/* Confirmed email row */}
-              <div className="flex items-center gap-2 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20 px-3 py-2.5">
-                <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" aria-hidden="true" />
-                <span className="text-white/60 text-sm flex-1 truncate">{email}</span>
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="text-white/30 hover:text-white/60 text-xs underline transition-colors flex-shrink-0"
-                >
-                  Change
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-xs text-white/40 mb-1.5" htmlFor="firstName">
-                  First name <span className="text-white/20">(optional)</span>
-                </label>
-                <input
-                  id="firstName"
-                  type="text"
-                  placeholder="Your first name"
-                  autoComplete="given-name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-white/40 mb-1.5" htmlFor="password">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  placeholder="Minimum 8 characters"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
-                />
-              </div>
-
-              {error && <p className="text-red-400 text-xs">{error}</p>}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <span
-                      className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"
-                      aria-hidden="true"
-                    />
-                    Creating your account&hellip;
-                  </>
-                ) : (
-                  <>
-                    Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" />
-                  </>
-                )}
-              </button>
-
-              <p className="text-white/20 text-xs text-center">
-                By registering you agree to our{' '}
-                <Link href="/terms" className="underline hover:text-white/40 transition-colors">
-                  Terms of Service
-                </Link>
-                {' '}and{' '}
-                <Link href="/risk-disclosure" className="underline hover:text-white/40 transition-colors">
-                  Risk Disclosure
-                </Link>
-                .
+              <h2 className="text-2xl font-bold text-white mb-3">Verify Your Email</h2>
+              <p className="text-white/60 text-sm mb-2">
+                We sent a verification link to
               </p>
-            </form>
-          )}
+              <p className="text-white font-semibold text-base mb-6">{email}</p>
 
-          {registered && (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-emerald-400" />
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 mb-6 text-left">
+                <h3 className="text-white/80 text-sm font-semibold mb-3">Next steps:</h3>
+                <ol className="text-white/50 text-sm space-y-2 list-decimal list-inside">
+                  <li>Open your email inbox</li>
+                  <li>Find the email from Vaultquokka</li>
+                  <li>Click the <strong className="text-emerald-400">Verify Email</strong> button</li>
+                  <li>Come back here to log in</li>
+                </ol>
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Account Created!</h2>
-              <p className="text-white/60 text-sm mb-4">
-                Please check your email <strong className="text-white">{email}</strong> and click the verification link to activate your account.
-              </p>
-              <p className="text-white/40 text-xs mb-6">
+
+              <p className="text-white/40 text-xs mb-3">
                 Did not receive it? Check your spam folder or{' '}
-                <button 
+                <button
                   onClick={async () => {
                     try {
                       await fetch('/api/auth/resend-verification', {
@@ -236,31 +119,162 @@ export default function RegisterPage() {
                   }}
                   className="text-emerald-400 hover:text-emerald-300 underline"
                 >
-                  resend verification email
+                  resend it
                 </button>
               </p>
+
               <Link href="/login">
-                <button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors">
+                <button className="w-full h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors">
                   Go to Login
                 </button>
               </Link>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Heading */}
+              <div className="mb-8 text-center">
+                <h1 className="text-2xl font-bold tracking-tight mb-1">Create your Vaultquokka account</h1>
+                <p className="text-white/40 text-sm">Multi-asset crypto wallet with optional trading. No card required.</p>
+              </div>
 
-          {!registered && (
-            <p className="mt-6 text-center text-xs text-white/25">
-              Already have an account?{' '}
-              <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline transition-colors">
-                Log in
-              </Link>
-            </p>
-          )}
+              {/* Trust signals */}
+              <div className="mb-8 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 grid grid-cols-2 gap-3">
+                {[
+                  '$100,000 virtual funds',
+                  'No card required',
+                  'Live market conditions',
+                  'Upgrade to live after KYC',
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500/70 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                    <span className="text-white/50 text-xs leading-snug">{item}</span>
+                  </div>
+                ))}
+              </div>
 
-          {/* Fine print */}
-          <p className="mt-8 text-center text-[11px] text-white/15 leading-relaxed">
-            Virtual accounts use virtual funds only. No real money is involved until you choose
-            to open a live account after completing identity verification.
-          </p>
+              {/* Form */}
+              {step === 1 ? (
+                <form onSubmit={handleStep1} className="flex flex-col gap-4">
+                  <div>
+                    <label className="block text-xs text-white/40 mb-1.5" htmlFor="email">
+                      Email address
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setError('') }}
+                      className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
+                    />
+                  </div>
+                  {error && <p className="text-red-400 text-xs">{error}</p>}
+                  <button
+                    type="submit"
+                    className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    Continue <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                  {/* Confirmed email row */}
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20 px-3 py-2.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" aria-hidden="true" />
+                    <span className="text-white/60 text-sm flex-1 truncate">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-white/30 hover:text-white/60 text-xs underline transition-colors flex-shrink-0"
+                    >
+                      Change
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-white/40 mb-1.5" htmlFor="firstName">
+                      First name <span className="text-white/20">(optional)</span>
+                    </label>
+                    <input
+                      id="firstName"
+                      type="text"
+                      placeholder="Your first name"
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-white/40 mb-1.5" htmlFor="password">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      minLength={8}
+                      placeholder="Minimum 8 characters"
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setError('') }}
+                      className="w-full h-11 px-4 rounded-lg bg-white/[0.06] border border-white/[0.12] text-white placeholder:text-white/25 text-sm focus:outline-none focus:border-emerald-500/60 transition-colors"
+                    />
+                  </div>
+
+                  {error && <p className="text-red-400 text-xs">{error}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="h-11 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <span
+                          className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"
+                          aria-hidden="true"
+                        />
+                        Creating your account&hellip;
+                      </>
+                    ) : (
+                      <>
+                        Create demo account <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-white/20 text-xs text-center">
+                    By registering you agree to our{' '}
+                    <Link href="/terms" className="underline hover:text-white/40 transition-colors">
+                      Terms of Service
+                    </Link>
+                    {' '}and{' '}
+                    <Link href="/risk-disclosure" className="underline hover:text-white/40 transition-colors">
+                      Risk Disclosure
+                    </Link>
+                    .
+                  </p>
+                </form>
+              )}
+
+              <p className="mt-6 text-center text-xs text-white/25">
+                Already have an account?{' '}
+                <Link href="/login" className="text-emerald-400 hover:text-emerald-300 underline transition-colors">
+                  Log in
+                </Link>
+              </p>
+
+              {/* Fine print */}
+              <p className="mt-8 text-center text-[11px] text-white/15 leading-relaxed">
+                Virtual accounts use virtual funds only. No real money is involved until you choose
+                to open a live account after completing identity verification.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
