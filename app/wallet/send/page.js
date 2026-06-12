@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Menu, Loader2, Send, CheckCircle } from 'lucide-react'
+import { Menu, Loader2, Send, CheckCircle, BookUser, X, User } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
 
@@ -23,6 +23,27 @@ export default function SendPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [savedRecipients, setSavedRecipients] = useState([])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('vq_savedRecipients')
+      if (raw) setSavedRecipients(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const saveRecipient = (email) => {
+    if (!email || savedRecipients.includes(email)) return
+    const next = [...savedRecipients, email]
+    setSavedRecipients(next)
+    localStorage.setItem('vq_savedRecipients', JSON.stringify(next))
+  }
+
+  const removeRecipient = (email) => {
+    const next = savedRecipients.filter(r => r !== email)
+    setSavedRecipients(next)
+    localStorage.setItem('vq_savedRecipients', JSON.stringify(next))
+  }
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadBalances() }, [user])
@@ -61,6 +82,7 @@ export default function SendPage() {
       const data = await res.json()
       if (res.ok) {
         setResult(data)
+        saveRecipient(recipientEmail)
         setAmount(''); setRecipientEmail('')
         loadBalances()
       } else {
@@ -92,13 +114,33 @@ export default function SendPage() {
 
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-foreground text-base flex items-center gap-2"><Send className="h-4 w-4 text-emerald-400" /> Withdraw to user</CardTitle>
+              <CardTitle className="text-foreground text-base flex items-center gap-2"><BookUser className="h-4 w-4 text-emerald-400" /> Withdraw to user</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <label className="text-muted-foreground text-xs mb-1.5 block">Recipient email</label>
                 <Input type="email" placeholder="user@example.com" value={recipientEmail}
                   onChange={e => { setRecipientEmail(e.target.value); setResult(null) }} />
+                {savedRecipients.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {savedRecipients.map(email => (
+                      <button
+                        key={email}
+                        onClick={() => { setRecipientEmail(email); setResult(null) }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-xs text-foreground border border-border hover:border-emerald-500/30 transition-colors"
+                      >
+                        <User className="h-3 w-3 text-muted-foreground" />
+                        {email}
+                        <span
+                          onClick={e => { e.stopPropagation(); removeRecipient(email) }}
+                          className="ml-0.5 p-0.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"
+                        >
+                          <X className="h-3 w-3" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

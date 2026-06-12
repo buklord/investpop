@@ -25,7 +25,14 @@ import {
   ArrowUpFromLine,
   Eye,
   EyeOff,
-  Clock
+  Clock,
+  Bell,
+  BellRing,
+  Trash2,
+  PlusCircle,
+  TrendingUp,
+  TrendingDown,
+  X
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
@@ -45,6 +52,13 @@ export default function WalletPage() {
   const [successMsg, setSuccessMsg] = useState('')
   const [hideBalances, setHideBalances] = useState(false)
   const [pendingTxs, setPendingTxs] = useState([])
+  const [displayCurrency, setDisplayCurrency] = useState('USD')
+  const [priceAlerts, setPriceAlerts] = useState([])
+  const [triggeredAlerts, setTriggeredAlerts] = useState([])
+  const [showAlertForm, setShowAlertForm] = useState(false)
+  const [alertAsset, setAlertAsset] = useState('')
+  const [alertPrice, setAlertPrice] = useState('')
+  const [alertDirection, setAlertDirection] = useState('above')
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) loadData() }, [user])
@@ -52,6 +66,12 @@ export default function WalletPage() {
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('vq_hideBalances') : null
     if (saved === '1') setHideBalances(true)
+    const savedCurr = typeof window !== 'undefined' ? localStorage.getItem('vq_currency') : null
+    if (savedCurr) setDisplayCurrency(savedCurr)
+    const savedAlerts = typeof window !== 'undefined' ? localStorage.getItem('vq_priceAlerts') : null
+    if (savedAlerts) setPriceAlerts(JSON.parse(savedAlerts))
+    const savedTriggered = typeof window !== 'undefined' ? localStorage.getItem('vq_triggeredAlerts') : null
+    if (savedTriggered) setTriggeredAlerts(JSON.parse(savedTriggered))
   }, [])
 
   const toggleHideBalances = () => {
@@ -62,7 +82,57 @@ export default function WalletPage() {
     })
   }
 
+  const handleSetCurrency = (curr) => {
+    setDisplayCurrency(curr)
+    if (typeof window !== 'undefined') localStorage.setItem('vq_currency', curr)
+  }
+
   const masked = (val) => hideBalances ? '••••••' : val
+
+  const saveAlerts = (alerts) => {
+    setPriceAlerts(alerts)
+    localStorage.setItem('vq_priceAlerts', JSON.stringify(alerts))
+  }
+
+  const addPriceAlert = () => {
+    const price = parseFloat(alertPrice)
+    if (!alertAsset || !price || price <= 0) return
+    const next = [...priceAlerts, { id: Date.now(), asset: alertAsset.toUpperCase(), targetPrice: price, direction: alertDirection, createdAt: Date.now() }]
+    saveAlerts(next)
+    setAlertAsset(''); setAlertPrice(''); setShowAlertForm(false)
+  }
+
+  const removePriceAlert = (id) => {
+    saveAlerts(priceAlerts.filter(a => a.id !== id))
+  }
+
+  const dismissTriggered = (id) => {
+    const next = triggeredAlerts.filter(a => a.id !== id)
+    setTriggeredAlerts(next)
+    localStorage.setItem('vq_triggeredAlerts', JSON.stringify(next))
+  }
+
+  const checkAlerts = (currentPrices) => {
+    if (!currentPrices || !priceAlerts.length) return
+    const newTriggered = []
+    const remaining = []
+    priceAlerts.forEach(alert => {
+      const price = currentPrices[alert.asset]
+      if (!price) { remaining.push(alert); return }
+      const triggered = alert.direction === 'above' ? price >= alert.targetPrice : price <= alert.targetPrice
+      if (triggered) {
+        newTriggered.push({ ...alert, triggeredAt: Date.now(), currentPrice: price })
+      } else {
+        remaining.push(alert)
+      }
+    })
+    if (newTriggered.length) {
+      const allTriggered = [...triggeredAlerts, ...newTriggered.filter(n => !triggeredAlerts.some(t => t.id === n.id))]
+      setTriggeredAlerts(allTriggered)
+      localStorage.setItem('vq_triggeredAlerts', JSON.stringify(allTriggered))
+      saveAlerts(remaining)
+    }
+  }
 
   const checkAuth = async () => {
     try {
@@ -85,7 +155,15 @@ export default function WalletPage() {
       const accountData = await accountRes.json()
       const ledgerData = await ledgerRes.json()
       setAccount(accountData)
-      if (spotRes.ok) setSpot(await spotRes.json())
+      let spotData = null
+      if (spotRes.ok) {
+        spotData = await spotRes.json()
+        setSpot(spotData)
+        // Build price map for alert checking
+        const priceMap = {}
+        ;(spotData?.balances || []).forEach(b => { priceMap[b.asset] = b.priceUsd || (b.stable ? 1 : 0) })
+        checkAlerts(priceMap)
+      }
       setLedger(ledgerData.entries || [])
       setLedgerMode(ledgerData.mode || accountData?.tradingMode || 'REAL')
       if (pendingRes.ok) {
@@ -123,8 +201,18 @@ export default function WalletPage() {
     finally { setRequesting(false); setTimeout(() => setSuccessMsg(''), 5000) }
   }
 
-  const formatCurrency = (value) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value || 0)
+  const FX = { USD: 1, EUR: 0.92, GBP: 0.79 }
+  const CURRENCY_SYMBOLS = { USD: '$', EUR: '€', GBP: '£' }
+
+  const formatCurrency = (value) => {
+    const rate = FX[displayCurrency] || 1
+    const symbol = CURRENCY_SYMBOLS[displayCurrency] || '$'
+    const converted = (value || 0) * rate
+    if (displayCurrency === 'USD') {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(converted)
+    }
+    return `${symbol}${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 
   const entryTypeColor = (type) => {
     switch (type) {
@@ -178,6 +266,21 @@ export default function WalletPage() {
               <p className="text-muted-foreground text-sm">Your spot balances, trading accounts and activity</p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1 rounded-lg bg-muted/50 border border-border p-0.5">
+                {['USD', 'EUR', 'GBP'].map(curr => (
+                  <button
+                    key={curr}
+                    onClick={() => handleSetCurrency(curr)}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                      displayCurrency === curr
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {curr}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={toggleHideBalances}
                 className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -192,6 +295,30 @@ export default function WalletPage() {
               </Button>
             </div>
           </div>
+
+          {/* Triggered Price Alerts */}
+          {triggeredAlerts.length > 0 && (
+            <div className="mb-6 space-y-2">
+              {triggeredAlerts.map(alert => (
+                <div key={alert.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <div className="flex items-center gap-3">
+                    <BellRing className="h-5 w-5 text-emerald-400" />
+                    <div>
+                      <div className="text-sm font-medium text-foreground">
+                        {alert.asset} {alert.direction === 'above' ? 'rose above' : 'fell below'} {formatCurrency(alert.targetPrice)}
+                      </div>
+                      <div className="text-xs text-emerald-400">
+                        Now at {formatCurrency(alert.currentPrice || 0)}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => dismissTriggered(alert.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Pending Transactions */}
           {pendingTxs.length > 0 && (
@@ -406,6 +533,87 @@ export default function WalletPage() {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          {/* Price Alerts */}
+          <Card className="bg-card border-border mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-foreground text-sm flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-emerald-400" /> Price Alerts ({priceAlerts.length})
+                </CardTitle>
+                <button
+                  onClick={() => setShowAlertForm(!showAlertForm)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" /> {showAlertForm ? 'Cancel' : 'Add'}
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {showAlertForm && (
+                <div className="px-4 pb-4 border-b border-border">
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <Input
+                      placeholder="Asset (e.g. BTC)"
+                      value={alertAsset}
+                      onChange={e => setAlertAsset(e.target.value.toUpperCase())}
+                      className="bg-muted/50 border-border text-foreground text-sm"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Target price"
+                      value={alertPrice}
+                      onChange={e => setAlertPrice(e.target.value)}
+                      className="bg-muted/50 border-border text-foreground text-sm"
+                    />
+                    <div className="flex rounded-md border border-border overflow-hidden">
+                      <button
+                        onClick={() => setAlertDirection('above')}
+                        className={`flex-1 text-xs font-medium py-2 transition-colors ${alertDirection === 'above' ? 'bg-emerald-600 text-white' : 'text-muted-foreground hover:bg-muted'}`}
+                      >
+                        <TrendingUp className="h-3 w-3 inline mr-1" />Above
+                      </button>
+                      <button
+                        onClick={() => setAlertDirection('below')}
+                        className={`flex-1 text-xs font-medium py-2 transition-colors ${alertDirection === 'below' ? 'bg-red-600 text-white' : 'text-muted-foreground hover:bg-muted'}`}
+                      >
+                        <TrendingDown className="h-3 w-3 inline mr-1" />Below
+                      </button>
+                    </div>
+                  </div>
+                  <Button onClick={addPriceAlert} size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Set Alert
+                  </Button>
+                </div>
+              )}
+              {priceAlerts.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-xs">
+                  No active alerts. Click "Add" to get notified when a price hits your target.
+                </div>
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {priceAlerts.map(alert => (
+                    <div key={alert.id} className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        {alert.direction === 'above' ? (
+                          <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+                        )}
+                        <span className="text-sm text-foreground font-medium">{alert.asset}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {alert.direction === 'above' ? '≥' : '≤'} {formatCurrency(alert.targetPrice)}
+                        </span>
+                      </div>
+                      <button onClick={() => removePriceAlert(alert.id)} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
           </Card>
 
           {/* Trading Account (Real / Demo) */}
