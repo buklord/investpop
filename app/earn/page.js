@@ -30,10 +30,11 @@ const EARN_PRODUCTS = [
     href: '/copy-trading', cta: 'Browse traders',
   },
   {
-    id: 'simple', live: false, Icon: PiggyBank,
+    id: 'simple', live: true, Icon: PiggyBank,
     title: 'Simple Earn',
-    apy: 'Flexible · est. 4–8% APR',
+    apy: 'Flexible · est. 2–5% APR',
     desc: 'Earn daily rewards on idle USDT, BTC and ETH. Subscribe and redeem any time — no lock-up.',
+    href: '/earn/simple', cta: 'Start earning',
   },
   {
     id: 'staking', live: false, Icon: Lock,
