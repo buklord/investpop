@@ -36,7 +36,8 @@ import {
   X,
   Activity,
   CreditCard,
-  Repeat
+  Repeat,
+  Share2
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
@@ -66,6 +67,8 @@ export default function WalletPage() {
   const [alertDirection, setAlertDirection] = useState('above')
   const [lastTxIds, setLastTxIds] = useState(new Set())
   const [perfData, setPerfData] = useState([])
+  const [showShare, setShowShare] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) { loadData(); loadPerformance() } }, [user])
@@ -568,6 +571,9 @@ export default function WalletPage() {
                 <Button onClick={() => router.push('/wallet/receive')} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
                   <ArrowDownToLine className="h-4 w-4 mr-1" /> Receive
                 </Button>
+                <Button onClick={() => setShowShare(true)} size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
+                  <Share2 className="h-4 w-4 mr-1" /> Share
+                </Button>
                 <Button onClick={() => router.push('/wallet/history')} size="sm" className="w-full bg-muted/40 hover:bg-muted/60 text-foreground border border-border">
                   <HistoryIcon className="h-4 w-4 mr-1" /> History
                 </Button>
@@ -909,6 +915,117 @@ export default function WalletPage() {
           </Card>
         </div>
       </div>
+
+      {/* Share Earnings Modal */}
+      {showShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowShare(false)} />
+          <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Share2 className="h-5 w-5 text-emerald-400" /> Share Your Earnings
+              </h3>
+              <button onClick={() => setShowShare(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const totalValue = (spot?.balances || []).reduce((s, b) => s + ((b.usdValue || b.amount * (b.price || 0)) || 0), 0)
+              const perfChange = perfData.length > 1
+                ? ((perfData[perfData.length - 1].value - perfData[0].value) / (perfData[0].value || 1) * 100).toFixed(1)
+                : '0.0'
+              const isUp = parseFloat(perfChange) >= 0
+              const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+              const messages = [
+                {
+                  platform: 'Twitter/X',
+                  icon: 'X',
+                  text: `Just checked my crypto portfolio on Vaultquokka ${isUp ? '🚀' : '📊'} — ${isUp ? 'up' : 'down'} ${Math.abs(perfChange)}% this month.\n\nManaging multiple assets, DCA plans, and copy trading all in one place.\n\nTry it free: ${appUrl}`,
+                  color: 'bg-zinc-900 text-white',
+                },
+                {
+                  platform: 'WhatsApp',
+                  icon: '💬',
+                  text: `Hey! I've been using Vaultquokka for crypto trading and it's solid. Portfolio ${isUp ? 'up' : 'down'} ${Math.abs(perfChange)}% this month. Check it out: ${appUrl}`,
+                  color: 'bg-emerald-600 text-white',
+                },
+                {
+                  platform: 'Telegram',
+                  icon: '📢',
+                  text: `Vaultquokka update: Portfolio value $${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} — ${isUp ? '+' : ''}${perfChange}% this month.\n\nDCA + Copy Trading + Wallet all-in-one.\n${appUrl}`,
+                  color: 'bg-blue-500 text-white',
+                },
+              ]
+
+              return (
+                <div className="space-y-4">
+                  <div className="text-center py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="text-xs text-muted-foreground mb-1">Portfolio Value</div>
+                    <div className="text-2xl font-bold text-foreground">${totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    <div className={`text-sm font-medium ${isUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {isUp ? '+' : ''}{perfChange}% this month
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {messages.map(m => (
+                      <button
+                        key={m.platform}
+                        onClick={() => {
+                          navigator.clipboard.writeText(m.text)
+                          setShareCopied(true)
+                          toast({ title: 'Copied!', description: `Post copied for ${m.platform}` })
+                          setTimeout(() => setShareCopied(false), 2000)
+                        }}
+                        className="w-full text-left p-3 rounded-lg border border-border hover:border-emerald-500/30 bg-muted/20 hover:bg-muted/40 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium text-foreground">{m.platform}</span>
+                          <span className="text-[10px] text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">Click to copy</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-3">{m.text}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        const tweetText = messages[0].text.replace(/\n/g, '%0A')
+                        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(messages[0].text)}`, '_blank')
+                      }}
+                      className="flex-1 py-2 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                      Post on X
+                    </button>
+                    <button
+                      onClick={() => {
+                        const url = `https://wa.me/?text=${encodeURIComponent(messages[1].text)}`
+                        window.open(url, '_blank')
+                      }}
+                      className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      💬 WhatsApp
+                    </button>
+                    <button
+                      onClick={() => {
+                        const url = `https://t.me/share/url?url=${encodeURIComponent(appUrl)}&text=${encodeURIComponent(messages[2].text)}`
+                        window.open(url, '_blank')
+                      }}
+                      className="flex-1 py-2 rounded-lg bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      📢 Telegram
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
