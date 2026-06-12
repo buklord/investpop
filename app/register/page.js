@@ -81,53 +81,62 @@ export default function RegisterPage() {
         <div className="w-full max-w-sm">
 
           {registered ? (
-            /* Success state - completely replaces form */
-            <div className="text-center">
-              <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-                <CheckCircle className="h-10 w-10 text-emerald-400" />
+            /* Full-screen success overlay */
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+              <div className="relative w-full max-w-md rounded-2xl border border-emerald-500/20 bg-[#0c1220] p-8 text-center shadow-2xl shadow-emerald-500/10">
+                <div className="w-24 h-24 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-emerald-500/10">
+                  <CheckCircle className="h-12 w-12 text-emerald-400" />
+                </div>
+
+                <h2 className="text-3xl font-extrabold text-white mb-2">Account Created!</h2>
+                <p className="text-emerald-400 font-semibold text-sm mb-6 uppercase tracking-wide">
+                  One last step
+                </p>
+
+                <div className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-5 mb-6 text-left">
+                  <p className="text-white/70 text-sm mb-4 text-center">
+                    We sent a verification link to<br />
+                    <span className="text-white font-bold text-base">{email}</span>
+                  </p>
+                  <div className="border-t border-white/[0.08] pt-4">
+                    <h3 className="text-white/60 text-xs font-bold uppercase tracking-wider mb-3 text-center">What to do next</h3>
+                    <ol className="text-white/50 text-sm space-y-3 list-decimal list-inside">
+                      <li>Open your email inbox</li>
+                      <li>Find the email from <strong className="text-emerald-400">Vaultquokka</strong></li>
+                      <li>Click the <strong className="text-emerald-400">Verify Email</strong> button</li>
+                      <li>Return here and log in</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <p className="text-white/30 text-xs mb-4">
+                  Did not receive it? Check spam or{' '}
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch('/api/auth/resend-verification', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email })
+                        })
+                        alert('Verification email resent!')
+                      } catch {
+                        alert('Failed to resend. Please try again.')
+                      }
+                    }}
+                    className="text-emerald-400 hover:text-emerald-300 underline"
+                  >
+                    resend it
+                  </button>
+                </p>
+
+                <Link href="/login">
+                  <button className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors">
+                    Go to Login
+                  </button>
+                </Link>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Verify Your Email</h2>
-              <p className="text-white/60 text-sm mb-2">
-                We sent a verification link to
-              </p>
-              <p className="text-white font-semibold text-base mb-6">{email}</p>
-
-              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 mb-6 text-left">
-                <h3 className="text-white/80 text-sm font-semibold mb-3">Next steps:</h3>
-                <ol className="text-white/50 text-sm space-y-2 list-decimal list-inside">
-                  <li>Open your email inbox</li>
-                  <li>Find the email from Vaultquokka</li>
-                  <li>Click the <strong className="text-emerald-400">Verify Email</strong> button</li>
-                  <li>Come back here to log in</li>
-                </ol>
-              </div>
-
-              <p className="text-white/40 text-xs mb-3">
-                Did not receive it? Check your spam folder or{' '}
-                <button
-                  onClick={async () => {
-                    try {
-                      await fetch('/api/auth/resend-verification', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email })
-                      })
-                      alert('Verification email resent!')
-                    } catch {
-                      alert('Failed to resend. Please try again.')
-                    }
-                  }}
-                  className="text-emerald-400 hover:text-emerald-300 underline"
-                >
-                  resend it
-                </button>
-              </p>
-
-              <Link href="/login">
-                <button className="w-full h-11 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors">
-                  Go to Login
-                </button>
-              </Link>
             </div>
           ) : (
             <>
