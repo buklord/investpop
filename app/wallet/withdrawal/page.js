@@ -21,9 +21,44 @@ import {
 import AppSidebar from '@/components/AppSidebar'
 
 const WITHDRAWAL_METHODS = [
-  { id: 'BTC', label: 'Bitcoin', network: 'Bitcoin Network' },
-  { id: 'USDT', label: 'Tether (USDT)', network: 'ERC-20 (Ethereum)' },
-  { id: 'USDC', label: 'USD Coin (USDC)', network: 'ERC-20 (Ethereum)' },
+  // Stablecoins
+  { id: 'USDT', label: 'Tether (USDT)', network: 'Tron (TRC20)' },
+  { id: 'USDC', label: 'USD Coin (USDC)', network: 'Ethereum (ERC20)' },
+  { id: 'DAI',  label: 'Dai (DAI)', network: 'Ethereum (ERC20)' },
+  // Tier 1 — Major caps
+  { id: 'BTC',  label: 'Bitcoin (BTC)', network: 'Bitcoin' },
+  { id: 'ETH',  label: 'Ethereum (ETH)', network: 'Ethereum (ERC20)' },
+  { id: 'BNB',  label: 'BNB', network: 'BNB Smart Chain' },
+  { id: 'SOL',  label: 'Solana (SOL)', network: 'Solana' },
+  { id: 'XRP',  label: 'XRP', network: 'XRP Ledger' },
+  // Tier 2 — Large caps
+  { id: 'ADA',  label: 'Cardano (ADA)', network: 'Cardano' },
+  { id: 'DOGE', label: 'Dogecoin (DOGE)', network: 'Dogecoin' },
+  { id: 'TRX',  label: 'TRON (TRX)', network: 'Tron (TRC20)' },
+  { id: 'DOT',  label: 'Polkadot (DOT)', network: 'Polkadot' },
+  { id: 'AVAX', label: 'Avalanche (AVAX)', network: 'Avalanche C-Chain' },
+  { id: 'LINK', label: 'Chainlink (LINK)', network: 'Ethereum (ERC20)' },
+  { id: 'LTC',  label: 'Litecoin (LTC)', network: 'Litecoin' },
+  { id: 'MATIC',label: 'Polygon (MATIC)', network: 'Polygon' },
+  { id: 'SHIB', label: 'Shiba Inu (SHIB)', network: 'Ethereum (ERC20)' },
+  { id: 'UNI',  label: 'Uniswap (UNI)', network: 'Ethereum (ERC20)' },
+  // Tier 3 — Mid caps
+  { id: 'ATOM', label: 'Cosmos (ATOM)', network: 'Cosmos' },
+  { id: 'ETC',  label: 'Ethereum Classic (ETC)', network: 'Ethereum Classic' },
+  { id: 'NEAR', label: 'NEAR Protocol (NEAR)', network: 'NEAR' },
+  { id: 'APT',  label: 'Aptos (APT)', network: 'Aptos' },
+  { id: 'ARB',  label: 'Arbitrum (ARB)', network: 'Arbitrum One' },
+  { id: 'OP',   label: 'Optimism (OP)', network: 'Optimism' },
+  { id: 'SUI',  label: 'Sui (SUI)', network: 'Sui' },
+  { id: 'TON',  label: 'Toncoin (TON)', network: 'TON' },
+  { id: 'BCH',  label: 'Bitcoin Cash (BCH)', network: 'Bitcoin Cash' },
+  { id: 'XLM',  label: 'Stellar (XLM)', network: 'Stellar' },
+  { id: 'ALGO', label: 'Algorand (ALGO)', network: 'Algorand' },
+  { id: 'FIL',  label: 'Filecoin (FIL)', network: 'Filecoin' },
+  { id: 'VET',  label: 'VeChain (VET)', network: 'VeChain' },
+  { id: 'ICP',  label: 'Internet Computer (ICP)', network: 'Internet Computer' },
+  { id: 'PEPE', label: 'Pepe (PEPE)', network: 'Ethereum (ERC20)' },
+  { id: 'FET',  label: 'Fetch.ai (FET)', network: 'Ethereum (ERC20)' },
 ]
 
 export default function WithdrawalPage() {

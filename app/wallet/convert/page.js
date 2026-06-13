@@ -88,7 +88,18 @@ export default function ConvertPage() {
   }
 
   const assets = balances.length ? balances.map(b => ({ asset: b.asset, name: b.name })) : [
-    { asset: 'USDT', name: 'TetherUS' }, { asset: 'BTC', name: 'Bitcoin' }, { asset: 'ETH', name: 'Ethereum' },
+    { asset: 'USDT', name: 'TetherUS' }, { asset: 'USDC', name: 'USD Coin' }, { asset: 'DAI', name: 'Dai' },
+    { asset: 'BTC', name: 'Bitcoin' }, { asset: 'ETH', name: 'Ethereum' }, { asset: 'BNB', name: 'BNB' },
+    { asset: 'SOL', name: 'Solana' }, { asset: 'XRP', name: 'XRP' }, { asset: 'ADA', name: 'Cardano' },
+    { asset: 'DOGE', name: 'Dogecoin' }, { asset: 'TRX', name: 'TRON' }, { asset: 'DOT', name: 'Polkadot' },
+    { asset: 'AVAX', name: 'Avalanche' }, { asset: 'LINK', name: 'Chainlink' }, { asset: 'LTC', name: 'Litecoin' },
+    { asset: 'MATIC', name: 'Polygon' }, { asset: 'SHIB', name: 'Shiba Inu' }, { asset: 'UNI', name: 'Uniswap' },
+    { asset: 'ATOM', name: 'Cosmos' }, { asset: 'ETC', name: 'Ethereum Classic' }, { asset: 'NEAR', name: 'NEAR Protocol' },
+    { asset: 'APT', name: 'Aptos' }, { asset: 'ARB', name: 'Arbitrum' }, { asset: 'OP', name: 'Optimism' },
+    { asset: 'SUI', name: 'Sui' }, { asset: 'TON', name: 'Toncoin' }, { asset: 'BCH', name: 'Bitcoin Cash' },
+    { asset: 'XLM', name: 'Stellar' }, { asset: 'ALGO', name: 'Algorand' }, { asset: 'FIL', name: 'Filecoin' },
+    { asset: 'VET', name: 'VeChain' }, { asset: 'ICP', name: 'Internet Computer' }, { asset: 'PEPE', name: 'Pepe' },
+    { asset: 'FET', name: 'Fetch.ai' },
   ]
 
   return (

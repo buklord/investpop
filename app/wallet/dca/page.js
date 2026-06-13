@@ -14,10 +14,44 @@ import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
 
 const ASSETS = [
-  { symbol: 'BTC', name: 'Bitcoin', color: '#f7931a' },
-  { symbol: 'ETH', name: 'Ethereum', color: '#627eea' },
+  // Stablecoins
   { symbol: 'USDT', name: 'TetherUS', color: '#26a17b' },
   { symbol: 'USDC', name: 'USD Coin', color: '#2775ca' },
+  { symbol: 'DAI',  name: 'Dai', color: '#f5ac37' },
+  // Tier 1 — Major caps
+  { symbol: 'BTC',  name: 'Bitcoin', color: '#f7931a' },
+  { symbol: 'ETH',  name: 'Ethereum', color: '#627eea' },
+  { symbol: 'BNB',  name: 'BNB', color: '#f0b90b' },
+  { symbol: 'SOL',  name: 'Solana', color: '#9945ff' },
+  { symbol: 'XRP',  name: 'XRP', color: '#23292f' },
+  // Tier 2 — Large caps
+  { symbol: 'ADA',  name: 'Cardano', color: '#0033ad' },
+  { symbol: 'DOGE', name: 'Dogecoin', color: '#c2a633' },
+  { symbol: 'TRX',  name: 'TRON', color: '#ff060a' },
+  { symbol: 'DOT',  name: 'Polkadot', color: '#e6007a' },
+  { symbol: 'AVAX', name: 'Avalanche', color: '#e84142' },
+  { symbol: 'LINK', name: 'Chainlink', color: '#2a5ada' },
+  { symbol: 'LTC',  name: 'Litecoin', color: '#345d9d' },
+  { symbol: 'MATIC',name: 'Polygon', color: '#8247e5' },
+  { symbol: 'SHIB', name: 'Shiba Inu', color: '#e8a607' },
+  { symbol: 'UNI',  name: 'Uniswap', color: '#ff007a' },
+  // Tier 3 — Mid caps
+  { symbol: 'ATOM', name: 'Cosmos', color: '#2e3148' },
+  { symbol: 'ETC',  name: 'Ethereum Classic', color: '#328332' },
+  { symbol: 'NEAR', name: 'NEAR Protocol', color: '#000000' },
+  { symbol: 'APT',  name: 'Aptos', color: '#00d4aa' },
+  { symbol: 'ARB',  name: 'Arbitrum', color: '#2d374b' },
+  { symbol: 'OP',   name: 'Optimism', color: '#ff0420' },
+  { symbol: 'SUI',  name: 'Sui', color: '#4da2ff' },
+  { symbol: 'TON',  name: 'Toncoin', color: '#0088cc' },
+  { symbol: 'BCH',  name: 'Bitcoin Cash', color: '#8dc351' },
+  { symbol: 'XLM',  name: 'Stellar', color: '#14b6e7' },
+  { symbol: 'ALGO', name: 'Algorand', color: '#00a4e0' },
+  { symbol: 'FIL',  name: 'Filecoin', color: '#0090ff' },
+  { symbol: 'VET',  name: 'VeChain', color: '#15bdff' },
+  { symbol: 'ICP',  name: 'Internet Computer', color: '#3b00b9' },
+  { symbol: 'PEPE', name: 'Pepe', color: '#4caf50' },
+  { symbol: 'FET',  name: 'Fetch.ai', color: '#201c5a' },
 ]
 
 const FREQUENCIES = [

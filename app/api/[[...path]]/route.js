@@ -158,13 +158,44 @@ const WALLET_CONVERT_FEE = 0.001 // 0.1% fee on conversions (matches trading fee
 // Supported wallet assets. `stable` coins are pegged to $1; others are priced
 // from the market data provider via the `${symbol}USD` quote.
 const WALLET_ASSETS = [
+  // Stablecoins
   { symbol: 'USDT', name: 'TetherUS',  network: 'Tron (TRC20)',      stable: true  },
   { symbol: 'USDC', name: 'USD Coin',  network: 'Ethereum (ERC20)',  stable: true  },
+  { symbol: 'DAI',  name: 'Dai',       network: 'Ethereum (ERC20)',  stable: true  },
+  // Tier 1 — Major caps
   { symbol: 'BTC',  name: 'Bitcoin',   network: 'Bitcoin',           stable: false },
   { symbol: 'ETH',  name: 'Ethereum',  network: 'Ethereum (ERC20)',  stable: false },
   { symbol: 'BNB',  name: 'BNB',       network: 'BNB Smart Chain',   stable: false },
   { symbol: 'SOL',  name: 'Solana',    network: 'Solana',            stable: false },
   { symbol: 'XRP',  name: 'XRP',       network: 'XRP Ledger',        stable: false },
+  // Tier 2 — Large caps
+  { symbol: 'ADA',  name: 'Cardano',   network: 'Cardano',           stable: false },
+  { symbol: 'DOGE', name: 'Dogecoin',  network: 'Dogecoin',          stable: false },
+  { symbol: 'TRX',  name: 'TRON',      network: 'Tron (TRC20)',      stable: false },
+  { symbol: 'DOT',  name: 'Polkadot',  network: 'Polkadot',          stable: false },
+  { symbol: 'AVAX', name: 'Avalanche', network: 'Avalanche C-Chain', stable: false },
+  { symbol: 'LINK', name: 'Chainlink', network: 'Ethereum (ERC20)',  stable: false },
+  { symbol: 'LTC',  name: 'Litecoin',  network: 'Litecoin',          stable: false },
+  { symbol: 'MATIC',name: 'Polygon',   network: 'Polygon',           stable: false },
+  { symbol: 'SHIB', name: 'Shiba Inu', network: 'Ethereum (ERC20)',  stable: false },
+  { symbol: 'UNI',  name: 'Uniswap',   network: 'Ethereum (ERC20)',  stable: false },
+  // Tier 3 — Mid caps
+  { symbol: 'ATOM', name: 'Cosmos',    network: 'Cosmos',            stable: false },
+  { symbol: 'ETC',  name: 'Ethereum Classic', network: 'Ethereum Classic', stable: false },
+  { symbol: 'NEAR', name: 'NEAR Protocol', network: 'NEAR',          stable: false },
+  { symbol: 'APT',  name: 'Aptos',     network: 'Aptos',             stable: false },
+  { symbol: 'ARB',  name: 'Arbitrum',  network: 'Arbitrum One',      stable: false },
+  { symbol: 'OP',   name: 'Optimism',  network: 'Optimism',          stable: false },
+  { symbol: 'SUI',  name: 'Sui',       network: 'Sui',               stable: false },
+  { symbol: 'TON',  name: 'Toncoin',   network: 'TON',               stable: false },
+  { symbol: 'BCH',  name: 'Bitcoin Cash', network: 'Bitcoin Cash', stable: false },
+  { symbol: 'XLM',  name: 'Stellar',   network: 'Stellar',           stable: false },
+  { symbol: 'ALGO', name: 'Algorand',  network: 'Algorand',          stable: false },
+  { symbol: 'FIL',  name: 'Filecoin',  network: 'Filecoin',          stable: false },
+  { symbol: 'VET',  name: 'VeChain',   network: 'VeChain',           stable: false },
+  { symbol: 'ICP',  name: 'Internet Computer', network: 'Internet Computer', stable: false },
+  { symbol: 'PEPE', name: 'Pepe',      network: 'Ethereum (ERC20)',  stable: false },
+  { symbol: 'FET',  name: 'Fetch.ai',  network: 'Ethereum (ERC20)',  stable: false },
 ]
 const WALLET_ASSET_MAP = Object.fromEntries(WALLET_ASSETS.map((a) => [a.symbol, a]))
 // New wallets are seeded with this much USDT so Convert/Send are usable in the demo.

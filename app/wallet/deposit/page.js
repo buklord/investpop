@@ -27,19 +27,28 @@ const PAYMENT_METHODS = [
     color: 'text-orange-400',
     bg: 'bg-orange-500/10 border-orange-500/30',
     activeBg: 'bg-orange-500/20 border-orange-500',
-    // Address is provided by the server on submission; shown after server responds
     address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
     network: 'Bitcoin Network'
+  },
+  {
+    id: 'ETH',
+    label: 'Ethereum',
+    icon: 'Ξ',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/10 border-indigo-500/30',
+    activeBg: 'bg-indigo-500/20 border-indigo-500',
+    address: '0x0000000000000000000000000000000000000000',
+    network: 'Ethereum (ERC20)'
   },
   {
     id: 'USDT',
     label: 'Tether (USDT)',
     icon: '₮',
-    color: 'text-green-400',
-    bg: 'bg-green-500/10 border-green-500/30',
-    activeBg: 'bg-green-500/20 border-green-500',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/10 border-emerald-500/30',
+    activeBg: 'bg-emerald-500/20 border-emerald-500',
     address: '0xFfEDDe5a3f65685b7fbCeb24B864B23d1fDf5FB4',
-    network: 'ERC-20 (Ethereum)'
+    network: 'Tron (TRC20)'
   },
   {
     id: 'USDC',
@@ -49,8 +58,88 @@ const PAYMENT_METHODS = [
     bg: 'bg-blue-500/10 border-blue-500/30',
     activeBg: 'bg-blue-500/20 border-blue-500',
     address: '0x0000000000000000000000000000000000000000',
-    network: 'ERC-20 (Ethereum)'
-  }
+    network: 'Ethereum (ERC20)'
+  },
+  {
+    id: 'DAI',
+    label: 'Dai (DAI)',
+    icon: '◈',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10 border-yellow-500/30',
+    activeBg: 'bg-yellow-500/20 border-yellow-500',
+    address: '0x0000000000000000000000000000000000000000',
+    network: 'Ethereum (ERC20)'
+  },
+  {
+    id: 'BNB',
+    label: 'BNB',
+    icon: 'B',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10 border-yellow-500/30',
+    activeBg: 'bg-yellow-500/20 border-yellow-500',
+    address: '0x0000000000000000000000000000000000000000',
+    network: 'BNB Smart Chain'
+  },
+  {
+    id: 'SOL',
+    label: 'Solana',
+    icon: 'S',
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/10 border-violet-500/30',
+    activeBg: 'bg-violet-500/20 border-violet-500',
+    address: '',
+    network: 'Solana'
+  },
+  {
+    id: 'XRP',
+    label: 'XRP',
+    icon: 'X',
+    color: 'text-slate-400',
+    bg: 'bg-slate-500/10 border-slate-500/30',
+    activeBg: 'bg-slate-500/20 border-slate-500',
+    address: '',
+    network: 'XRP Ledger'
+  },
+  {
+    id: 'ADA',
+    label: 'Cardano',
+    icon: 'A',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10 border-blue-500/30',
+    activeBg: 'bg-blue-500/20 border-blue-500',
+    address: '',
+    network: 'Cardano'
+  },
+  {
+    id: 'DOGE',
+    label: 'Dogecoin',
+    icon: 'D',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10 border-yellow-500/30',
+    activeBg: 'bg-yellow-500/20 border-yellow-500',
+    address: '',
+    network: 'Dogecoin'
+  },
+  {
+    id: 'LTC',
+    label: 'Litecoin',
+    icon: 'Ł',
+    color: 'text-gray-400',
+    bg: 'bg-gray-500/10 border-gray-500/30',
+    activeBg: 'bg-gray-500/20 border-gray-500',
+    address: '',
+    network: 'Litecoin'
+  },
+  {
+    id: 'TRX',
+    label: 'TRON',
+    icon: 'T',
+    color: 'text-red-400',
+    bg: 'bg-red-500/10 border-red-500/30',
+    activeBg: 'bg-red-500/20 border-red-500',
+    address: '',
+    network: 'Tron (TRC20)'
+  },
 ]
 
 export default function DepositPage() {

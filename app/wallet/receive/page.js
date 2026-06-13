@@ -11,13 +11,44 @@ import AppSidebar from '@/components/AppSidebar'
 import TopNav from '@/components/TopNav'
 
 const ASSETS = [
+  // Stablecoins
   { asset: 'USDT', name: 'TetherUS' },
   { asset: 'USDC', name: 'USD Coin' },
-  { asset: 'BTC', name: 'Bitcoin' },
-  { asset: 'ETH', name: 'Ethereum' },
-  { asset: 'BNB', name: 'BNB' },
-  { asset: 'SOL', name: 'Solana' },
-  { asset: 'XRP', name: 'XRP' },
+  { asset: 'DAI',  name: 'Dai' },
+  // Tier 1 — Major caps
+  { asset: 'BTC',  name: 'Bitcoin' },
+  { asset: 'ETH',  name: 'Ethereum' },
+  { asset: 'BNB',  name: 'BNB' },
+  { asset: 'SOL',  name: 'Solana' },
+  { asset: 'XRP',  name: 'XRP' },
+  // Tier 2 — Large caps
+  { asset: 'ADA',  name: 'Cardano' },
+  { asset: 'DOGE', name: 'Dogecoin' },
+  { asset: 'TRX',  name: 'TRON' },
+  { asset: 'DOT',  name: 'Polkadot' },
+  { asset: 'AVAX', name: 'Avalanche' },
+  { asset: 'LINK', name: 'Chainlink' },
+  { asset: 'LTC',  name: 'Litecoin' },
+  { asset: 'MATIC',name: 'Polygon' },
+  { asset: 'SHIB', name: 'Shiba Inu' },
+  { asset: 'UNI',  name: 'Uniswap' },
+  // Tier 3 — Mid caps
+  { asset: 'ATOM', name: 'Cosmos' },
+  { asset: 'ETC',  name: 'Ethereum Classic' },
+  { asset: 'NEAR', name: 'NEAR Protocol' },
+  { asset: 'APT',  name: 'Aptos' },
+  { asset: 'ARB',  name: 'Arbitrum' },
+  { asset: 'OP',   name: 'Optimism' },
+  { asset: 'SUI',  name: 'Sui' },
+  { asset: 'TON',  name: 'Toncoin' },
+  { asset: 'BCH',  name: 'Bitcoin Cash' },
+  { asset: 'XLM',  name: 'Stellar' },
+  { asset: 'ALGO', name: 'Algorand' },
+  { asset: 'FIL',  name: 'Filecoin' },
+  { asset: 'VET',  name: 'VeChain' },
+  { asset: 'ICP',  name: 'Internet Computer' },
+  { asset: 'PEPE', name: 'Pepe' },
+  { asset: 'FET',  name: 'Fetch.ai' },
 ]
 
 export default function ReceivePage() {
