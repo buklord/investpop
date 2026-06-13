@@ -53,6 +53,62 @@ export default function LoginPage() {
     } finally { setSubmitting(false) }
   }
 
+  const handleWalletLogin = async () => {
+    setError('')
+    setSubmitting(true)
+    try {
+      if (typeof window === 'undefined' || !window.ethereum) {
+        setError('No wallet detected. Install MetaMask, Trust Wallet, or use a Web3 browser.')
+        setSubmitting(false)
+        return
+      }
+
+      // Request accounts
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      if (!accounts || accounts.length === 0) {
+        setError('Wallet connection rejected. Please try again.')
+        setSubmitting(false)
+        return
+      }
+      const address = accounts[0]
+
+      // Generate nonce message
+      const nonce = Date.now().toString()
+      const message = `Sign in to VaultQuokka:\nWallet: ${address}\nNonce: ${nonce}\n\nThis proves you own this wallet. No transaction will be charged.`
+
+      // Request signature
+      let signature
+      try {
+        signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [message, address],
+        })
+      } catch (signErr) {
+        setError('Signature rejected. You must sign the message to log in.')
+        setSubmitting(false)
+        return
+      }
+
+      // Send to backend
+      const res = await fetch('/api/auth/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, message, signature }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Wallet authentication failed.')
+        setSubmitting(false)
+        return
+      }
+
+      router.push('/dashboard')
+    } catch (err) {
+      console.error('[wallet/login]', err)
+      setError('Wallet connection failed. Please try again.')
+    } finally { setSubmitting(false) }
+  }
+
   const handleResendVerification = async () => {
     try {
       const res = await fetch('/api/auth/resend-verification', {
@@ -125,6 +181,20 @@ export default function LoginPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             Sign in with Google
+          </button>
+
+          <button
+            type="button"
+            onClick={handleWalletLogin}
+            disabled={submitting}
+            className="w-full h-11 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium text-sm flex items-center justify-center gap-2 hover:from-orange-600 hover:to-amber-600 transition-colors disabled:opacity-50"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
+              <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
+              <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
+            </svg>
+            Connect Wallet
           </button>
 
           <div className="relative my-2">
