@@ -558,6 +558,65 @@ export default function HomePage() {
                         Continue with Google
                       </button>
 
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setError('')
+                          setSubmitting(true)
+                          try {
+                            if (typeof window === 'undefined' || !window.ethereum) {
+                              setError('No wallet detected. Install MetaMask, Trust Wallet, or use a Web3 browser.')
+                              setSubmitting(false)
+                              return
+                            }
+                            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+                            if (!accounts || accounts.length === 0) {
+                              setError('Wallet connection rejected. Please try again.')
+                              setSubmitting(false)
+                              return
+                            }
+                            const address = accounts[0]
+                            const nonce = Date.now().toString()
+                            const message = `Sign in to VaultQuokka:\nWallet: ${address}\nNonce: ${nonce}\n\nThis proves you own this wallet. No transaction will be charged.`
+                            let signature
+                            try {
+                              signature = await window.ethereum.request({
+                                method: 'personal_sign',
+                                params: [message, address],
+                              })
+                            } catch {
+                              setError('Signature rejected. You must sign the message to log in.')
+                              setSubmitting(false)
+                              return
+                            }
+                            const res = await fetch('/api/auth/wallet', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ address, message, signature }),
+                            })
+                            const data = await res.json().catch(() => ({}))
+                            if (!res.ok) {
+                              setError(data.error || 'Wallet authentication failed.')
+                              setSubmitting(false)
+                              return
+                            }
+                            router.push('/dashboard')
+                          } catch (err) {
+                            console.error('[wallet/login]', err)
+                            setError('Wallet connection failed. Please try again.')
+                          } finally { setSubmitting(false) }
+                        }}
+                        disabled={submitting}
+                        className="w-full h-11 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium text-sm flex items-center justify-center gap-2 hover:from-orange-600 hover:to-amber-600 transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
+                          <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
+                          <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
+                        </svg>
+                        Connect Wallet
+                      </button>
+
                       <div className="relative">
                         <div className="absolute inset-0 flex items-center">
                           <div className="w-full border-t border-white/[0.12]" />
