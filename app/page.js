@@ -422,7 +422,7 @@ export default function HomePage() {
                   </div>
                   <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/[0.05] text-white/40 border border-white/[0.09] rounded-full px-3 py-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-white/30 flex-shrink-0" aria-hidden="true" />
-                    No card required
+                    Card payment accepted
                   </div>
                 </div>
                 <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold tracking-tight leading-[1.08]">
@@ -975,7 +975,7 @@ export default function HomePage() {
                 {
                   step: '01',
                   title: 'Create your free account',
-                  body: 'Sign up with just an email — no card, no deposit. Your wallet and trading account are ready in seconds with $100,000 in virtual funds.',
+                  body: 'Sign up with your email or Google in seconds. Get a wallet and trading account instantly with $100,000 in virtual funds to practice.',
                   Icon: UserCheck,
                 },
                 {
