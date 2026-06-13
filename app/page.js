@@ -564,16 +564,18 @@ export default function HomePage() {
                           setError('')
                           setSubmitting(true)
                           try {
+                            console.log('[landing] wallet login clicked')
                             const { connectWallet, signMessage } = await import('@/lib/walletConnect')
+                            console.log('[landing] walletConnect module loaded')
                             let connected
                             try {
+                              console.log('[landing] calling connectWallet()...')
                               connected = await connectWallet()
+                              console.log('[landing] connectWallet() returned:', connected)
                             } catch (connErr) {
-                              if (connErr?.message?.includes('User closed') || connErr?.message?.includes('Modal closed')) {
-                                setError('Wallet connection cancelled.')
-                              } else {
-                                setError('Could not connect wallet. Please try again.')
-                              }
+                              console.error('[landing] wallet connect error:', connErr)
+                              const msg = connErr?.message || String(connErr)
+                              setError('Wallet error: ' + msg)
                               setSubmitting(false)
                               return
                             }

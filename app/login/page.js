@@ -57,19 +57,21 @@ export default function LoginPage() {
     setError('')
     setSubmitting(true)
     try {
+      console.log('[login] wallet login clicked')
       // Dynamically import WalletConnect utility (lazy-load)
       const { connectWallet, signMessage } = await import('@/lib/walletConnect')
+      console.log('[login] walletConnect module loaded')
 
       // Open WalletConnect QR modal (or use injected wallet if available)
       let connected
       try {
+        console.log('[login] calling connectWallet()...')
         connected = await connectWallet()
+        console.log('[login] connectWallet() returned:', connected)
       } catch (connErr) {
-        if (connErr?.message?.includes('User closed') || connErr?.message?.includes('Modal closed')) {
-          setError('Wallet connection cancelled.')
-        } else {
-          setError('Could not connect wallet. Please try again.')
-        }
+        console.error('[login] wallet connect error:', connErr)
+        const msg = connErr?.message || String(connErr)
+        setError('Wallet error: ' + msg)
         setSubmitting(false)
         return
       }
