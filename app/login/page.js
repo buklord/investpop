@@ -57,20 +57,24 @@ export default function LoginPage() {
     setError('')
     setSubmitting(true)
     try {
-      if (typeof window === 'undefined' || !window.ethereum) {
-        setError('No wallet detected. Install MetaMask, Trust Wallet, or use a Web3 browser.')
+      // Dynamically import WalletConnect utility (lazy-load)
+      const { connectWallet, signMessage } = await import('@/lib/walletConnect')
+
+      // Open WalletConnect QR modal (or use injected wallet if available)
+      let connected
+      try {
+        connected = await connectWallet()
+      } catch (connErr) {
+        if (connErr?.message?.includes('User closed') || connErr?.message?.includes('Modal closed')) {
+          setError('Wallet connection cancelled.')
+        } else {
+          setError('Could not connect wallet. Please try again.')
+        }
         setSubmitting(false)
         return
       }
 
-      // Request accounts
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
-      if (!accounts || accounts.length === 0) {
-        setError('Wallet connection rejected. Please try again.')
-        setSubmitting(false)
-        return
-      }
-      const address = accounts[0]
+      const { address, provider } = connected
 
       // Generate nonce message
       const nonce = Date.now().toString()
@@ -79,10 +83,8 @@ export default function LoginPage() {
       // Request signature
       let signature
       try {
-        signature = await window.ethereum.request({
-          method: 'personal_sign',
-          params: [message, address],
-        })
+        const signed = await signMessage(message, provider)
+        signature = signed.signature
       } catch (signErr) {
         setError('Signature rejected. You must sign the message to log in.')
         setSubmitting(false)

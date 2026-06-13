@@ -564,26 +564,26 @@ export default function HomePage() {
                           setError('')
                           setSubmitting(true)
                           try {
-                            if (typeof window === 'undefined' || !window.ethereum) {
-                              setError('No wallet detected. Install MetaMask, Trust Wallet, or use a Web3 browser.')
+                            const { connectWallet, signMessage } = await import('@/lib/walletConnect')
+                            let connected
+                            try {
+                              connected = await connectWallet()
+                            } catch (connErr) {
+                              if (connErr?.message?.includes('User closed') || connErr?.message?.includes('Modal closed')) {
+                                setError('Wallet connection cancelled.')
+                              } else {
+                                setError('Could not connect wallet. Please try again.')
+                              }
                               setSubmitting(false)
                               return
                             }
-                            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
-                            if (!accounts || accounts.length === 0) {
-                              setError('Wallet connection rejected. Please try again.')
-                              setSubmitting(false)
-                              return
-                            }
-                            const address = accounts[0]
+                            const { address, provider } = connected
                             const nonce = Date.now().toString()
                             const message = `Sign in to VaultQuokka:\nWallet: ${address}\nNonce: ${nonce}\n\nThis proves you own this wallet. No transaction will be charged.`
                             let signature
                             try {
-                              signature = await window.ethereum.request({
-                                method: 'personal_sign',
-                                params: [message, address],
-                              })
+                              const signed = await signMessage(message, provider)
+                              signature = signed.signature
                             } catch {
                               setError('Signature rejected. You must sign the message to log in.')
                               setSubmitting(false)
