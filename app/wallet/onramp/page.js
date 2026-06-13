@@ -71,6 +71,8 @@ export default function OnrampPage() {
   const [selectedAsset, setSelectedAsset] = useState('USDT')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const [showAllAssets, setShowAllAssets] = useState(false)
+  const ASSET_PAGE_SIZE = 10
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -167,7 +169,7 @@ export default function OnrampPage() {
                     <div>
                       <label className="text-muted-foreground text-xs mb-1.5 block">You receive</label>
                       <div className="grid grid-cols-2 gap-2">
-                        {ASSETS.map(a => (
+                        {ASSETS.slice(0, showAllAssets ? undefined : ASSET_PAGE_SIZE).map(a => (
                           <button
                             key={a.symbol}
                             onClick={() => setSelectedAsset(a.symbol)}
@@ -187,6 +189,15 @@ export default function OnrampPage() {
                           </button>
                         ))}
                       </div>
+                      {ASSETS.length > ASSET_PAGE_SIZE && (
+                        <button
+                          onClick={() => setShowAllAssets(v => !v)}
+                          className="w-full mt-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-emerald-500/5"
+                        >
+                          {showAllAssets ? 'Show less' : `Show ${ASSETS.length - ASSET_PAGE_SIZE} more`}
+                          <span className={`transition-transform ${showAllAssets ? 'rotate-180' : ''}`}>▼</span>
+                        </button>
+                      )}
                     </div>
                     <Button onClick={() => setStep(2)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
                       Continue <ChevronRight className="h-4 w-4 ml-1" />

@@ -69,6 +69,8 @@ export default function WalletPage() {
   const [perfData, setPerfData] = useState([])
   const [showShare, setShowShare] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [showAllBalances, setShowAllBalances] = useState(false)
+  const BALANCES_PAGE_SIZE = 10
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => { if (user) { loadData(); loadPerformance() } }, [user])
@@ -592,7 +594,10 @@ export default function WalletPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(spot?.balances || []).map(b => {
+                  {(spot?.balances || [])
+                    .sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0))
+                    .slice(0, showAllBalances ? undefined : BALANCES_PAGE_SIZE)
+                    .map(b => {
                     const sparkline = b.sparkline || Array.from({ length: 20 }, (_, i) => 50 + Math.sin(i * 0.5) * 20 + Math.random() * 10)
                     const sparkMin = Math.min(...sparkline)
                     const sparkMax = Math.max(...sparkline)
@@ -658,6 +663,17 @@ export default function WalletPage() {
                   )}
                 </tbody>
               </table>
+              {(spot?.balances || []).length > BALANCES_PAGE_SIZE && (
+                <div className="px-4 py-3 border-t border-border/60 flex items-center justify-center">
+                  <button
+                    onClick={() => setShowAllBalances(v => !v)}
+                    className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5"
+                  >
+                    {showAllBalances ? 'Show less' : `Show ${(spot?.balances || []).length - BALANCES_PAGE_SIZE} more`}
+                    <span className={`transition-transform ${showAllBalances ? 'rotate-180' : ''}`}>▼</span>
+                  </button>
+                </div>
+              )}
             </div>
           </Card>
 
