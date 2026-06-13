@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { createSession, getSessionCookieOptions, COOKIE_NAME } from '@/lib/auth'
+import { sendEmail } from '@/lib/email'
+import { welcomeEmail } from '@/lib/emailTemplates'
 import { v4 as uuidv4 } from 'uuid'
 
 async function getGoogleToken(code, redirectUri) {
@@ -116,6 +118,19 @@ export async function GET(request) {
         } else {
           throw dbErr
         }
+      }
+
+      // Send welcome email (best-effort)
+      try {
+        const template = welcomeEmail({ firstName, lastName })
+        await sendEmail({
+          to: email,
+          subject: template.subject,
+          text: template.text,
+          html: template.html
+        })
+      } catch (e) {
+        console.warn('[google/callback] welcome email failed:', e.message)
       }
 
       user = { id: userId, email, first_name: firstName, last_name: lastName, role: 'USER', email_verified: true, is_suspended: false }
