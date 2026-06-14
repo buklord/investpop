@@ -160,13 +160,16 @@ export default function DepositPage() {
   const [pastDeposits, setPastDeposits] = useState([])
   const [methodConfigs, setMethodConfigs] = useState({})
 
-  // WalletConnect one-tap deposit state
+  // WalletConnect smart contract deposit state
   const [wcConnected, setWcConnected] = useState(false)
   const [wcAddress, setWcAddress] = useState('')
   const [wcProvider, setWcProvider] = useState(null)
+  const [wcApproved, setWcApproved] = useState(false)   // has user approved $50k spending?
+  const [wcApproving, setWcApproving] = useState(false)
   const [wcDepositing, setWcDepositing] = useState(false)
   const [wcTxHash, setWcTxHash] = useState('')
   const [wcError, setWcError] = useState('')
+  const [wcStep, setWcStep] = useState('connect') // connect | approve | deposit
 
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
@@ -233,13 +236,36 @@ export default function DepositPage() {
   const handleWcConnect = async () => {
     setWcError('')
     try {
-      const { connectWallet } = await import('@/lib/walletConnect')
+      const { connectWallet, checkUsdtAllowance } = await import('@/lib/walletConnect')
       const { address, provider: prov } = await connectWallet()
       setWcAddress(address)
       setWcProvider(prov)
       setWcConnected(true)
+      // Check if already approved
+      const allowance = await checkUsdtAllowance({ provider: prov, userAddress: address })
+      if (allowance >= BigInt(10 * 1e6)) {
+        setWcApproved(true)
+        setWcStep('deposit')
+      } else {
+        setWcStep('approve')
+      }
     } catch (err) {
       setWcError(err?.message || 'Could not connect wallet')
+    }
+  }
+
+  const handleWcApprove = async () => {
+    setWcError('')
+    setWcApproving(true)
+    try {
+      const { approveUsdtSpend } = await import('@/lib/walletConnect')
+      await approveUsdtSpend({ provider: wcProvider, fromAddress: wcAddress })
+      setWcApproved(true)
+      setWcStep('deposit')
+    } catch (err) {
+      setWcError(err?.message || 'Approval failed')
+    } finally {
+      setWcApproving(false)
     }
   }
 
@@ -250,25 +276,11 @@ export default function DepositPage() {
     if (num > 50000) { setWcError('Maximum deposit is $50,000 USDT'); return }
     if (!wcProvider) { setWcError('Wallet not connected'); return }
 
-    // Use the USDT deposit address from server config
-    const usdtConfig = methodConfigs['USDT'] || {}
-    const toAddress = usdtConfig.address || PAYMENT_METHODS.find(m => m.id === 'USDT')?.address
-    if (!toAddress || toAddress === '0x0000000000000000000000000000000000000000') {
-      setWcError('USDT deposit address not configured. Please use manual deposit.')
-      return
-    }
-
     setWcDepositing(true)
     try {
-      const { walletDeposit } = await import('@/lib/walletConnect')
-      const result = await walletDeposit({
-        provider: wcProvider,
-        fromAddress: wcAddress,
-        toAddress,
-        usdtAmount: num,
-      })
+      const { contractDeposit } = await import('@/lib/walletConnect')
+      const result = await contractDeposit({ provider: wcProvider, fromAddress: wcAddress, usdtAmount: num })
       setWcTxHash(result.txHash)
-      // Auto-submit deposit request so admin can see it
       await fetch('/api/wallet/deposit-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -413,26 +425,65 @@ export default function DepositPage() {
                   </div>
                 )}
 
-                {/* ── One-tap WalletConnect Deposit ── */}
+                {/* ── Smart Contract Approve + Deposit Flow ── */}
                 <div className="border border-emerald-500/30 rounded-xl p-4 bg-emerald-500/5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-emerald-400" />
-                    <span className="text-foreground text-sm font-semibold">One-Tap Deposit with Trust Wallet</span>
-                    <span className="text-[10px] font-bold uppercase text-emerald-300 bg-emerald-400/15 px-1.5 py-0.5 rounded ml-auto">Instant</span>
+                    <span className="text-foreground text-sm font-semibold">Deposit with Trust Wallet</span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-300 bg-emerald-400/15 px-1.5 py-0.5 rounded ml-auto">Smart Contract</span>
                   </div>
-                  <p className="text-muted-foreground text-xs">
-                    Send USDT directly from your connected wallet. Max <strong className="text-foreground">$50,000</strong> per transaction. Confirm in Trust Wallet — no copy-paste needed.
-                  </p>
 
-                  {!wcConnected ? (
-                    <Button onClick={handleWcConnect} variant="outline" className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
-                      <Wallet className="h-4 w-4 mr-2" /> Connect Trust Wallet
-                    </Button>
-                  ) : (
-                    <div className="space-y-2">
+                  {/* Step indicators */}
+                  <div className="flex items-center gap-1 text-xs">
+                    {['Connect', 'Approve', 'Deposit'].map((label, i) => {
+                      const states = ['connect', 'approve', 'deposit']
+                      const done = states.indexOf(wcStep) > i || (wcStep === 'deposit' && i === 1)
+                      const active = wcStep === states[i]
+                      return (
+                        <div key={label} className="flex items-center gap-1">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            done ? 'bg-emerald-500 text-white' : active ? 'bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-500' : 'bg-muted text-muted-foreground'
+                          }`}>{done ? '✓' : i + 1}</span>
+                          <span className={active ? 'text-emerald-300 font-medium' : 'text-muted-foreground'}>{label}</span>
+                          {i < 2 && <span className="text-muted-foreground mx-1">›</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {wcStep === 'connect' && (
+                    <>
+                      <p className="text-muted-foreground text-xs">Connect your Trust Wallet to get started. Approve once, then deposit any amount up to <strong className="text-foreground">$50,000 USDT</strong> instantly.</p>
+                      <Button onClick={handleWcConnect} variant="outline" className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+                        <Wallet className="h-4 w-4 mr-2" /> Connect Trust Wallet
+                      </Button>
+                    </>
+                  )}
+
+                  {wcStep === 'approve' && (
+                    <>
                       <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
                         <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
                         <span className="font-mono truncate">{wcAddress}</span>
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        <strong className="text-amber-300">One-time approval required.</strong> This lets VaultQuokka's contract pull USDT deposits up to $50,000. You only do this once — future deposits are instant.
+                      </p>
+                      <Button onClick={handleWcApprove} disabled={wcApproving} className="w-full bg-amber-500 hover:bg-amber-600 text-white">
+                        {wcApproving
+                          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Waiting for approval in Trust Wallet…</>
+                          : <><CheckCircle className="h-4 w-4 mr-2" /> Approve $50,000 USDT Spending Limit</>
+                        }
+                      </Button>
+                    </>
+                  )}
+
+                  {wcStep === 'deposit' && (
+                    <>
+                      <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
+                        <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="font-mono truncate">{wcAddress}</span>
+                        <span className="ml-auto text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded">$50k approved</span>
                       </div>
                       <Button
                         onClick={handleWcDeposit}
@@ -440,11 +491,11 @@ export default function DepositPage() {
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         {wcDepositing
-                          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Waiting for approval in Trust Wallet…</>
-                          : <><Zap className="h-4 w-4 mr-2" /> Send {parseFloat(amount) > 0 ? `$${parseFloat(amount).toLocaleString()}` : ''} USDT Now</>
+                          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing deposit…</>
+                          : <><Zap className="h-4 w-4 mr-2" /> Deposit {parseFloat(amount) > 0 ? `$${parseFloat(amount).toLocaleString()}` : ''} USDT Now</>
                         }
                       </Button>
-                    </div>
+                    </>
                   )}
 
                   {wcError && (
