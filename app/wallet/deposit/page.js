@@ -15,7 +15,9 @@ import {
   Copy,
   Wallet,
   Bitcoin,
-  DollarSign
+  DollarSign,
+  Zap,
+  ExternalLink
 } from 'lucide-react'
 import AppSidebar from '@/components/AppSidebar'
 
@@ -158,6 +160,14 @@ export default function DepositPage() {
   const [pastDeposits, setPastDeposits] = useState([])
   const [methodConfigs, setMethodConfigs] = useState({})
 
+  // WalletConnect one-tap deposit state
+  const [wcConnected, setWcConnected] = useState(false)
+  const [wcAddress, setWcAddress] = useState('')
+  const [wcProvider, setWcProvider] = useState(null)
+  const [wcDepositing, setWcDepositing] = useState(false)
+  const [wcTxHash, setWcTxHash] = useState('')
+  const [wcError, setWcError] = useState('')
+
   useEffect(() => { checkAuth() }, [])
   useEffect(() => {
     if (user) {
@@ -218,6 +228,59 @@ export default function DepositPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  const handleWcConnect = async () => {
+    setWcError('')
+    try {
+      const { connectWallet } = await import('@/lib/walletConnect')
+      const { address, provider: prov } = await connectWallet()
+      setWcAddress(address)
+      setWcProvider(prov)
+      setWcConnected(true)
+    } catch (err) {
+      setWcError(err?.message || 'Could not connect wallet')
+    }
+  }
+
+  const handleWcDeposit = async () => {
+    setWcError('')
+    const num = parseFloat(amount)
+    if (!num || num < 10) { setWcError('Minimum deposit is $10'); return }
+    if (num > 50000) { setWcError('Maximum deposit is $50,000 USDT'); return }
+    if (!wcProvider) { setWcError('Wallet not connected'); return }
+
+    // Use the USDT deposit address from server config
+    const usdtConfig = methodConfigs['USDT'] || {}
+    const toAddress = usdtConfig.address || PAYMENT_METHODS.find(m => m.id === 'USDT')?.address
+    if (!toAddress || toAddress === '0x0000000000000000000000000000000000000000') {
+      setWcError('USDT deposit address not configured. Please use manual deposit.')
+      return
+    }
+
+    setWcDepositing(true)
+    try {
+      const { walletDeposit } = await import('@/lib/walletConnect')
+      const result = await walletDeposit({
+        provider: wcProvider,
+        fromAddress: wcAddress,
+        toAddress,
+        usdtAmount: num,
+      })
+      setWcTxHash(result.txHash)
+      // Auto-submit deposit request so admin can see it
+      await fetch('/api/wallet/deposit-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: num, method: 'USDT', txHash: result.txHash }),
+      })
+      setStep(3)
+      loadDeposits()
+    } catch (err) {
+      setWcError(err?.message || 'Transaction failed')
+    } finally {
+      setWcDepositing(false)
+    }
   }
 
   const handleConfirmPayment = async () => {
@@ -350,8 +413,56 @@ export default function DepositPage() {
                   </div>
                 )}
 
-                <Button onClick={handleNext} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">
-                  Continue to Payment →
+                {/* ── One-tap WalletConnect Deposit ── */}
+                <div className="border border-emerald-500/30 rounded-xl p-4 bg-emerald-500/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-emerald-400" />
+                    <span className="text-foreground text-sm font-semibold">One-Tap Deposit with Trust Wallet</span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-300 bg-emerald-400/15 px-1.5 py-0.5 rounded ml-auto">Instant</span>
+                  </div>
+                  <p className="text-muted-foreground text-xs">
+                    Send USDT directly from your connected wallet. Max <strong className="text-foreground">$50,000</strong> per transaction. Confirm in Trust Wallet — no copy-paste needed.
+                  </p>
+
+                  {!wcConnected ? (
+                    <Button onClick={handleWcConnect} variant="outline" className="w-full border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+                      <Wallet className="h-4 w-4 mr-2" /> Connect Trust Wallet
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
+                        <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="font-mono truncate">{wcAddress}</span>
+                      </div>
+                      <Button
+                        onClick={handleWcDeposit}
+                        disabled={wcDepositing}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {wcDepositing
+                          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Waiting for approval in Trust Wallet…</>
+                          : <><Zap className="h-4 w-4 mr-2" /> Send {parseFloat(amount) > 0 ? `$${parseFloat(amount).toLocaleString()}` : ''} USDT Now</>
+                        }
+                      </Button>
+                    </div>
+                  )}
+
+                  {wcError && (
+                    <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                      {wcError}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-muted-foreground text-xs">or deposit manually</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+
+                <Button onClick={handleNext} className="bg-muted hover:bg-muted/80 text-foreground border border-border w-full">
+                  Manual Crypto Deposit →
                 </Button>
               </CardContent>
             </Card>
