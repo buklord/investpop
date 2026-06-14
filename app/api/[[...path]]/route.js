@@ -1333,28 +1333,39 @@ async function handleRoute(request, context) {
     // GET /api/alerts/active-count  — must come before /alerts/:id
     if (route === '/alerts/active-count' && method === 'GET') {
       const auth = await requireAuth()
-      await getSchemaInitPromise() // ensure price_alerts table exists
-      const rows = await prisma.$queryRaw`
-        SELECT COUNT(*)::int AS count FROM price_alerts
-        WHERE user_id = ${auth.user.userId} AND triggered = FALSE
-      `
-      return handleCORS(NextResponse.json({ count: Number(rows[0]?.count || 0) }))
+      if (auth.error) return handleCORS(NextResponse.json({ count: 0 }))
+      try {
+        await getSchemaInitPromise() // ensure price_alerts table exists
+        const rows = await prisma.$queryRaw`
+          SELECT COUNT(*)::int AS count FROM price_alerts
+          WHERE user_id = ${auth.user.userId} AND triggered = FALSE
+        `
+        return handleCORS(NextResponse.json({ count: Number(rows[0]?.count || 0) }))
+      } catch (_) {
+        return handleCORS(NextResponse.json({ count: 0 }))
+      }
     }
 
     // GET /api/alerts
     if (route === '/alerts' && method === 'GET') {
       const auth = await requireAuth()
-      const rows = await prisma.$queryRaw`
-        SELECT id, symbol, type, price, created_at FROM price_alerts
-        WHERE user_id = ${auth.user.userId} AND triggered = FALSE
-        ORDER BY created_at DESC
-      `
-      return handleCORS(NextResponse.json({ alerts: rows }))
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
+      try {
+        const rows = await prisma.$queryRaw`
+          SELECT id, symbol, type, price, created_at FROM price_alerts
+          WHERE user_id = ${auth.user.userId} AND triggered = FALSE
+          ORDER BY created_at DESC
+        `
+        return handleCORS(NextResponse.json({ alerts: rows }))
+      } catch (_) {
+        return handleCORS(NextResponse.json({ alerts: [] }))
+      }
     }
 
     // POST /api/alerts
     if (route === '/alerts' && method === 'POST') {
       const auth = await requireAuth()
+      if (auth.error) return handleCORS(NextResponse.json({ error: auth.error }, { status: auth.status }))
       const body = await request.json()
       const { symbol, type, price } = body
       if (!symbol || !type || !price) {
