@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
 const rawSecret = process.env.SESSION_SECRET
-const SECRET_KEY = new TextEncoder().encode(
-  rawSecret || 'fallback-secret-key-change-in-production'
-)
+// No fallback: without a real secret, nobody gets into /admin
+const SECRET_KEY = rawSecret && rawSecret.length >= 32 ? new TextEncoder().encode(rawSecret) : null
 
 const COOKIE_NAME = 'session'
 
@@ -20,6 +19,10 @@ export async function middleware(request) {
 
   // Not logged in at all → back to home/login
   if (!sessionCookie?.value) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  if (!SECRET_KEY) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
